@@ -349,7 +349,7 @@ Structured by interview round order — the thing tested first is built first.
 ## PILLAR 6: Certifications
 
 ### AWS Cloud Practitioner (CLF-C02)
-*Slot: Tue/Thu 1 hr | Target completion: early-mid Jul 2026 (ahead of schedule — Maarek finishing Jun 19)*
+*Slot: Tue/Thu 1 hr | **Exam: 2nd week of Aug 2026 (Aug 10–16)** — set 2026-07-03; prep wraps mid-Jul, light mock maintenance until exam week*
 
 | Phase | Detail | Status |
 |---|---|---|
@@ -361,7 +361,7 @@ Structured by interview round order — the thing tested first is built first.
 | Tutorials Dojo Round 2 | Score 80%+ consistently → book real exam | ⏳ |
 
 ### Databricks Data Engineer Associate (DEA)
-*Slot: Tue/Thu after AWS CCP completes (post Jul 18) | Target: Aug 2026*
+*Slot: Tue/Thu, prep starts Jul 18 | **Exam: 2nd week of Aug 2026 (Aug 10–16)** — set 2026-07-03; both certs sit the same week*
 
 | Resource | Status |
 |---|---|
