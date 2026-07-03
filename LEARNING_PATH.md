@@ -114,10 +114,10 @@ Structured by interview round order — the thing tested first is built first.
 | Small files problem: API call math, how OPTIMIZE consolidates | ✅ 2026-06-12 |
 | Dynamic file pruning + data skipping (min/max column statistics) | ✅ 2026-06-12 |
 | Delta Sharing: what problem it solves, how it differs from copying data | ✅ re-taught + retention verified 2026-07-03 |
-| Delta vs Iceberg vs Hudi: transaction log architecture differences, ecosystem split (Databricks/Apple/Uber) | 🟡 re-taught 2026-07-03; **log-structure one-liners weak — 2-min recap at start of next session** |
+| Delta vs Iceberg vs Hudi: transaction log architecture differences, ecosystem split (Databricks/Apple/Uber) | ✅ re-taught + retention verified 2026-07-03 |
 | Hands-on lab: build Delta table in CE, inspect _delta_log, watch checkpoint at v10 (walkthrough doc §23) | ✅ 2026-06-15 |
 
-*2026-07-03: §26/§27 re-teach pulled forward from Monday and completed same day. Retention check: MERGE (write-amp math ✓, corrected "OPTIMIZE = bigger files" → right-sized), CDF pre/post-image ✓, Delta Sharing (pre-signed URLs, no-Databricks recipient) ✓. Format comparison log structures still shaky → quick recap next session. Mon 2026-07-06 freed.*
+*2026-07-03: §26/§27 re-teach pulled forward from Monday and completed same day. Retention check: MERGE (write-amp math ✓, corrected "OPTIMIZE = bigger files" → right-sized), CDF pre/post-image ✓, Delta Sharing (pre-signed URLs, no-Databricks recipient) ✓. Format comparison log structures recalled correctly on retry (incl. _last_checkpoint pointer) → ✅. 2C fully complete and retained. Mon 2026-07-06 freed.*
 
 ### 2D: Structured Streaming ⭐
 *Status corrected 2026-07-03 (twice): confirmed not yet taught at all — nothing counts as done until she confirms it landed, not just because it was explained in chat.*
