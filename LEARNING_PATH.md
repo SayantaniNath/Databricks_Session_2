@@ -117,16 +117,17 @@ Structured by interview round order — the thing tested first is built first.
 | Hands-on lab: build Delta table in CE, inspect _delta_log, watch checkpoint at v10 (walkthrough doc §23) | ✅ 2026-06-15 |
 
 ### 2D: Structured Streaming ⭐
-*Est. start: 2026-07-02 (Thu) | Est. completion: 2026-07-09*
+*Actual start: 2026-06-22 (Checkpoint + query patterns) | Remaining topics + content complete: 2026-07-02*
 
 | Topic | Status |
 |---|---|
-| Checkpoint: what it stores (offsets + state), consequence of deleting it | ⏳ |
-| Watermarking: late-arriving data, how window state is evicted after watermark passes | ⏳ |
-| Output modes: append / update / complete — when each applies, constraints | ⏳ |
-| Exactly-once with Kafka: idempotent producer + transactional API + Delta atomic writes | ⏳ |
-| Atomic micro-batch commits to Delta Lake | ⏳ |
-| Trigger modes: default (micro-batch), once, processingTime, availableNow | ⏳ |
+| Checkpoint: what it stores (offsets + state), consequence of deleting it | ✅ 2026-06-22 |
+| Output modes: append / update / complete — when each applies, constraints | ✅ 2026-06-22 |
+| Watermarking: late-arriving data, how window state is evicted after watermark passes | ✅ 2026-07-02 |
+| Exactly-once with Kafka: idempotent producer + transactional API + Delta atomic writes | ✅ 2026-07-02 |
+| Atomic micro-batch commits to Delta Lake | ✅ 2026-07-02 |
+| Trigger modes: default (micro-batch), once, processingTime, availableNow | ✅ 2026-07-02 |
+| Exercises + hands-on lab | ⏳ pending |
 
 ### 2E: Delta Live Tables (DLT) ⭐
 *Est. start: 2026-07-07 | Est. completion: 2026-07-11*
