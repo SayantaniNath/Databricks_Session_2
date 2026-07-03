@@ -144,6 +144,7 @@ Structured by interview round order — the thing tested first is built first.
 | Streaming live table vs materialized view | ⏳ |
 | Schema drift prevention: StructType + Expectations pattern | ⏳ |
 | Pipeline update modes: complete vs append | ⏳ |
+| **Hands-on lab** (added 2026-07-03): build a mini Lakeflow pipeline in Free Edition — bronze→silver with expectations (warn/drop/fail), watch a violation get dropped | ⏳ |
 
 ### 2F: Unity Catalog ⭐
 *Est. start: 2026-07-11 | Est. completion: 2026-07-14*
@@ -155,6 +156,7 @@ Structured by interview round order — the thing tested first is built first.
 | Row-level security + column masking for PII | ⏳ |
 | Data lineage tracking — how it captures table-level and column-level lineage | ⏳ |
 | Metastore vs legacy Hive metastore: what changes, what migrates | ⏳ |
+| **Hands-on lab** (added 2026-07-03): in Free Edition — create catalog/schema, GRANT to a group, add a row filter + column mask on a PII column, view lineage graph | ⏳ |
 
 ### 2G: Auto Loader
 *Est. start: 2026-07-14 | Est. completion: 2026-07-16*
@@ -165,6 +167,7 @@ Structured by interview round order — the thing tested first is built first.
 | Two file discovery modes: directory listing vs file notification (Event Grid/SNS) | ⏳ |
 | Schema inference, evolution, and schema hints | ⏳ |
 | cloudFiles format in PySpark Structured Streaming | ⏳ |
+| **Hands-on lab** (added 2026-07-03): Auto Loader ingest from a UC volume — drop files in, watch incremental pickup, then add a new column to test schema evolution | ⏳ |
 
 ### 2H: MLflow Basics (appears in Databricks DE rounds)
 *Est. start: 2026-07-16 | Est. completion: 2026-07-18*
@@ -175,6 +178,7 @@ Structured by interview round order — the thing tested first is built first.
 | Model registry: stages (Staging / Production / Archived) | ⏳ |
 | Log model from PySpark/sklearn, load and serve a registered model | ⏳ |
 | MLflow UI navigation — what interviewers expect you to know | ⏳ |
+| **Hands-on lab** (added 2026-07-03): train a tiny sklearn model, log params/metrics/artifacts, register it, load it back and score a batch | ⏳ |
 
 ### 2I: Databricks Platform + Ecosystem
 *Fold into above sessions throughout Jun–Jul*
