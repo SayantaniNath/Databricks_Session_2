@@ -131,7 +131,7 @@ Structured by interview round order — the thing tested first is built first.
 | Exactly-once with Kafka: source vs sink, Kafka sink = at-least-once | 🟡 taught; **recap next session** |
 | Atomic micro-batch commits to Delta Lake (txn metadata batch-skip) | 🟡 taught; batch-skip logic unverified |
 | Trigger modes: default (micro-batch), once, processingTime, availableNow | 🟡 taught; **recap availableNow-vs-once next session** |
-| Exercises + hands-on lab | ⏳ after the 🟡 recaps |
+| Exercises + hands-on lab | 🟡 recaps + model answers reviewed 2026-07-03; **from-blank redo of Ex1–4 + Free Edition checkpoint lab pending — required before 2D closes** |
 
 ### 2E: Delta Live Tables (DLT) ⭐
 *Est. start: 2026-07-07 | Est. completion: 2026-07-11*
