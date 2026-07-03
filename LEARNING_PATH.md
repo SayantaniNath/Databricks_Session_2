@@ -109,15 +109,15 @@ Structured by interview round order — the thing tested first is built first.
 | Schema enforcement vs evolution (mergeSchema option), risks of each | ✅ 2026-06-12 |
 | OPTIMIZE + Z-ORDER: when it helps, when it doesn't, column selection strategy | ✅ 2026-06-12 (incl. liquid clustering) |
 | VACUUM: default 7-day retention, time travel impact, why to never drop below retention period | ✅ 2026-06-12 |
-| MERGE INTO: isolation level, under-the-hood mechanics, upsert patterns | 🟡 taught 2026-06-12; **not retained — revisit Mon 2026-07-06** |
-| Change Data Feed (CDF): pre-image/post-image for UPDATE, how to enable and consume | 🟡 taught 2026-06-12; **not retained — revisit Mon 2026-07-06** |
+| MERGE INTO: isolation level, under-the-hood mechanics, upsert patterns | ✅ re-taught + retention verified 2026-07-03 |
+| Change Data Feed (CDF): pre-image/post-image for UPDATE, how to enable and consume | ✅ re-taught + retention verified 2026-07-03 |
 | Small files problem: API call math, how OPTIMIZE consolidates | ✅ 2026-06-12 |
 | Dynamic file pruning + data skipping (min/max column statistics) | ✅ 2026-06-12 |
-| Delta Sharing: what problem it solves, how it differs from copying data | 🟡 taught 2026-06-15; **not retained — revisit Mon 2026-07-06** |
-| Delta vs Iceberg vs Hudi: transaction log architecture differences, ecosystem split (Databricks/Apple/Uber) | 🟡 taught 2026-06-15; **not retained — revisit Mon 2026-07-06** |
+| Delta Sharing: what problem it solves, how it differs from copying data | ✅ re-taught + retention verified 2026-07-03 |
+| Delta vs Iceberg vs Hudi: transaction log architecture differences, ecosystem split (Databricks/Apple/Uber) | 🟡 re-taught 2026-07-03; **log-structure one-liners weak — 2-min recap at start of next session** |
 | Hands-on lab: build Delta table in CE, inspect _delta_log, watch checkpoint at v10 (walkthrough doc §23) | ✅ 2026-06-15 |
 
-*2026-07-03: confirmed during a 2C recap that §26 (MERGE/CDF) and §27 (Delta Sharing, Delta vs Iceberg vs Hudi) aren't retained — scheduled for a proper detailed re-teach Monday 2026-07-06.*
+*2026-07-03: §26/§27 re-teach pulled forward from Monday and completed same day. Retention check: MERGE (write-amp math ✓, corrected "OPTIMIZE = bigger files" → right-sized), CDF pre/post-image ✓, Delta Sharing (pre-signed URLs, no-Databricks recipient) ✓. Format comparison log structures still shaky → quick recap next session. Mon 2026-07-06 freed.*
 
 ### 2D: Structured Streaming ⭐
 *Status corrected 2026-07-03 (twice): confirmed not yet taught at all — nothing counts as done until she confirms it landed, not just because it was explained in chat.*
