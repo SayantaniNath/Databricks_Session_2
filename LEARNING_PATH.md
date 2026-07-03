@@ -394,7 +394,6 @@ Structured by interview round order — the thing tested first is built first.
 
 | Project | Stack | Est. Build Window | Status |
 |---|---|---|---|
-| **FinFlow — learning sandbox** | PySpark + Pandas exercises (crypto JSONL data); not a portfolio project — skills it covers are superseded by ClinicalFlow + Databricks capstone | — | ⏹️ |
 | **AWS ClinicalFlow — Healthcare Data Lakehouse** ⭐ NEW | Synthea EHR (10yr, 64K patients) + S3 + Glue + EMR + Redshift + Lambda + Kinesis + MWAA + Iceberg + KMS + HIPAA/GDPR + **Anomaly Detection (IsolationForest on EMR)** | Phase 1: Jun 23–26 ✅ · Phase 2: Aug 1–11 · Phase 3: Aug 11–18 | 🟡 Phase 1 completing 2026-06-26 |
 | **Fraud Detection Pipeline** ⭐ | Kafka → Structured Streaming → IsolationForest → alert Kafka topic → Delta Lake → Airflow | Aug 1–11 | ⏳ |
 | **CDC Pipeline** | Debezium → Kafka → Delta (CDF enabled) + SCD Type 2 MERGE INTO | Aug 11–18 | ⏳ |
@@ -518,10 +517,6 @@ MWAA DAG:
 | BI layer: analytical views + virtual warehouse sizing + query profile exercise | ⏳ |
 
 *Interview story: "Set up Snowpipe to auto-ingest from S3, used Streams + Tasks for CDC-style incremental processing — direct comparison to Kinesis+Lambda (push) vs Snowpipe (poll/event) patterns."*
-
----
-
-**FinFlow note (Jun 2026):** Reclassified as a learning sandbox. Contains PySpark/Pandas exercises and skeleton ingestion code on crypto JSONL data — not a portfolio project. All skills it was intended to demonstrate are covered by AWS ClinicalFlow and the Databricks Lakehouse capstone. Do NOT list FinFlow on any resume variant.
 
 ---
 
