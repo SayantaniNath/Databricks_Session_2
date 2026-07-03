@@ -120,17 +120,18 @@ Structured by interview round order — the thing tested first is built first.
 *2026-07-03: §26/§27 re-teach pulled forward from Monday and completed same day. Retention check: MERGE (write-amp math ✓, corrected "OPTIMIZE = bigger files" → right-sized), CDF pre/post-image ✓, Delta Sharing (pre-signed URLs, no-Databricks recipient) ✓. Format comparison log structures recalled correctly on retry (incl. _last_checkpoint pointer) → ✅. 2C fully complete and retained. Mon 2026-07-06 freed.*
 
 ### 2D: Structured Streaming ⭐
-*Status corrected 2026-07-03 (twice): confirmed not yet taught at all — nothing counts as done until she confirms it landed, not just because it was explained in chat.*
+*Taught 2026-07-03 in small-steps mode (one concept → one check → next). Reference: walkthrough doc §28–§33.*
 
 | Topic | Status |
 |---|---|
-| Checkpoint: what it stores (offsets + state), consequence of deleting it | ⏳ not started |
-| Output modes: append / update / complete — when each applies, constraints | ⏳ not started |
-| Watermarking: late-arriving data, how window state is evicted after watermark passes | ⏳ |
-| Exactly-once with Kafka: idempotent producer + transactional API + Delta atomic writes | ⏳ |
-| Atomic micro-batch commits to Delta Lake | ⏳ |
-| Trigger modes: default (micro-batch), once, processingTime, availableNow | ⏳ |
-| Exercises + hands-on lab | ⏳ |
+| Micro-batch mental model (stream = unbounded table) | ✅ taught + verified 2026-07-03 |
+| Checkpoint: what it stores (offsets/commits/state), crash recovery, consequence of deleting it | ✅ taught + verified 2026-07-03 |
+| Output modes: append / update / complete — when each applies, constraints | 🟡 update mode verified; **recap append/complete next session** |
+| Watermarking: late-arriving data, how window state is evicted after watermark passes | ✅ taught + verified 2026-07-03 |
+| Exactly-once with Kafka: source vs sink, Kafka sink = at-least-once | 🟡 taught; **recap next session** |
+| Atomic micro-batch commits to Delta Lake (txn metadata batch-skip) | 🟡 taught; batch-skip logic unverified |
+| Trigger modes: default (micro-batch), once, processingTime, availableNow | 🟡 taught; **recap availableNow-vs-once next session** |
+| Exercises + hands-on lab | ⏳ after the 🟡 recaps |
 
 ### 2E: Delta Live Tables (DLT) ⭐
 *Est. start: 2026-07-07 | Est. completion: 2026-07-11*
