@@ -44,17 +44,18 @@ Structured by interview round order — the thing tested first is built first.
 | Functions deep-dive: *args/**kwargs, decorators (basic), lambda, map/filter | Jun 30 (Mon) | ⏳ |
 
 ### Python Algorithms — NeetCode 150 (expanded scope for Databricks)
+*PUSHED 2026-07-03: starts week of Sep 1 (was Aug 1); Mon/Wed slot paused until then. Windows compressed.*
 *Cadence: Mon/Wed, 25 min. Log: ~/Downloads/interview_prep/python_log.md*
 
 | Pattern | ~Problems | Est. Window | Status |
 |---|---|---|---|
-| Arrays & Hashing | Two Sum ✅ + Group Anagrams ✅ + Top K Frequent, Contains Duplicate, Valid Anagram, Product Except Self, Encode/Decode, Longest Consecutive (~8 total) | Aug 1 → Aug 15 | 🟡 |
-| Two Pointers | Valid Palindrome, Two Sum II, 3Sum, Container With Most Water, Trapping Rain Water (~5) | Aug 15 → Sep 1 | ⏳ |
-| Sliding Window | Best Time to Buy/Sell, Longest Substring Without Repeating, Longest Repeating Char, Permutation in String (~4) | Sep 1 → Sep 8 | ⏳ |
-| Trees BFS/DFS ← Databricks CodeSignal | Level Order Traversal, Max Depth, Same Tree, Invert Tree, Validate BST, Right Side View (~6) | Sep 8 → Sep 15 | ⏳ |
-| **Python OOP Basics** ← prerequisite for LRU Cache + Concurrency | 1 session (~45 min): `class`, `__init__`, instance vs class methods, `@property`, dunder methods (`__len__`, `__repr__`), inheritance basics — write a `Node` class and a `LinkedList` class from blank | Sep 15 (Fri) | ⏳ |
-| Linked Lists ← Databricks CodeSignal | Reverse LL, Merge Two Sorted, Palindrome LL, LRU Cache (~4) | Sep 15 → Sep 22 | ⏳ |
-| Binary Search ← Databricks CodeSignal | Capacity to Ship Packages, Find Min in Rotated, Search in Rotated (~3) | Sep 22 → Oct 1 | ⏳ |
+| Arrays & Hashing | Two Sum ✅ + Group Anagrams ✅ + Top K Frequent, Contains Duplicate, Valid Anagram, Product Except Self, Encode/Decode, Longest Consecutive (~8 total) | Sep 1 → Sep 8 | 🟡 |
+| Two Pointers | Valid Palindrome, Two Sum II, 3Sum, Container With Most Water, Trapping Rain Water (~5) | Sep 8 → Sep 15 | ⏳ |
+| Sliding Window | Best Time to Buy/Sell, Longest Substring Without Repeating, Longest Repeating Char, Permutation in String (~4) | Sep 15 → Sep 19 | ⏳ |
+| Trees BFS/DFS ← Databricks CodeSignal | Level Order Traversal, Max Depth, Same Tree, Invert Tree, Validate BST, Right Side View (~6) | Sep 19 → Sep 26 | ⏳ |
+| **Python OOP Basics** ← prerequisite for LRU Cache + Concurrency | 1 session (~45 min): `class`, `__init__`, instance vs class methods, `@property`, dunder methods (`__len__`, `__repr__`), inheritance basics — write a `Node` class and a `LinkedList` class from blank | Sep 26 (Fri) | ⏳ |
+| Linked Lists ← Databricks CodeSignal | Reverse LL, Merge Two Sorted, Palindrome LL, LRU Cache (~4) | Sep 26 → Oct 3 | ⏳ |
+| Binary Search ← Databricks CodeSignal | Capacity to Ship Packages, Find Min in Rotated, Search in Rotated (~3) | Oct 3 → Oct 10 | ⏳ |
 
 ---
 
@@ -108,26 +109,28 @@ Structured by interview round order — the thing tested first is built first.
 | Schema enforcement vs evolution (mergeSchema option), risks of each | ✅ 2026-06-12 |
 | OPTIMIZE + Z-ORDER: when it helps, when it doesn't, column selection strategy | ✅ 2026-06-12 (incl. liquid clustering) |
 | VACUUM: default 7-day retention, time travel impact, why to never drop below retention period | ✅ 2026-06-12 |
-| MERGE INTO: isolation level, under-the-hood mechanics, upsert patterns | ✅ 2026-06-12 |
-| Change Data Feed (CDF): pre-image/post-image for UPDATE, how to enable and consume | ✅ 2026-06-12 |
+| MERGE INTO: isolation level, under-the-hood mechanics, upsert patterns | 🟡 taught 2026-06-12; **not retained — revisit Mon 2026-07-06** |
+| Change Data Feed (CDF): pre-image/post-image for UPDATE, how to enable and consume | 🟡 taught 2026-06-12; **not retained — revisit Mon 2026-07-06** |
 | Small files problem: API call math, how OPTIMIZE consolidates | ✅ 2026-06-12 |
 | Dynamic file pruning + data skipping (min/max column statistics) | ✅ 2026-06-12 |
-| Delta Sharing: what problem it solves, how it differs from copying data | ✅ 2026-06-15 |
-| Delta vs Iceberg vs Hudi: transaction log architecture differences, ecosystem split (Databricks/Apple/Uber) | ✅ 2026-06-15 |
+| Delta Sharing: what problem it solves, how it differs from copying data | 🟡 taught 2026-06-15; **not retained — revisit Mon 2026-07-06** |
+| Delta vs Iceberg vs Hudi: transaction log architecture differences, ecosystem split (Databricks/Apple/Uber) | 🟡 taught 2026-06-15; **not retained — revisit Mon 2026-07-06** |
 | Hands-on lab: build Delta table in CE, inspect _delta_log, watch checkpoint at v10 (walkthrough doc §23) | ✅ 2026-06-15 |
 
+*2026-07-03: confirmed during a 2C recap that §26 (MERGE/CDF) and §27 (Delta Sharing, Delta vs Iceberg vs Hudi) aren't retained — scheduled for a proper detailed re-teach Monday 2026-07-06.*
+
 ### 2D: Structured Streaming ⭐
-*Taught in full 2026-07-03 (single session — content complete). Exercises + hands-on lab pending.*
+*Status corrected 2026-07-03: not yet taught (Jul 2 session didn't happen). Starting 2026-07-03.*
 
 | Topic | Status |
 |---|---|
-| Checkpoint: what it stores (offsets + state), consequence of deleting it | ✅ 2026-07-03 |
-| Output modes: append / update / complete — when each applies, constraints | ✅ 2026-07-03 |
-| Watermarking: late-arriving data, how window state is evicted after watermark passes | ✅ 2026-07-03 |
-| Exactly-once with Kafka: idempotent producer + transactional API + Delta atomic writes | ✅ 2026-07-03 |
-| Atomic micro-batch commits to Delta Lake | ✅ 2026-07-03 |
-| Trigger modes: default (micro-batch), once, processingTime, availableNow | ✅ 2026-07-03 |
-| Exercises + hands-on lab | ⏳ pending |
+| Checkpoint: what it stores (offsets + state), consequence of deleting it | ✅ taught 2026-07-03 |
+| Output modes: append / update / complete — when each applies, constraints | ⏳ next up (§29) |
+| Watermarking: late-arriving data, how window state is evicted after watermark passes | ⏳ |
+| Exactly-once with Kafka: idempotent producer + transactional API + Delta atomic writes | ⏳ |
+| Atomic micro-batch commits to Delta Lake | ⏳ |
+| Trigger modes: default (micro-batch), once, processingTime, availableNow | ⏳ |
+| Exercises + hands-on lab | ⏳ |
 
 ### 2E: Delta Live Tables (DLT) ⭐
 *Est. start: 2026-07-07 | Est. completion: 2026-07-11*
@@ -186,14 +189,16 @@ Structured by interview round order — the thing tested first is built first.
 | Photon-enabled vs standard Databricks Runtime | ⏳ |
 | **Databricks vs Snowflake vs BigQuery** — architecture-level articulation for interviews | ⏳ |
 
-*Snowflake architecture comparison topics are covered as a full crash course — see **4C: Snowflake Crash Course** (Tue/Thu Sep 1–14).*
+*Snowflake architecture comparison topics are covered as a full crash course — see **4C: Snowflake Crash Course** (Tue/Thu Aug 1–14, pulled forward 2026-07-03).*
 
-### 2J: Data Modeling
-*Est. start: 2026-07-14 | Est. completion: 2026-07-18*
+### 2J: Data Modeling — EXPANDED 2026-07-03 (OLTP + enterprise + OLAP)
+*Est. start: 2026-07-14 | Est. completion: 2026-07-21 (extra sessions for expanded scope)*
 
 | Topic | Status |
 |---|---|
-| Star vs snowflake schema, fact vs dimension tables, grain definition | ⏳ |
+| **OLTP modeling:** normalization 1NF→3NF (+BCNF awareness), ER diagrams, keys/constraints, when to denormalize | ⏳ |
+| **Enterprise modeling:** Kimball vs Inmon, conformed dimensions, bus matrix, Data Vault 2.0 basics (hubs/links/satellites) | ⏳ |
+| **OLAP modeling:** star vs snowflake schema, fact vs dimension tables, grain definition, additive/semi-additive/non-additive facts | ⏳ |
 | SCD Type 1 (overwrite), Type 2 (history rows with effective dates), Type 3 (prev-value column) | ⏳ |
 | Implementing SCD Type 2 with Delta MERGE INTO — full from-scratch exercise | ⏳ |
 
@@ -243,7 +248,7 @@ Structured by interview round order — the thing tested first is built first.
 | Wire Airflow DAG into Fraud Detection Pipeline as orchestration layer | ⏳ |
 
 ### 4C: Snowflake Crash Course ⭐ (Tom Bailey Udemy)
-*Slot: Tue/Thu 1 hr | Est. start: 2026-09-01 | Est. completion: 2026-09-14*
+*PULLED FORWARD 2026-07-03 | Slot: Tue/Thu 1 hr (shares slot with DEA prep; DEA wins on exam-crunch weeks) | Est. start: 2026-08-01 | Est. completion: 2026-08-14*
 *Why: production background exists; crash course to solidify architecture vocabulary for "Databricks vs Snowflake" interview Q, and prerequisite for dbt (4D)*
 
 | Topic | Status |
@@ -265,7 +270,7 @@ Structured by interview round order — the thing tested first is built first.
 | **Mini-project:** BI views + virtual warehouse sizing + query profile exercise (~1 hr) | ⏳ |
 
 ### 4D: dbt Crash Course
-*Slot: Tue/Thu 1 hr | Est. start: 2026-09-15 | Est. completion: 2026-09-30*
+*PULLED FORWARD 2026-07-03 | Slot: Tue/Thu 1 hr | Est. start: 2026-08-15 | Est. completion: 2026-08-31*
 *Prerequisite: Snowflake (4C). Practice project connects dbt Core to Snowflake.*
 
 | Topic | Status |
@@ -292,19 +297,19 @@ Structured by interview round order — the thing tested first is built first.
 *Interview round: System Design (Round 5)*
 
 ### Phase A — DDIA Reading (1 chapter/weekend)
-*Est. start: 2026-05-23 | Phase A ends: Jun 14*
+*PUSHED 2026-07-03: Ch 4–9 resume week of Sep 1. Ch 1–3 done.*
 
 | Chapter | Status | Date |
 |---|---|---|
 | Ch 1 — Reliable, Scalable, Maintainable | ✅ | by 2026-05-29 |
 | Ch 2 — Data Models and Query Languages | ✅ | by 2026-05-29 |
 | Ch 3 — Storage and Retrieval | ✅ | 2026-06-01 |
-| Ch 4 — Encoding and Evolution | ⏳ | Due Jun 20–21 (catch-up weekend) |
-| Ch 5 — Replication | ⏳ | Due Jun 21–22 |
-| Ch 6 — Partitioning | ⏳ | Due Jun 28–29 |
-| Ch 7 — Transactions | ⏳ | Due Jul 5–6 |
-| Ch 8 — Trouble with Distributed Systems | ⏳ | Due Jul 12–13 |
-| Ch 9 — Consistency and Consensus | ⏳ | Due Jul 19–20 |
+| Ch 4 — Encoding and Evolution | ⏳ | Week of Sep 1 |
+| Ch 5 — Replication | ⏳ | Week of Sep 7 |
+| Ch 6 — Partitioning | ⏳ | Week of Sep 14 |
+| Ch 7 — Transactions | ⏳ | Week of Sep 21 |
+| Ch 8 — Trouble with Distributed Systems | ⏳ | Week of Sep 28 |
+| Ch 9 — Consistency and Consensus | ⏳ | Week of Oct 5 |
 
 ### Phase B — Case Studies (1/weekend, Jun 14 → Aug 31, ~10 total)
 *6-step framework: requirements → estimation → API → schema → HLD → deep-dive*
