@@ -1,5 +1,5 @@
 # DE Interview Prep — Full Learning Path
-**Sayantani Nath | Updated: 2026-07-01**
+**Sayantani Nath | Updated: 2026-07-03**
 **Goal:** Job-ready for FAANG / Databricks DE roles by Oct 1, 2026
 **Base:** Strong SQL, Python, Snowflake/Redshift production, AWS CCP in progress
 
@@ -499,7 +499,7 @@ MWAA DAG:
 
 ---
 
-### Snowflake Mini-Project (embedded in 4C slot, Sep 1–14)
+### Snowflake Mini-Project (embedded in 4C slot, Aug 1–14 — pulled forward 2026-07-03)
 *Same Synthea healthcare data (de-identified). 3 sessions (Tue/Thu), no schedule extension needed.*
 
 | Topic | Status |
@@ -540,18 +540,17 @@ MWAA DAG:
 | Jun 23 → Jul 4 | **AWS ClinicalFlow Phase 1** (S3+Glue+EMR+Redshift+Iceberg + failure scenarios) — Tue/Thu freed from Maarek + Fri | Tue/Thu + Fri |
 | Jul 7 → Jul 18 | Tutorials Dojo Round 1 + patch weak topics + Round 2 → book AWS CCP exam (Tue/Thu) | Tue/Thu |
 | Jul 18 → Aug 1 | Kafka (4A) + Databricks DEA cert starts | Mon/Wed/Fri |
-| Aug 1 → Aug 11 | Airflow (4B) + Fraud Detection DAG + **AWS ClinicalFlow Phase 2** (MWAA orchestration, parallel to Airflow) | Mon/Wed/Fri + Tue/Thu |
+| Aug 1 → Aug 14 | Airflow (4B) + Fraud Detection DAG + **AWS ClinicalFlow Phase 2** (MWAA) + **Snowflake 4C (Tue/Thu, shares slot with DEA)** | Mon/Wed/Fri + Tue/Thu |
 | Aug 11 → Aug 18 | Concurrency prep (P3) + CDC Pipeline + **AWS ClinicalFlow Phase 3** (Kinesis+Lambda streaming) | Mon–Fri intensive |
-| Aug 18 → Aug 29 | Databricks Lakehouse + AI Monitor capstone build + DEA cert push | Mon/Wed/Fri + Tue/Thu |
+| Aug 15 → Aug 31 | Databricks Lakehouse + AI Monitor capstone build + DEA cert push + **dbt 4D (Tue/Thu)** | Mon/Wed/Fri + Tue/Thu |
 | Aug 29 → Sep 15 | SD out-loud mocks Phase C (2/week) + Behavioral stories | Flexible |
-| Sep 1 → Sep 14 | Snowflake crash course (4C) — runs Tue/Thu parallel to SD mocks | Tue/Thu |
-| Sep 15 → Sep 30 | dbt crash course (4D) — runs Tue/Thu parallel to portfolio polish | Tue/Thu |
-| Sep 15 → Sep 28 | SnowPro Core practice exams → sit exam ~Sep 28 | Tue/Thu |
+| Sep 1 → Oct 15 | **NeetCode resumes (Mon/Wed) + DDIA Ch 4–9 resume (Thu/weekend)** — pushed here 2026-07-03 | Mon/Wed/Thu |
+| Sep 1 → Sep 28 | SnowPro Core practice exams → sit exam Sep 2026 | Tue/Thu |
 | Sep 15 → Oct 1 | Portfolio polish + GitHub + Apply | Flexible |
 
 **Ongoing every week:**
-- Mon/Wed: NeetCode Python (25 min, within session)
-- Tue/Thu: DataLemur SQL (20 min) + DDIA chapter (Thu 30–45 min)
+- Mon/Wed: NeetCode Python (25 min, within session) — **PAUSED until Sep 1** (2026-07-03)
+- Tue/Thu: DataLemur SQL (20 min); DDIA chapter (Thu) — **PAUSED until Sep 1** (2026-07-03)
 - Weekend: SD Phase B case study (1/weekend, Jun 14 → Aug 31) + Databricks blog post (15 min)
 
 ---
