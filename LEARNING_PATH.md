@@ -126,12 +126,15 @@ Structured by interview round order — the thing tested first is built first.
 |---|---|
 | Micro-batch mental model (stream = unbounded table) | ✅ taught + verified 2026-07-03 |
 | Checkpoint: what it stores (offsets/commits/state), crash recovery, consequence of deleting it | ✅ taught + verified 2026-07-03 |
-| Output modes: append / update / complete — when each applies, constraints | 🟡 update mode verified; **recap append/complete next session** |
+| Output modes: append / update / complete — when each applies, constraints | ✅ taught + recapped 2026-07-03 |
 | Watermarking: late-arriving data, how window state is evicted after watermark passes | ✅ taught + verified 2026-07-03 |
-| Exactly-once with Kafka: source vs sink, Kafka sink = at-least-once | 🟡 taught; **recap next session** |
-| Atomic micro-batch commits to Delta Lake (txn metadata batch-skip) | 🟡 taught; batch-skip logic unverified |
-| Trigger modes: default (micro-batch), once, processingTime, availableNow | 🟡 taught; **recap availableNow-vs-once next session** |
-| Exercises + hands-on lab | 🟡 recaps + model answers reviewed 2026-07-03; **from-blank redo of Ex1–4 + Free Edition checkpoint lab pending — required before 2D closes** |
+| Exactly-once with Kafka: source vs sink, Kafka sink = at-least-once | ✅ taught + recapped 2026-07-03 |
+| Atomic micro-batch commits to Delta Lake (txn metadata batch-skip) | ✅ taught + recapped 2026-07-03 |
+| Trigger modes: default (micro-batch), once, processingTime, availableNow | ✅ taught + recapped 2026-07-03 |
+| Exercises Ex1–4 | ✅ closed 2026-07-03 (model answers reviewed together) |
+| Ex-5 hands-on checkpoint lab (Free Edition) | ⏳ scheduled Mon Jul 6 — does not block 2D completion |
+
+**2D COMPLETE ✅ 2026-07-03** (marked at her request; Ex-5 lab runs Monday as a standalone item).
 
 ### 2E: Delta Live Tables (DLT) ⭐
 *Est. start: 2026-07-07 | Est. completion: 2026-07-11*
