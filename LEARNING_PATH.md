@@ -120,12 +120,12 @@ Structured by interview round order — the thing tested first is built first.
 *2026-07-03: confirmed during a 2C recap that §26 (MERGE/CDF) and §27 (Delta Sharing, Delta vs Iceberg vs Hudi) aren't retained — scheduled for a proper detailed re-teach Monday 2026-07-06.*
 
 ### 2D: Structured Streaming ⭐
-*Status corrected 2026-07-03: not yet taught (Jul 2 session didn't happen). Starting 2026-07-03.*
+*Status corrected 2026-07-03 (twice): confirmed not yet taught at all — nothing counts as done until she confirms it landed, not just because it was explained in chat.*
 
 | Topic | Status |
 |---|---|
-| Checkpoint: what it stores (offsets + state), consequence of deleting it | ✅ taught 2026-07-03 |
-| Output modes: append / update / complete — when each applies, constraints | ⏳ next up (§29) |
+| Checkpoint: what it stores (offsets + state), consequence of deleting it | ⏳ not started |
+| Output modes: append / update / complete — when each applies, constraints | ⏳ not started |
 | Watermarking: late-arriving data, how window state is evicted after watermark passes | ⏳ |
 | Exactly-once with Kafka: idempotent producer + transactional API + Delta atomic writes | ⏳ |
 | Atomic micro-batch commits to Delta Lake | ⏳ |
@@ -370,7 +370,7 @@ Structured by interview round order — the thing tested first is built first.
 | Skillcertpro / Udemy mocks | ⏳ |
 
 ### SnowPro Core Certification
-*Slot: Tue/Thu, after Snowflake crash course (4C) wraps Sep 14 | Target: Sep 28, 2026*
+*Slot: Tue/Thu, after Snowflake crash course (4C) wraps Aug 14 (pulled forward 2026-07-03) | Target: Sep 2026*
 
 | Resource | Status |
 |---|---|
