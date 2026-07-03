@@ -198,7 +198,8 @@ Structured by interview round order — the thing tested first is built first.
 | Topic | Status |
 |---|---|
 | **OLTP modeling:** normalization 1NF→3NF (+BCNF awareness), ER diagrams, keys/constraints, when to denormalize | ⏳ |
-| **Enterprise modeling:** Kimball vs Inmon, conformed dimensions, bus matrix, Data Vault 2.0 basics (hubs/links/satellites) | ⏳ |
+| **Enterprise modeling:** Kimball vs Inmon, conformed dimensions, bus matrix | ⏳ |
+| **Data Vault 2.0 + practical** (added 2026-07-03): hubs/links/satellites, hash keys, load_date/record_source, when DV beats Kimball; **hands-on: model Synthea patients/encounters into HUB_PATIENT + LINK_ENCOUNTER + SAT_PATIENT_DETAILS in Delta SQL with an incremental load** | ⏳ |
 | **OLAP modeling:** star vs snowflake schema, fact vs dimension tables, grain definition, additive/semi-additive/non-additive facts | ⏳ |
 | SCD Type 1 (overwrite), Type 2 (history rows with effective dates), Type 3 (prev-value column) | ⏳ |
 | Implementing SCD Type 2 with Delta MERGE INTO — full from-scratch exercise | ⏳ |
