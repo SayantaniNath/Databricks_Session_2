@@ -448,3 +448,17 @@ Example from the Ex-5 lab: `workspace.default.ex5_rate_sink` → catalog `worksp
     GRANT SELECT ON CATALOG prod TO analysts;   -- applies to every schema/table inside
 
 Note: Full Unity Catalog coverage (RBAC, row filters, column masks, lineage) is Stage 2F — this entry is just the namespace piece.
+
+Q: What does a volume do? (asked 2026-07-06, during 2D Ex-5 lab)
+
+**A volume is Unity Catalog's container for non-tabular files** — the file-system counterpart to a table.
+
+| Table| Volume  
+---|---|---  
+Holds| Rows/columns Spark manages| Arbitrary files: CSVs, checkpoints, logs, models, images  
+Access| SQL / DataFrame API| Path: `/Volumes/<catalog>/<schema>/<volume>/...`  
+Governance| UC grants, lineage, audit| Same — unlike ungoverned DBFS/raw S3 paths  
+  
+Lives in the same three-level namespace: `workspace.default.mydata` = catalog.schema.**volume**.
+
+Why the Ex-5 lab uses one: a streaming checkpoint needs a durable directory to write `offsets/` and `commits/` into; in Free Edition the sanctioned file-storage location is a volume — hence `ckpt = "/Volumes/workspace/default/mydata/ex5_ckpt"`.
