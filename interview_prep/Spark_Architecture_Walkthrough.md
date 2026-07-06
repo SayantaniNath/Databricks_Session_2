@@ -1481,4 +1481,64 @@ Every violation lands in the pipeline event log → quality metrics for free, no
   
 ClinicalFlow examples worked through: `ssn IS NULL` → `expect_or_fail` (a surviving SSN means the upstream HIPAA de-id job is broken — halt, don't silently drop evidence); `heart_rate BETWEEN 20 AND 300` → `expect_or_drop` (occasional sensor glitch = junk row, keep flowing).
 
-Updated 2026-07-06 — 2D Ex-5 checkpoint lab completed (as-run scripts in databricks_exercises.py §5); Photon + Catalyst/Tungsten layer recap verified; 2E opened: §34 declarative vs imperative, §35 expectations (both checks passed). Next 2E session: streaming table vs materialized view, schema drift prevention, update modes, then the bronze→silver expectations lab in Free Edition.
+### §36 Streaming table vs materialized view ⭐
+
+| Streaming table| Materialized view  
+---|---|---  
+Model| Each input row processed **exactly once, incrementally** ; results appended; old rows never revisited| Declares "this table = this query over its inputs"; framework keeps it true (full or incremental recompute)  
+Source requirement| **Append-only** (files arriving, Kafka, rate) — "the past never changes"| Inputs may change: handles upstream **updates/deletes** , aggregations, joins  
+Under the hood| Structured Streaming + managed checkpoint| Managed recompute  
+Natural fit| Ingestion / bronze| Gold aggregates  
+  
+Declaration difference: `@dlt.table` returning `spark.readStream...` → streaming table; returning a batch `dlt.read(...)` query → materialized view.
+
+**Memory hook:** streaming table = _ledger_ (append-only, each entry once); materialized view = _whiteboard_ (always the current right answer, redrawn as needed).  
+  
+**The trap (verified with check):** if silver rows get corrected after the fact, a streaming table doesn't crash — it already processed the original row and will never look again, so the correction is _silently ignored_ and the aggregate stays wrong forever. Same failure family as checkpoint deletion: no error, wrong number. MV re-derives and picks up the fix.
+
+### §37 Schema drift prevention — pin the shape, police the content
+
+Two-layer defense against evolving source files:
+    
+    
+    encounter_schema = StructType([
+        StructField("patient_id", StringType(), False),   # False = not nullable
+        StructField("heart_rate", IntegerType(), True),
+        StructField("event_ts",   TimestampType(), False),
+    ])
+    
+    @dlt.table
+    def bronze_encounters():
+        return (spark.readStream.format("cloudFiles")
+                .schema(encounter_schema)          # ← pinned, not inferred
+                .load("/Volumes/.../raw"))
+
+  * **Layer 1 — explicit StructType** pins the structure: a new upstream column (e.g. `insurance_id`) is simply _ignored_ — drift can't leak into silver/gold. Adding it becomes a deliberate, reviewed code change. (Feature, not bug.)
+  * **Layer 2 — expectations** police the values: schema says `heart_rate` is an int; only an expectation says it's a _plausible_ int.
+  * Middle ground: Auto Loader's `_rescued_data` column captures unexpected fields so you can _notice_ drift instead of being blind to it (more in 2G).
+
+
+
+**One-liner:** schema pins the shape, expectations police the content.
+
+### §38 Pipeline update modes — two knobs
+
+**Knob 1 — how the pipeline runs:**
+
+  * **Triggered** — start, process everything available, stop (availableNow at pipeline scale). Compute only up while working; latency = your schedule.
+  * **Continuous** — pipeline stays hot, processes as data arrives. Low latency, always-on cost.
+
+
+
+**Knob 2 — how much gets reprocessed:**
+
+  * **Incremental update** (default) — streaming tables read only new data from checkpointed offsets; MVs refresh as needed.
+  * **Full refresh** — wipe tables _and checkpoint state_ , reprocess everything from the source. The "recover from a logic bug" button.
+
+
+
+**Full-refresh gotcha (interview favorite, verified with check):** full refresh = deliberately deleting the checkpoint — the rebuild is only as complete as what the source still holds. Files in a volume: fine. Kafka with 7-day retention on a table with 90 days of history: 83 days **permanently gone**. Protections: full-refresh only downstream MVs (fixed logic doesn't require re-ingesting bronze), and set `pipelines.reset.allowed = false` on ingestion tables. Never full-refresh a streaming table whose source forgets.
+
+* * *
+
+Updated 2026-07-06 — 2D Ex-5 checkpoint lab completed (as-run scripts in databricks_exercises.py §5); Photon + Catalyst/Tungsten layer recap verified; 2E taught in full in one day: §34 declarative vs imperative, §35 expectations, §36 streaming table vs MV, §37 schema drift prevention, §38 update modes — all checks passed except §37 (recap Wednesday). Remaining for 2E: hands-on bronze→silver expectations lab in Free Edition (Wed 2026-07-08).

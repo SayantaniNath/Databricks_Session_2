@@ -145,10 +145,10 @@ Structured by interview round order — the thing tested first is built first.
 |---|---|
 | Lakeflow Designer intro (Andreas Kretz repo, done 2026-05-21) | ✅ |
 | DLT vs manually writing Spark pipelines — what problem it solves | ✅ intro level |
-| Expectations: warn / drop / fail modes, when to use each | ⏳ |
-| Streaming live table vs materialized view | ⏳ |
-| Schema drift prevention: StructType + Expectations pattern | ⏳ |
-| Pipeline update modes: complete vs append | ⏳ |
+| Expectations: warn / drop / fail modes, when to use each | ✅ taught + checks passed 2026-07-06 (§35) |
+| Streaming live table vs materialized view | ✅ taught + checks passed 2026-07-06 (§36) |
+| Schema drift prevention: StructType + Expectations pattern | 🟡 taught 2026-07-06 (§37) — recap Wed before lab |
+| Pipeline update modes: complete vs append | ✅ taught + check passed 2026-07-06 (§38) |
 | **Hands-on lab** (added 2026-07-03): build a mini Lakeflow pipeline in Free Edition — bronze→silver with expectations (warn/drop/fail), watch a violation get dropped | ⏳ |
 
 ### 2F: Unity Catalog ⭐
