@@ -152,31 +152,44 @@ salted_result = (
 
 
 # =============================================================================
-# 5. STRUCTURED STREAMING — 2D Ex-5 CHECKPOINT LAB (scheduled Mon 2026-07-06)
-# Run in Databricks Free Edition. Predict before each observation step.
+# 5. STRUCTURED STREAMING — 2D Ex-5 CHECKPOINT LAB (run 2026-07-06, Free Edition)
+# Final version as actually run. Two serverless realities shaped it:
+#   1. Serverless does NOT allow long-running triggers (no default/processingTime/
+#      continuous) — only trigger(availableNow=True): catch up, commit, stop.
+#      So each manual re-run of the write cell = one visible micro-batch.
+#   2. Serverless sessions auto-terminate when idle → all Python variables
+#      (ckpt, df, query) vanish. Re-run the full cell; the checkpoint itself
+#      survives — it lives on the VOLUME (durable storage), not in the session.
+# rate + availableNow gotcha: the rate source re-anchors its clock each query
+# start and rows are computed (never stored) → no real backlog; "available now"
+# only covers the ~1s startup window. Bump rowsPerSecond for visible batches.
 # =============================================================================
 
-# --- Step 1 — rate source → Delta with checkpoint ---
+# --- Step 1 — rate source → Delta with checkpoint (one availableNow batch) ---
 """
-ckpt = "/Volumes/workspace/default/mydata/ex5_ckpt"
+ckpt = "/Volumes/workspace/default/mydatadbex5/ex5_ckpt"
 
-df = spark.readStream.format("rate").option("rowsPerSecond", 5).load()
+df = spark.readStream.format("rate").option("rowsPerSecond", 100).load()
 
 query = (df.writeStream
     .format("delta")
     .option("checkpointLocation", ckpt)
     .outputMode("append")
-    .trigger(processingTime="5 seconds")
+    .trigger(availableNow=True)          # serverless: only allowed trigger
     .toTable("workspace.default.ex5_rate_sink"))
 
-# let it run ~30s, then:
+query.awaitTermination()   # toTable/start is async — block until batch commits
+                           # (without this, the checks below read stale data)
+
 spark.sql("SELECT count(*), max(value) FROM workspace.default.ex5_rate_sink").show()
 """
 
-# --- Step 2 — kill it ---
-"""
-query.stop()
-"""
+# --- Step 2 — re-run Step 1 (no kill needed — availableNow stops itself) ---
+# PREDICT: will max(value) continue, or restart at 0 and duplicate?
+# OBSERVED 2026-07-06: count 1877, max 1876 → values 0..1876 exactly once.
+# Continuation survived a session restart AND a rowsPerSecond change —
+# the checkpoint pins WHERE to resume; source options may change between runs.
+# (What must never change per query: the checkpointLocation itself.)
 
 # --- Step 3 — inspect the checkpoint (PREDICT what's in each folder first) ---
 """
@@ -185,24 +198,24 @@ display(dbutils.fs.ls(f"{ckpt}/offsets"))
 display(dbutils.fs.ls(f"{ckpt}/commits"))
 print(dbutils.fs.head(f"{ckpt}/offsets/2"))   # open any batch number you see
 """
+# Expect matching numbered files in offsets/ and commits/ — one pair per run.
 
-# --- Step 4 — restart with the SAME Step 1 code ---
-# PREDICT: will max(value) continue from where it stopped, or restart at 0?
-# Run, wait ~30s, re-run the count query, check.
-
-# --- Step 5 — stop, delete the checkpoint ---
+# --- Step 4 — delete the checkpoint ---
 """
-query.stop()
-dbutils.fs.rm(ckpt, recurse=True)
+dbutils.fs.rm(ckpt, recurse=True)   # must print True
 """
 
-# --- Step 6 — restart Step 1 code again ---
-# PREDICT: what happens to `value` in the sink table now, and why is this
-# dangerous in production? Confirm with:
+# --- Step 5 — re-run Step 1 unchanged, observe the damage ---
+# PREDICT: offsets/ is gone — where does the next run start reading, and what
+# lands in the sink? Why is this dangerous in production?
 """
 spark.sql('''SELECT value, count(*) FROM workspace.default.ex5_rate_sink
              GROUP BY value HAVING count(*) > 1 LIMIT 10''').show()
 """
+# Expected: rate source re-anchors → values restart at 0 → duplicates appear.
+# Production translation: stateless stream = reprocessing/duplicates;
+# stateful stream = state/ (window sums, watermark, dedup history) is gone
+# → silently WRONG answers, not just duplicates.
 
 # NOTE: 2D Ex1-4 (from-blank streaming exercises) were reviewed together in
 # the 2026-07-03 session as model answers in chat — they were never written
