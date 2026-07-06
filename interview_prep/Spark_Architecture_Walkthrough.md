@@ -1433,3 +1433,52 @@ Default (none specified)| Runs the next micro-batch immediately after the previo
 * * *
 
 Updated 2026-07-03 — Stage 2D taught in full: §28 Checkpoint (structure, exactly-once two-phase commit, consequence of deletion), §29 Streaming query patterns (stateless append, stateful windowed aggregation with Kafka, output mode comparison, F.col vs col import styles), §30 Watermarking (threshold mechanics, state eviction, trade-offs), §31 Exactly-once with Kafka (source vs. sink nuance, idempotent producer vs. transactional API), §32 Atomic micro-batch commits to Delta (txnAppId/txnVersion idempotency), §33 Trigger modes (default, ProcessingTime, Once vs AvailableNow). Next: hands-on lab + from-blank exercises, then Stage 2E (Lakeflow/DLT).
+
+* * *
+
+## Stage 2E — Lakeflow Declarative Pipelines (formerly DLT)
+
+Session 1: 2026-07-06 (after the 2D Ex-5 checkpoint lab, same day)
+
+### §34 Declarative vs imperative — what problem Lakeflow solves
+
+**Imperative** (plain Structured Streaming, like the Ex-5 lab): you tell Spark _how_ to run the pipeline — pick the checkpoint path, choose the trigger, call `awaitTermination()`, handle recovery yourself. Mishandle the checkpoint → silent duplicates (observed live in the lab).
+
+**Declarative** (Lakeflow): you declare _what tables should exist_ and how each is derived; the framework figures out the how:
+    
+    
+    import dlt
+    
+    @dlt.table
+    def bronze_events():
+        return spark.readStream.format("cloudFiles").load("/Volumes/.../raw")
+    
+    @dlt.table
+    def silver_events():
+        return dlt.read_stream("bronze_events").filter(col("amount") > 0)
+
+What's _missing_ is the point: no checkpoint path, no trigger, no `.start()`, no ordering logic. Lakeflow sees `silver_events` reads `bronze_events`, builds the dependency DAG itself, and manages checkpoints, retries, and scaling per table. The whole class of "checkpoint mishandled → silent duplicates" bugs is off your plate.
+
+### §35 Expectations — data quality rules on table declarations ⭐
+    
+    
+    @dlt.table
+    @dlt.expect("valid_amount", "amount > 0")                          # WARN
+    @dlt.expect_or_drop("has_patient_id", "patient_id IS NOT NULL")    # DROP
+    @dlt.expect_or_fail("valid_date", "event_date <= current_date()")  # FAIL
+    def silver_events():
+        return dlt.read_stream("bronze_events")
+
+Mode| Bad row's fate| Pipeline| Use when  
+---|---|---|---  
+`expect` (warn)| Kept, counted in metrics| Runs on| Monitoring quality, not enforcing yet  
+`expect_or_drop`| Dropped, count recorded| Runs on| Bad rows tolerable to lose (malformed events, sensor glitches)  
+`expect_or_fail`| —| Halts on first violation| Violation proves upstream is broken; stop and investigate  
+  
+Every violation lands in the pipeline event log → quality metrics for free, no separate Great Expectations job.
+
+**Mode-choice heuristic (hers, verified):** Drop when the _row_ is the problem. Fail when the row proves the _system_ is the problem. Warn when you're still learning what normal looks like.  
+  
+ClinicalFlow examples worked through: `ssn IS NULL` → `expect_or_fail` (a surviving SSN means the upstream HIPAA de-id job is broken — halt, don't silently drop evidence); `heart_rate BETWEEN 20 AND 300` → `expect_or_drop` (occasional sensor glitch = junk row, keep flowing).
+
+Updated 2026-07-06 — 2D Ex-5 checkpoint lab completed (as-run scripts in databricks_exercises.py §5); Photon + Catalyst/Tungsten layer recap verified; 2E opened: §34 declarative vs imperative, §35 expectations (both checks passed). Next 2E session: streaming table vs materialized view, schema drift prevention, update modes, then the bronze→silver expectations lab in Free Edition.
