@@ -132,9 +132,9 @@ Structured by interview round order — the thing tested first is built first.
 | Atomic micro-batch commits to Delta Lake (txn metadata batch-skip) | ✅ taught + recapped 2026-07-03 |
 | Trigger modes: default (micro-batch), once, processingTime, availableNow | ✅ taught + recapped 2026-07-03 |
 | Exercises Ex1–4 | ✅ closed 2026-07-03 (model answers reviewed together) |
-| Ex-5 hands-on checkpoint lab (Free Edition) | ⏳ scheduled Mon Jul 6 — does not block 2D completion |
+| Ex-5 hands-on checkpoint lab (Free Edition) | ✅ done 2026-07-06 — availableNow batches (serverless-only trigger), offsets/commits inspected, continuation verified, checkpoint delete → duplicates observed; as-run scripts in interview_prep/databricks_exercises.py §5 |
 
-**2D COMPLETE ✅ 2026-07-03** (marked at her request; Ex-5 lab runs Monday as a standalone item).
+**2D COMPLETE ✅ 2026-07-03** (marked at her request; Ex-5 lab completed 2026-07-06).
 
 ### 2E: Delta Live Tables (DLT) ⭐
 *Est. start: 2026-07-07 | Est. completion: 2026-07-11*
