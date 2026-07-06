@@ -478,3 +478,36 @@ Q: What's the syntax of the writeStream chain? (asked 2026-07-06, during 2D Ex-5
   * Returns a `StreamingQuery` handle: `query.stop()`, `query.status`, `query.lastProgress`.
 
 
+
+## Photon Recap + Catalyst / Tungsten / Photon Layer Map (asked 2026-07-06, pre-2E recap)
+
+Q: What are Catalyst and Tungsten, and where does Photon fit?
+
+Layer| Job| Analogy  
+---|---|---  
+**Catalyst**|  The **planner** — takes DataFrame/SQL code, decides _what_ to do and in what order. 4 phases: Analysis → Logical Optimization (filter pushdown, column pruning) → Physical Planning (BHJ vs SMJ) → Code Generation| Architect drawing the blueprint  
+**Tungsten**|  The classic **executor** — runs the plan on the JVM. Tricks: off-heap memory (dodges GC), whole-stage code generation (fuses a stage's operators into one function — the `*(1)` in explain output)| Construction crew  
+**Photon**|  Replacement executor in **C++** , vectorized + columnar. Same blueprint, faster crew| Better construction crew  
+  
+Key sentence: Photon replaces **Tungsten (execution)** , not **Catalyst (planning)**. Catalyst still plans every query; Photon executes the plan faster where it can.
+
+Q: What is Photon? (recap — taught in 2B §22)
+
+Databricks' rewrite of Spark's execution engine in **C++**. Code doesn't change — same PySpark/SQL — only execution swaps.
+
+  * **Vectorized** — processes batches of column values with CPU SIMD ("one instruction, many values") instead of row-at-a-time.
+  * **Columnar** — operates on columns in memory, matching Parquet/Delta layout and CPU cache behavior.
+  * **Activates per-operator** , not all-or-nothing: scans/filters/joins/aggregations on Delta/Parquet → Photon; RDD API, most Python UDFs, exotic functions → fall back to JVM Spark mid-query. `EXPLAIN` shows `Photon`-prefixed operators.
+  * **Why:** 2–8x on SQL/DataFrame workloads, zero code change. Higher DBU rate but usually net cheaper (finishes faster).
+
+
+
+Q: A pipeline has a heavy groupBy().agg() and a Python UDF in one withColumn — what does Photon do with each?
+
+The `groupBy().agg()` runs **in Photon** (supported). The Python UDF **can't run in C++** — that operator **falls back to JVM Spark**. One query, mixed execution; the seam is visible in `EXPLAIN`.
+
+Practical consequence: replace Python UDFs with built-in functions where possible, or you lose Photon exactly on your most expensive step.
+
+Q: Why does vectorized + columnar beat row-at-a-time on modern CPUs?
+
+Row-at-a-time: the CPU handles one value, checks what to do, moves on — high overhead per value. Vectorized: load a batch of one column's values and apply **one SIMD instruction to many values at once**. Columnar layout puts those batches contiguously in memory → CPU cache stays hot. Less overhead per value + hardware parallelism = the 2–8x.
