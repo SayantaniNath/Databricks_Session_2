@@ -220,6 +220,12 @@ with open('file.csv') as f:
 # - prints each keyword argument as "key: value"
 # Call it with: summarise(1, 2, 3, name='Sayantani', role='DE')
 
+def summarise(*args, **kwargs):
+    print("Sum of positional args:", sum(args))
+    for key, value in kwargs.items():
+        print(f"{key}: {value}")
+
+
 
 # ── Exercise 2 ── lambda + map + filter ───────────────────────────────────────
 # You have: revenues = [500, 12000, 300, 8000, 15000]
@@ -227,6 +233,10 @@ with open('file.csv') as f:
 # b) Use filter to keep only values above 5000 (one line)
 # c) Chain them: apply discount first, then keep values above 5000 (one line)
 
+revenues = [500, 12000, 300, 8000, 15000]
+list(map(lambda x: x * 0.9, revenues))  # a) [450.0, 10800.0, 270.0, 7200.0, 13500.0]
+list(filter(lambda x: x > 5000, revenues))  # b) [12000, 8000, 15000]
+list(filter(lambda x: x > 5000, map(lambda y: y * 0.9, revenues)))  # c) [10800.0, 7200.0, 13500.0]
 
 # ── Exercise 3 ── decorator ───────────────────────────────────────────────────
 # Write a decorator `timer` that prints how long a function takes to run.
@@ -235,9 +245,17 @@ with open('file.csv') as f:
 # Call process(1_000_000) and see the output.
 
 
+
+
 # ── Exercise 4 ── real DE use case ───────────────────────────────────────────
 # Write a function `read_and_filter(filepath, **filters)` that:
 # - reads a CSV into a DataFrame
 # - for each key/value in filters, keeps only rows where df[key] == value
 # - returns the filtered DataFrame
 # Example call: read_and_filter('sales.csv', country='USA', product='Widget')
+
+def read_and_filter(filepath, **filters):
+    df = pd.read_csv(filepath)
+    for key, value in filters.items():
+        df = df[df[key] == value]
+    return df
