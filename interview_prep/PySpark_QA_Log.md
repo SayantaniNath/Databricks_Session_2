@@ -203,261 +203,248 @@ Typical use| DW pipelines, Delta Lake, feature engineering| Fraud detection, rea
 
 Interview one-liner: PySpark = batch/streaming ETL engine. Flink = true real-time streaming engine. Presto/Trino = fast SQL query engine across existing data stores. They solve different problems and often coexist in the same stack.
 
----
-
 ## Delta Lake — OCC (Optimistic Concurrency Control)
 
-**Q: Two writers start at the same time. Writer A commits first. Does Writer B retry automatically or throw ConcurrentModificationException?**
+Q: Two writers start at the same time. Writer A commits first. Does Writer B retry automatically or throw ConcurrentModificationException?
 
 **Delta throws — it does NOT retry automatically.**
 
-Delta uses optimistic concurrency: writers don't lock the table upfront. When B tries to commit, Delta checks: do B's read/write files overlap with what A just modified?
+Delta uses optimistic concurrency: writers don't lock the table upfront. When B tries to commit, Delta checks: _do B's read/write files overlap with what A just modified?_
 
-| Scenario | Result |
-|---|---|
-| B's files overlap with A's changed files | Delta throws `ConcurrentModificationException` — your code must retry |
-| B's files don't overlap (e.g. different partitions) | B's commit succeeds — both writers coexist |
+Scenario| Result  
+---|---  
+B's files overlap with A's changed files| Delta throws `ConcurrentModificationException` — your code must retry  
+B's files don't overlap (e.g. different partitions)| B's commit succeeds — both writers coexist  
+  
+Key point: Retry is your application's responsibility. Delta only detects and reports the conflict — it does not auto-retry.
 
-**Key point:** Retry is your application's responsibility. Delta only detects and reports the conflict — it does not auto-retry.
-
-**Common wrong answer:** "B retries automatically." Delta throws; you retry.
-
----
+Common wrong answer: "B retries automatically." Delta throws; you retry.
 
 ## Delta Lake — VACUUM Retention Horizon
 
-**Q: A table has commits 0–25. You run VACUUM with default settings. What is the earliest version Delta keeps data files for?**
+Q: A table has commits 0–25. You run VACUUM with default settings. What is the earliest version Delta keeps data files for?
 
 **VACUUM is time-based, not commit-count-based.**
 
-It removes Parquet data files no longer referenced by any version within the last 7 days (default). Commit numbers don't matter — only timestamps do.
+It removes data files (Parquet) that are no longer referenced by any version _within the last 7 days_ (default retention). Commit numbers don't matter — only timestamps do.
 
-- If all 26 commits happened in the last 3 days → VACUUM removes nothing.
-- If commits 0–10 happened 2 weeks ago → those versions' Parquet files may be removed.
+  * If all 26 commits happened in the last 3 days → VACUUM removes nothing.
+  * If commits 0–10 happened 2 weeks ago → those versions' Parquet files may be removed.
+
+
 
 **What VACUUM touches:** Parquet data files only. The `_delta_log` is untouched. Time travel uses the log to reconstruct versions — but if the Parquet files have been vacuumed, the read will fail.
 
-**Common wrong answer:** "Earliest version is commit 20" — you can't derive a version number from a retention window without knowing timestamps.
-
----
+Common wrong answer: "Earliest version is commit 20" — you can't derive a version number from a retention window without knowing timestamps.
 
 ## Delta Lake — VACUUM Commands (all variants)
 
-**Q: What are the VACUUM command variants in Delta Lake?**
+Q: What are the VACUUM command variants in Delta Lake?
+    
+    
+    -- Default (7-day retention)
+    VACUUM my_table
+    
+    -- Custom retention
+    VACUUM my_table RETAIN 336 HOURS       -- 14 days
+    VACUUM my_table RETAIN 168 HOURS       -- 7 days (explicit)
+    
+    -- Dry run — shows what WOULD be deleted, deletes nothing
+    VACUUM my_table DRY RUN
+    
+    -- Go below 7 days (disables safety check — breaks time travel)
+    SET spark.databricks.delta.retentionDurationCheck.enabled = false;
+    VACUUM my_table RETAIN 0 HOURS;
 
-```sql
--- Default (7-day retention)
-VACUUM my_table
-
--- Custom retention
-VACUUM my_table RETAIN 336 HOURS       -- 14 days
-VACUUM my_table RETAIN 168 HOURS       -- 7 days (explicit)
-
--- Dry run — shows what WOULD be deleted, deletes nothing
-VACUUM my_table DRY RUN
-
--- Go below 7 days (disables safety check — breaks time travel)
-SET spark.databricks.delta.retentionDurationCheck.enabled = false;
-VACUUM my_table RETAIN 0 HOURS;
-```
-
-**Rule:** Always run `DRY RUN` first on production tables. Never go below 7 days unless you explicitly don't need time travel.
-
----
+Rule: Always run `DRY RUN` first on production tables. Never go below 7 days unless you explicitly don't need time travel for that table.
 
 ## Delta Lake — MERGE Write Amplification
 
-**Q: You MERGE 1,000 rows into a Delta table with 500 Parquet files. Only 20 files contain matching rows. How many files are rewritten? Why is this a problem at scale?**
+Q: You MERGE 1,000 rows into a Delta table with 500 Parquet files. Only 20 files contain matching rows. How many files are rewritten? Why is this a problem at scale?
 
 **All 20 files are rewritten in full — even if each file had only 1 matching row.**
 
 Parquet files are immutable. Delta cannot update a single row in-place. For every file that contains at least one match, Delta must:
-1. Read the entire file
-2. Apply the change to the matching rows
-3. Write a brand new Parquet file
-4. Mark the old file as deleted in `_delta_log`
+
+  1. Read the entire file
+  2. Apply the change to the matching rows
+  3. Write a brand new Parquet file
+  4. Mark the old file as deleted in `_delta_log`
+
+
 
 The other 480 files are untouched.
 
-**The scale problem:** If those 20 files are 1 GB each → 20 GB of I/O for a 1,000-row change.
+**The scale problem:** If those 20 files are 1 GB each → 20 GB of I/O for a 1,000-row change. Actual data changed is tiny; write cost is enormous.
 
-| Mitigation | Why it helps |
-|---|---|
-| Partition on merge key | Delta prunes to relevant partitions — far fewer files touched |
-| Z-ORDER on merge key | Co-locates matching rows into fewer files |
-| OPTIMIZE before large MERGE | Compaction → fewer files → less file-open overhead |
-
-**Interview one-liner:** MERGE rewrites every touched file in full because Parquet is immutable. Partition + Z-ORDER on your merge key to minimize how many files get touched.
-
----
-
-## Delta Lake — Delta Sharing
-
-**Q: What problem does Delta Sharing solve, and how does it work?**
-
-**Problem:** Sharing a Delta table across teams, companies, or clouds — without copying data, without giving access to your cloud storage, and without requiring the recipient to use Databricks.
-
-**How it works:** The data owner runs a Delta Sharing server (or uses Databricks). The recipient gets a credential file (short-lived token + server URL) and queries the shared table through any Delta Sharing client (Python, Spark, pandas, Power BI). Data stays in the owner's storage — recipients get pre-signed URLs to specific files only.
-
-| | Copy data | Delta Sharing |
-|---|---|---|
-| Data freshness | Stale immediately | Always live |
-| Storage cost | 2x | Owner pays once |
-| Access control | Recipient owns copy | Owner revokes any time |
-| Recipient needs Databricks | No | No |
-
-**Interview one-liner:** Delta Sharing is an open protocol for sharing live Delta tables across clouds and organizations without copying data or requiring the recipient to use Databricks.
-
----
-
-## Delta vs Iceberg vs Hudi
-
-**Q: What problem do all three solve that plain Parquet on S3 doesn't?**
-
-Plain Parquet has no transaction layer — no ACID, no updates/deletes, no history, no schema enforcement. All three add a transaction log on top of Parquet to solve this.
-
-**Q: What are the key differences between Delta, Iceberg, and Hudi?**
-
-| | Delta Lake | Apache Iceberg | Apache Hudi |
-|---|---|---|---|
-| Transaction log | `_delta_log/` — JSON + Parquet checkpoints | metadata/ — Avro manifest files + snapshot pointers | `.hoodie/` — timeline of commits |
-| Created by | Databricks | Netflix | Uber |
-| Ecosystem | Databricks-native | Neutral — AWS/Google prefer it | Streaming-heavy workloads |
-| Streaming strength | Structured Streaming + Auto Loader | Good, not native | Built for near-real-time upserts |
-| Read engines | Spark, Trino, Flink, DuckDB | Spark, Trino, Flink, Athena, BigQuery | Spark, Flink, Presto |
-
-**Ecosystem split:**
-- **Delta** — on Databricks, or tightest Spark integration needed
-- **Iceberg** — on AWS (Athena, Glue) or GCP, or engine-neutral open standard; Apple uses it at massive scale
-- **Hudi** — high-frequency upserts with low write latency (Uber's use case: trip updates every few seconds)
-
-**Log difference in one sentence:** Iceberg uses Avro manifest files + snapshot pointers in a metadata folder; Delta uses JSON commit files + Parquet checkpoints in `_delta_log/`.
-
-**Interview one-liner:** All three add ACID on top of Parquet. Delta wins on Databricks. Iceberg wins on AWS/GCP and multi-engine shops. Hudi wins for high-frequency streaming upserts.
-
----
+Mitigation| Why it helps  
+---|---  
+Partition on merge key| Delta prunes to relevant partitions — far fewer files touched  
+Z-ORDER on merge key| Co-locates matching rows into fewer files  
+OPTIMIZE before large MERGE| Compaction → fewer files → less file-open overhead  
+  
+Interview one-liner: MERGE rewrites every touched file in full because Parquet is immutable. Partition + Z-ORDER on your merge key to minimize how many files get touched.
 
 ## Spark Cluster Sizing & Partitioning — Classic Interview Question
 
-**Q: 5 executors, 4 cores each, 16 GB memory each. Process a 300 GB dataset. How do you plan partitioning, parallelism, memory, and performance tuning?**
+Q: You have a Spark cluster with 5 executors, 4 cores each, 16 GB memory each. You need to process a 300 GB dataset. How would you plan partitioning, parallelism, memory usage, and performance tuning?
 
-### Step 1 — Resources
-```
-5 × 4 cores  = 20 total task slots
-5 × 16 GB    = 80 GB total memory
-Dataset      = 300 GB
-```
+#### Step 1 — Establish resources
+    
+    
+    5 executors × 4 cores  = 20 total task slots
+    5 executors × 16 GB    = 80 GB total memory
+    Dataset                = 300 GB
 
-### Step 2 — Input partitioning
-Target 128–200 MB per partition (`maxPartitionBytes = 128 MB`).
-```
-300 GB / 128 MB = ~2,400 input partitions
-2,400 / 20 cores = 120 task waves  ← healthy
-```
-```python
-spark.conf.set("spark.sql.files.maxPartitionBytes", "134217728")
-```
+#### Step 2 — Input partitioning
 
-### Step 3 — Shuffle partitions
-Default 200 → 1.5 GB per partition → too large, will spill. Fix: target 200 MB → 1,500 partitions.
-```python
-spark.conf.set("spark.sql.shuffle.partitions", "1500")
-# Or with AQE (Spark 3+):
-spark.conf.set("spark.sql.adaptive.enabled", "true")
-spark.conf.set("spark.sql.shuffle.partitions", "2000")  # AQE coalesces automatically
-```
+Target partition size = 128–200 MB (`maxPartitionBytes = 128 MB` default).
+    
+    
+    300 GB / 128 MB = ~2,400 input partitions
+    2,400 / 20 cores = 120 waves of tasks   ← healthy
+    
+    
+    spark.conf.set("spark.sql.files.maxPartitionBytes", "134217728")  # 128 MB
 
-### Step 4 — Memory breakdown per executor
-| Layer | Amount |
-|---|---|
-| Total heap | 16 GB |
-| Reserved (hardcoded) | 300 MB |
-| Usable heap | ~15.7 GB |
-| Unified pool (execution + storage) — 60% | ~9.4 GB |
-| User memory (UDFs) — 40% | ~6.3 GB |
-| **Per-task unified memory (÷ 4 cores)** | **~2.35 GB/task** |
+#### Step 3 — Shuffle partitions
 
-```python
-spark.conf.set("spark.executor.memoryOverhead", "2g")  # prevent container OOM
-```
+Default 200 shuffle partitions → 300 GB / 200 = 1.5 GB per partition → too large, will spill.
 
-### Step 5 — Tuning checklist
-| Lever | When | Action |
-|---|---|---|
-| Broadcast join | Small table < 10 MB | `autoBroadcastJoinThreshold = 10485760` |
-| AQE skew join | Max task >> median in Spark UI | `spark.sql.adaptive.skewJoin.enabled = true` |
-| Salting | groupBy skew or Spark 2.x | See salting section below |
-| Kryo | Always | `spark.serializer = KryoSerializer` |
-| Caching | Dataset reused 2+ times | Cache aggregations only — 300 GB won't fit in 80 GB |
+Fix: target 200 MB per shuffle partition → 300 GB / 200 MB = ~1,500 partitions.
+    
+    
+    # Manual
+    spark.conf.set("spark.sql.shuffle.partitions", "1500")
+    
+    # Or enable AQE (Spark 3+) and let it coalesce dynamically
+    spark.conf.set("spark.sql.adaptive.enabled", "true")
+    spark.conf.set("spark.sql.shuffle.partitions", "2000")  # set high, AQE coalesces
 
-**Interview answer:** "With 20 cores I'd target 2,400 input partitions at 128 MB — 120 task waves. For shuffles I'd set 1,500 partitions to stay at ~200 MB each, or enable AQE to tune dynamically. Each task gets ~2.35 GB of unified memory — enough headroom for 128 MB partitions without spilling. I'd monitor Spark UI for skew and spill, broadcast small tables, and enable AQE skew join as a safety net."
+#### Step 4 — Memory breakdown per executor
 
----
+Layer| Calculation| Amount  
+---|---|---  
+Total heap| executor memory| 16 GB  
+Reserved (hardcoded)| Spark internal| 300 MB  
+Usable heap| 16 GB − 300 MB| ~15.7 GB  
+Unified pool (execution + storage)| 60% of usable| ~9.4 GB  
+User memory (UDFs, data structures)| 40% of usable| ~6.3 GB  
+**Per-task unified memory**|  9.4 GB / 4 cores| **~2.35 GB/task**  
+  
+2.35 GB per task for 128 MB partitions = ~18× headroom. If you see spill in Spark UI, partitions are too large or joins are blowing up the hash table.
+    
+    
+    spark.conf.set("spark.executor.memoryOverhead", "2g")  # prevent container OOM kills
+
+#### Step 5 — Performance tuning checklist
+
+Lever| When| Config / Action  
+---|---|---  
+Broadcast join| Small table < 10 MB| `spark.sql.autoBroadcastJoinThreshold = 10485760`  
+AQE skew join| Max task >> median in Spark UI| `spark.sql.adaptive.skewJoin.enabled = true`  
+Salting| Known skewed key, no AQE| Append random suffix to join key — see salting section below  
+Kryo serialization| Always| `spark.serializer = org.apache.spark.serializer.KryoSerializer`  
+Caching| Dataset reused 2+ times| Cache derived aggregations only — 300 GB won't fit in 80 GB cluster  
+  
+Interview answer (say out loud): "With 20 cores I'd target 2,400 input partitions at 128 MB each — 120 task waves. For shuffles I'd set 1,500 partitions to keep each around 200 MB, or enable AQE to tune it dynamically. Each executor gets ~2.35 GB per task for execution memory — enough for these partition sizes without spilling. I'd watch the Spark UI for skew and spill, use broadcast joins for small tables, and enable AQE skew join handling as a safety net."
 
 ## Data Skew — Salting Pattern
 
-**Q: What is data skew, how do you detect it, and how does salting fix it?**
+Q: What is data skew, how do you detect it, and how does salting fix it?
 
-### What is skew?
-One partition holds far more rows than others — usually a hot key in a join or groupBy (e.g. "unknown" customer_id = 40% of rows). One task takes 10× longer; the whole stage waits.
+#### What is skew?
 
-### How to detect
-- Spark UI → Stages → Tasks → sort by Duration: max >> median = skew
-- Shuffle Read Size: Min/Median vs Max — a 16× ratio is textbook skew
-- Many empty partitions (median = 0 B) — data piled into a few buckets
+Skew happens when one partition holds far more rows than others — usually because a join or groupBy key has a highly unequal value distribution (e.g., a "unknown" customer_id representing 40% of all rows). One task takes 10× longer than all others → the whole stage waits for it.
 
-```python
-from pyspark.sql.functions import spark_partition_id, count
+#### How to detect
 
-df.groupBy(spark_partition_id().alias("partition_id")) \
-  .agg(count("*").alias("row_count")) \
-  .orderBy("row_count", ascending=False) \
-  .show(20)
-```
+  * Spark UI → Stages → Tasks tab: sort by Duration. If max task duration >> median → skew.
+  * Shuffle Read Size: Min/Median vs Max. A 16× ratio (e.g. median 2,596 rows, max 41,468 rows) is textbook skew.
+  * Many empty partitions (median = 0 B) is also a sign — data is piled into a few partitions.
 
-### Salting — join skew fix
-```python
-from pyspark.sql.functions import col, floor, rand, lit, explode, array, concat
 
-SALT_BUCKETS = 9  # ceil(max_partition_rows / target) = ceil(41468 / 5000)
+    
+    
+    # Detect skew in code — check partition sizes
+    from pyspark.sql.functions import spark_partition_id, count
+    
+    df.groupBy(spark_partition_id().alias("partition_id")) \
+      .agg(count("*").alias("row_count")) \
+      .orderBy("row_count", ascending=False) \
+      .show(20)
 
-# Skewed side: append random salt 0..8
-skewed_df = skewed_df.withColumn(
-    "salted_key",
-    concat(col("customer_id"), lit("_"), (floor(rand() * SALT_BUCKETS)).cast("int"))
-)
+#### Salting — fix for join skew
 
-# Other side: replicate N times with each salt value
-other_df = other_df.withColumn(
-    "salted_key",
-    explode(array([concat(col("customer_id"), lit(f"_{i}")) for i in range(SALT_BUCKETS)]))
-)
+Append a random integer (the "salt") to the skewed key before joining. This spreads one hot partition across N partitions. The other table gets replicated N times to match.
+    
+    
+    from pyspark.sql.functions import col, floor, rand, lit, explode, array
+    
+    SALT_BUCKETS = 9  # ceil(max_partition_rows / target_rows) = ceil(41468 / 5000)
+    
+    # Skewed side: append random salt 0..8 to join key
+    skewed_df = skewed_df.withColumn(
+        "salted_key",
+        concat(col("customer_id"), lit("_"), (floor(rand() * SALT_BUCKETS)).cast("int"))
+    )
+    
+    # Other side: explode to replicate each row N times with salt 0..8
+    other_df = other_df.withColumn(
+        "salted_key",
+        explode(array([concat(col("customer_id"), lit(f"_{i}")) for i in range(SALT_BUCKETS)]))
+    )
+    
+    # Join on salted key
+    result = skewed_df.join(other_df, "salted_key")
 
-result = skewed_df.join(other_df, "salted_key")
-```
+#### Salting for groupBy skew (two-pass aggregation)
 
-### Salting — groupBy skew fix (two-pass)
-```python
-# Pass 1 — partial aggregation with salt
-partial = df.withColumn("salt", (floor(rand() * SALT_BUCKETS)).cast("int")) \
-            .groupBy("customer_id", "salt") \
-            .agg(sum("amount").alias("partial_sum"))
+When the hot key is in a groupBy (not a join), use a two-pass approach:
+    
+    
+    # Pass 1 — partial aggregation with salt (spreads the hot key)
+    partial = df.withColumn("salt", (floor(rand() * SALT_BUCKETS)).cast("int")) \
+                .groupBy("customer_id", "salt") \
+                .agg(sum("amount").alias("partial_sum"))
+    
+    # Pass 2 — final aggregation drops salt
+    result = partial.groupBy("customer_id").agg(sum("partial_sum").alias("total_amount"))
 
-# Pass 2 — final aggregation drops salt
-result = partial.groupBy("customer_id").agg(sum("partial_sum").alias("total_amount"))
-```
+#### SALT_BUCKETS formula
+    
+    
+    # From Spark UI: max partition rows = 41,468 | target = 5,000 rows/partition
+    SALT_BUCKETS = ceil(41468 / 5000) = ceil(8.29) = 9
 
-### SALT_BUCKETS formula
-```
-SALT_BUCKETS = ceil(max_partition_rows / target_rows_per_partition)
-             = ceil(41468 / 5000) = 9
-```
+#### AQE vs manual salting
 
-### AQE vs manual salting
-| | AQE Skew Join | Manual Salting |
-|---|---|---|
-| Effort | Zero — enable config | Code change required |
-| Works for | Joins only (Spark 3+) | Joins + groupBy |
-| Use when | Spark 3+, standard join skew | Spark 2.x, groupBy skew, AQE not available |
+| AQE Skew Join| Manual Salting  
+---|---|---  
+Effort| Zero — just enable the config| Code change required  
+Works for| Joins only (Spark 3.0+)| Joins + groupBy  
+Detectability| Spark detects skew at runtime| You control the logic  
+Use when| Spark 3+, standard join skew| Spark 2.x, groupBy skew, or AQE not tuned right  
+  
+Interview one-liner: "Salting distributes a hot key across N partitions by appending a random integer — the other side is replicated N times to match. For Spark 3+ I'd enable AQE first; salting is the fallback for groupBy skew or older clusters."
 
-**Interview one-liner:** "Salting distributes a hot key across N partitions by appending a random integer — the other side is replicated N times to match. For Spark 3+ I enable AQE first; salting is the fallback for groupBy skew or older clusters."
+## Unity Catalog — What is a Catalog? (asked 2026-07-06, during 2D Ex-5 lab)
+
+Q: What is a catalog in Databricks?
+
+**The top level of Unity Catalog's three-level namespace:** `catalog.schema.table` — a "database of databases."
+
+  * **Catalog** — top-level container; groups schemas
+  * **Schema** (= database) — groups tables, views, and volumes
+  * **Table / view / volume** — the actual objects
+
+
+
+Example from the Ex-5 lab: `workspace.default.ex5_rate_sink` → catalog `workspace` (Free Edition's default) → schema `default` → table `ex5_rate_sink`. The checkpoint path `/Volumes/workspace/default/mydata` is the same namespace — `mydata` is a _volume_ object in that same schema.
+
+**Why catalogs exist:** they're the governance boundary. Teams separate environments (`dev`/`staging`/`prod`) or business units by catalog, and grants cascade down:
+    
+    
+    GRANT SELECT ON CATALOG prod TO analysts;   -- applies to every schema/table inside
+
+Note: Full Unity Catalog coverage (RBAC, row filters, column masks, lineage) is Stage 2F — this entry is just the namespace piece.

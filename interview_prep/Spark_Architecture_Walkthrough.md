@@ -1213,116 +1213,223 @@ Ecosystem gravity| Databricks| Snowflake, AWS (Athena/Glue), Trino, BigQuery —
 
 Updated 2026-06-12 — Stage 2C complete coverage added: Section 23 (transaction log, OCC), 24 (time travel, RESTORE, schema enforcement/evolution), 25 (OPTIMIZE, Z-ORDER, liquid clustering, VACUUM, small files, data skipping + DFP), 26 (MERGE mechanics, CDF), 27 (Delta Sharing, Delta vs Iceberg vs Hudi). All 12 topics from the 2C plan covered.
 
----
+* * *
 
 ## Stage 2D — Structured Streaming
 
-*Session: 2026-06-22*
+Session: 2026-07-03
 
 ### §28 Checkpoint — What it stores and why it matters
 
 A checkpoint is a **directory on durable storage** (S3, ADLS, DBFS) that Spark writes to at the end of every micro-batch so a crashed query can resume exactly where it left off.
 
-**Checkpoint directory structure:**
-```
-checkpoint/
-  metadata      ← query ID + config (written once at startup)
-  offsets/      ← what was READ each batch (0, 1, 2, ...)
-  commits/      ← what was SUCCESSFULLY PROCESSED (0, 1, 2, ...)
-  state/        ← aggregation state, watermarks, dedup records
-```
+#### Checkpoint directory structure
+    
+    
+    checkpoint/
+      metadata      ← query ID + config (written once at startup)
+      offsets/      ← what was READ each batch (0, 1, 2, ...)
+      commits/      ← what was SUCCESSFULLY PROCESSED (0, 1, 2, ...)
+      state/        ← aggregation state, watermarks, dedup records
 
-**How exactly-once works (two-phase commit via checkpoint):**
+#### How exactly-once works (two-phase commit via checkpoint)
 
 Every micro-batch follows this sequence:
-1. Write `offsets/N` — "I am about to read up to offset N"
-2. Read source data and process
-3. Write output to sink
-4. Write `commits/N` — "batch N is done"
+
+  1. Write `offsets/N` — "I am about to read up to offset N"
+  2. Read source data and process
+  3. Write output to sink
+  4. Write `commits/N` — "batch N is done"
+
+
 
 If the job crashes between steps 1 and 4, on restart Spark sees `offsets/N` exists but `commits/N` doesn't → reruns batch N. The sink must be idempotent (Delta handles this automatically via transaction log).
 
-**Consequence of deleting the checkpoint:**
+#### Consequence of deleting the checkpoint
 
-| What's lost | Effect |
-|---|---|
-| `offsets/` | Spark doesn't know where it read to — restarts from beginning or latest |
-| `commits/` | Can't distinguish completed vs in-progress batches → potential duplicates |
-| `state/` | All aggregation state gone — running counts, window sums, dedup history reset to zero → **wrong answers** |
-
+What's lost| Effect  
+---|---  
+`offsets/`| Spark doesn't know where it read to — restarts from beginning or latest depending on source config  
+`commits/`| Can't distinguish completed vs in-progress batches → potential duplicates  
+`state/`| All aggregation state gone — running counts, window sums, dedup history reset to zero → **wrong answers**  
+  
 **Rule:** For stateless streams, deleting checkpoint means reprocessing. For stateful streams (aggregations, dedup), it means wrong answers.
-
----
 
 ### §29 Writing Streaming Queries — Patterns
 
-**Stateless filter + write (append mode):**
-```python
-from pyspark.sql.functions import col
+#### Stateless filter + write (append mode)
+    
+    
+    from pyspark.sql.functions import col
+    
+    spark.readStream \
+        .format("delta") \
+        .load("/data/events") \
+        .filter(col("event_type") == "purchase") \
+        .writeStream \
+        .format("delta") \
+        .option("checkpointLocation", "/checkpoints/purchases") \
+        .outputMode("append") \
+        .start("/data/purchases")
 
-spark.readStream \
-    .format("delta") \
-    .load("/data/events") \
-    .filter(col("event_type") == "purchase") \
-    .writeStream \
-    .format("delta") \
-    .option("checkpointLocation", "/checkpoints/purchases") \
-    .outputMode("append") \
-    .start("/data/purchases")
-```
-Why append: simple filter, rows only ever added, never updated → append is the only valid output mode here.
+**Why append:** simple filter, rows only ever added, never updated → append is the only valid output mode here.
 
-**Stateful windowed aggregation (update mode):**
-```python
-from pyspark.sql.functions import window, col
+#### Stateful windowed aggregation (update mode)
+    
+    
+    from pyspark.sql.functions import window, col
+    
+    spark.readStream \
+        .format("kafka") \
+        .option("kafka.bootstrap.servers", "localhost:9092") \
+        .option("subscribe", "payments") \
+        .load() \
+        .groupBy(
+            window(col("timestamp"), "5 minutes"),
+            col("merchant_id")
+        ) \
+        .count() \
+        .writeStream \
+        .format("delta") \
+        .option("checkpointLocation", "/checkpoints/merchant_counts") \
+        .outputMode("update") \
+        .start("/data/merchant_counts")
 
-spark.readStream \
-    .format("kafka") \
-    .option("kafka.bootstrap.servers", "localhost:9092") \
-    .option("subscribe", "payments") \
-    .load() \
-    .groupBy(
-        window(col("timestamp"), "5 minutes"),
-        col("merchant_id")
-    ) \
-    .count() \
-    .writeStream \
-    .format("delta") \
-    .option("checkpointLocation", "/checkpoints/merchant_counts") \
-    .outputMode("update") \
-    .start("/data/merchant_counts")
-```
-`window(col("timestamp"), "5 minutes")` buckets rows into 5-minute time windows based on event time. Result has a `window` column with `{start, end}` struct. Late arrivals → watermarking (§30).
+**window(col("timestamp"), "5 minutes"):** buckets rows into 5-minute time windows based on event time. Result has a `window` column with `{start, end}` struct. Late arrivals → watermarking (§30).
 
-**Output mode summary:**
+**Why update:** aggregation rows get updated each batch as new events arrive → use update, not append.
 
-| Mode | What gets written each batch | When to use |
-|---|---|---|
-| `append` | Only new rows | Stateless (filter, map) — rows never change |
-| `update` | Only rows that changed this batch | Aggregations writing to Delta/Kafka |
-| `complete` | Entire result rewritten every batch | Aggregations writing to memory/console only — expensive |
+#### Output mode summary
 
-**Import styles — F.col vs col:**
-```python
-# Style 1 — module alias (preferred in production, explicit origin)
-import pyspark.sql.functions as F
-F.col("merchant_id"), F.window(...)
+Mode| What gets written each batch| When to use  
+---|---|---  
+`append`| Only new rows| Stateless (filter, map) — rows never change  
+`update`| Only rows that changed this batch| Aggregations writing to Delta/Kafka  
+`complete`| Entire result rewritten every batch| Aggregations writing to memory/console only — expensive  
+  
+#### Import styles — F.col vs col
 
-# Style 2 — direct import (less typing, risk of name collision)
-from pyspark.sql.functions import col, window
-col("merchant_id"), window(...)
-```
+Both identical, different import style:
+    
+    
+    # Style 1 — module alias (preferred in production, explicit origin)
+    import pyspark.sql.functions as F
+    F.col("merchant_id"), F.window(...)
+    
+    # Style 2 — direct import (less typing, risk of name collision)
+    from pyspark.sql.functions import col, window
+    col("merchant_id"), window(...)
 
----
+### §30 Watermarking — late-arriving data & state eviction
+
+The problem: in a windowed aggregation, Spark keeps per-window state (e.g. running counts) in memory/state store forever unless told otherwise — because an event with an old timestamp could theoretically still arrive and belong to an old window. Unbounded state growth = eventual OOM.
+
+**A watermark is a moving threshold** that tells Spark: "I won't wait for events older than this anymore — it's safe to finalize and drop state for windows that have closed."
+    
+    
+    from pyspark.sql.functions import window, col
+    
+    spark.readStream \
+        .format("kafka") \
+        .option("subscribe", "payments") \
+        .load() \
+        .withWatermark("event_time", "10 minutes") \
+        .groupBy(
+            window(col("event_time"), "5 minutes"),
+            col("merchant_id")
+        ) \
+        .count() \
+        .writeStream \
+        .format("delta") \
+        .outputMode("update") \
+        .option("checkpointLocation", "/checkpoints/merchant_counts") \
+        .start("/data/merchant_counts")
+
+**How the threshold moves:** watermark = `max(event_time seen so far) − lag` (here, 10 minutes). It only moves forward, never backward, and updates after every micro-batch.
+
+**State eviction:** once the watermark passes a window's _end_ boundary, Spark considers that window closed — its state is dropped from the state store and it stops appearing in future updates.
+
+Event arrives...| Watermark says| Result  
+---|---|---  
+Before window end + lag| Still within tolerance| Included in the aggregation, window state updated  
+After watermark has passed the window| Too late| Silently dropped — no error, no output  
+  
+**Trade-off:** short watermark (e.g. 1 min) → state evicted fast, memory stays small, but real late data gets dropped → wrong aggregates. Long watermark (e.g. 24 hr) → correctness improves, but state store grows large → memory pressure. Tune to the source's realistic max lateness (e.g. mobile clients buffering offline for a few minutes).
+
+**Rule:** watermark only applies to _stateful_ operations (windowed aggregations, stream-stream joins, dedup). A stateless filter/map has no state to evict, so no watermark is needed.
+
+### §31 Exactly-once with Kafka — source vs. sink, the nuance interviewers probe
+
+This is commonly answered wrong as "just turn on `enable.idempotence=true`." The real answer depends on which side of the pipeline Kafka sits on.
+
+#### Kafka as a SOURCE (reading from Kafka)
+
+Exactly-once here is handled entirely by Structured Streaming's checkpoint mechanism (§28) — Spark tracks the exact Kafka offsets consumed in `checkpoint/offsets/`, and on restart resumes from precisely those offsets. No Kafka-side config needed; this is Spark's job, not Kafka's.
+
+#### Kafka as a SINK (writing to Kafka)
+
+This is where it gets tricky. Structured Streaming's built-in Kafka sink is **at-least-once by default** — if a micro-batch is retried after a partial write, some messages can be re-published as duplicates. Why: unlike the Delta sink (§32), Spark's Kafka writer does _not_ participate in Kafka's transactional API, so there's no atomic "commit this whole batch or nothing" guarantee on the write side.
+
+Mechanism| What it actually protects against| Does it give exactly-once in Spark→Kafka?  
+---|---|---  
+`enable.idempotence=true` (idempotent producer)| Duplicate messages from a single producer's network retries (broker dedups by producer ID + sequence number)| No — protects one write call, not a whole re-executed micro-batch  
+Kafka transactional API (`transactional.id`)| Atomic multi-partition/multi-topic writes — used by Kafka Streams for true Kafka→Kafka exactly-once| No — Spark Structured Streaming's Kafka sink doesn't hook into Kafka transactions  
+  
+**Practical pattern:**
+
+  * **Kafka source → Delta sink:** true exactly-once, for free — Delta's transaction log + checkpoint commits combine into one atomic unit (§32).
+  * **Kafka source → Kafka sink:** at-least-once. If you need exactly-once semantics downstream, make the consumer idempotent — write a unique message key/ID and let the downstream store dedup on upsert (same pattern as MERGE INTO dedup in §26).
+
+
+
+### §32 Atomic micro-batch commits to Delta — why Delta gets exactly-once and Kafka sink doesn't
+
+Every Structured Streaming micro-batch that writes to Delta becomes exactly one entry in `_delta_log` (§23) — a single atomic transaction. Delta additionally stores the **streaming batch ID** it last committed as transaction metadata (`txnAppId` + `txnVersion`) tied to the query's checkpoint.
+
+Combine this with the checkpoint's offsets/commits protocol (§28):
+
+  1. Spark writes `offsets/N` before processing batch N
+  2. Spark processes and writes the Delta commit for batch N, tagging it with batch ID N
+  3. Spark writes `commits/N`
+
+
+
+If the job crashes after step 2 but before step 3, on restart Spark reruns batch N — but when it tries to commit to Delta again, **Delta checks the txnAppId/txnVersion it already has on file, sees batch N was already applied, and skips it** instead of double-writing. This is what makes Kafka source → Delta sink genuinely exactly-once, not just at-least-once: the sink itself is idempotent per streaming batch, not just per message.
+
+**Interview framing:** "Delta gets exactly-once because the sink is idempotent at the batch level via txn metadata in the log, combined with Spark's own offset tracking. Kafka sink can't do this because Kafka has no equivalent per-batch dedup mechanism exposed to Structured Streaming."
+
+### §33 Trigger modes — controlling when micro-batches run
+
+Trigger| Behavior| Use case  
+---|---|---  
+Default (none specified)| Runs the next micro-batch immediately after the previous one finishes — back-to-back, as fast as possible| Low-latency continuous ingestion  
+`Trigger.ProcessingTime("10 seconds")`| Fixed interval. If a batch finishes early, waits out the rest of the interval. If it overruns, starts the next batch immediately after| Predictable, throttled cadence — avoid hammering the source/sink  
+`Trigger.Once()` _(deprecated)_|  Processes all currently available data as a single giant batch, then stops| Superseded by AvailableNow — kept for legacy jobs  
+`Trigger.AvailableNow()`| Processes all currently available data too, but splits it into multiple micro-batches (respects `maxOffsetsPerTrigger`) instead of one huge batch, then stops| Scheduled/batch-like runs (e.g. hourly job kicked off by Airflow) — safer than Once() on large backlogs, avoids one massive shuffle  
+      
+    
+    # Continuous, throttled
+    .trigger(processingTime="10 seconds")
+    
+    # Scheduled batch-style run — process backlog, then exit
+    .trigger(availableNow=True)
+
+**Why AvailableNow over Once:** Once() reads the whole backlog as one batch — if the backlog is large, that's one enormous shuffle/state update with no incremental checkpointing along the way, and a crash mid-batch means redoing all of it. AvailableNow() chunks the same backlog into normal-sized micro-batches, each checkpointed independently — a crash only loses the current chunk.
 
 ### Recap questions for next 2D session
 
-1. Name the four folders inside a checkpoint directory and what each stores.
-2. A streaming job has been running for 3 days with windowed aggregations. Someone deletes the checkpoint to "free space." What breaks and why?
-3. You have a simple `filter → write to Delta` pipeline. Which output mode? What if you add a `groupBy().count()`?
-4. Write from blank: Kafka source → filter event_type == "click" → write to Delta with append mode and checkpoint.
-5. What does `window(col("ts"), "10 minutes")` produce in the output schema?
+  1. Name the four folders inside a checkpoint directory and what each stores.
+  2. A streaming job has been running for 3 days with windowed aggregations. Someone deletes the checkpoint to "free space." What breaks and why?
+  3. You have a simple `filter → write to Delta` pipeline. Which output mode? What if you add a `groupBy().count()`?
+  4. Write from blank: Kafka source → filter event_type == "click" → write to Delta with append mode and checkpoint.
+  5. What does `window(col("ts"), "10 minutes")` produce in the output schema?
+  6. Why does a 5-minute watermark on a 5-minute window mean a window doesn't finalize until 10 minutes after it starts?
+  7. True or false: Kafka source → Kafka sink is exactly-once if you enable `enable.idempotence=true` on the producer. Explain.
+  8. Why does Kafka source → Delta sink get exactly-once "for free" but Kafka source → Kafka sink doesn't?
+  9. You have an hourly Airflow-triggered job processing a Kafka backlog. Trigger.Once(), Trigger.AvailableNow(), or default — which, and why?
 
----
 
-*Updated 2026-06-22 — Stage 2D started: §28 Checkpoint (structure, exactly-once two-phase commit, consequence of deletion), §29 Streaming query patterns (stateless append, stateful windowed aggregation with Kafka, output mode comparison, F.col vs col import styles).*
+
+* * *
+
+Updated 2026-07-03 — Stage 2D taught in full: §28 Checkpoint (structure, exactly-once two-phase commit, consequence of deletion), §29 Streaming query patterns (stateless append, stateful windowed aggregation with Kafka, output mode comparison, F.col vs col import styles), §30 Watermarking (threshold mechanics, state eviction, trade-offs), §31 Exactly-once with Kafka (source vs. sink nuance, idempotent producer vs. transactional API), §32 Atomic micro-batch commits to Delta (txnAppId/txnVersion idempotency), §33 Trigger modes (default, ProcessingTime, Once vs AvailableNow). Next: hands-on lab + from-blank exercises, then Stage 2E (Lakeflow/DLT).
