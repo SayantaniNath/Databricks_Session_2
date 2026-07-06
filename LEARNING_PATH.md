@@ -1,4 +1,6 @@
 # DE Interview Prep — Full Learning Path
+
+> **Vacation 2026-07-09 → 2026-07-14** (noted Jul 6): ~5 sessions lost; back Wed Jul 15. Pillar 2 wrap slips ~1 week (2E → ~Jul 17, 2F–2J shift accordingly). AWS CCP + DEA exams (Aug 10–16) unaffected. Detailed date reshuffle happens in the Jul 15 session.
 **Sayantani Nath | Updated: 2026-07-03**
 **Goal:** Job-ready for FAANG / Databricks DE roles by Oct 1, 2026
 **Base:** Strong SQL, Python, Snowflake/Redshift production, AWS CCP in progress
