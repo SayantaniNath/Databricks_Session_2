@@ -195,6 +195,7 @@ Structured by interview round order — the thing tested first is built first.
 | Databricks Workflows vs Airflow: when to choose which | ⏳ |
 | Secret scopes: Databricks-backed vs Azure Key Vault-backed | ⏳ |
 | CI/CD: Databricks Repos + Git integration + databricks-cli | ⏳ |
+| **Databricks Asset Bundles (DABs)** ⭐ (added 2026-07-07 — DEA exam #1 miss cluster): `databricks.yml` structure (bundle / targets / resources / include); target env config (`host` + `root_path` nested under `workspace:`); deploy-time vs runtime variables (`--var` baked at `bundle deploy`; `bundle run --var` cannot override); `bundle deploy --auto-approve` for non-interactive CI/CD (`--force` = Git-branch override only). **Hands-on:** init a bundle, define dev/prod targets, deploy a job in Free Edition | ⏳ |
 | ai_query() / Mosaic AI functions: inline LLM calls in SQL/PySpark | ⏳ |
 | Photon-enabled vs standard Databricks Runtime | ⏳ |
 | **Databricks vs Snowflake vs BigQuery** — architecture-level articulation for interviews | ⏳ |
