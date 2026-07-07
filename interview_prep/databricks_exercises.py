@@ -220,3 +220,58 @@ spark.sql('''SELECT value, count(*) FROM workspace.default.ex5_rate_sink
 # NOTE: 2D Ex1-4 (from-blank streaming exercises) were reviewed together in
 # the 2026-07-03 session as model answers in chat — they were never written
 # into the walkthrough doc. Reconstruct here if wanted for redo practice.
+
+
+# =============================================================================
+# 6. LAKEFLOW / DLT — 2E EXPECTATIONS LAB (prepped 2026-07-07, Free Edition)
+# Goal: mini bronze->silver Lakeflow pipeline; watch expectations WARN vs DROP.
+# Runs as a PIPELINE (not cell-by-cell): Step 2 is the pipeline source notebook;
+# create an ETL pipeline pointing at it and Start.
+# =============================================================================
+
+# --- Step 1 — sample data (run once in a NORMAL notebook) ---
+# 5 rows, 2 intentionally bad (row 3 no name, row 4 zip too short).
+"""
+data = [
+    (1, "Alice", "12345"),   # good
+    (2, "Bob",   "67890"),   # good
+    (3, None,    "11111"),   # bad: no name   -> dropped by expect_or_drop
+    (4, "Dana",  "1"),       # bad: short zip -> only warned by expect
+    (5, "Eve",   "54321"),   # good
+]
+df = spark.createDataFrame(data, ["patient_id", "name", "zip_code"])
+df.write.mode("overwrite").saveAsTable("workspace.default.patients_raw")
+display(spark.table("workspace.default.patients_raw"))
+"""
+
+# --- Step 2 — pipeline source notebook (DO NOT run directly; point a pipeline at it) ---
+"""
+import dlt
+from pyspark.sql import functions as F
+
+@dlt.table(name="patients_bronze")
+def patients_bronze():
+    return spark.readStream.table("workspace.default.patients_raw")
+
+@dlt.table(name="patients_silver")
+@dlt.expect("warn_zip", "length(zip_code) = 5")          # WARN: keep row, count violations
+@dlt.expect_or_drop("drop_no_name", "name IS NOT NULL")  # DROP: throw the row out
+def patients_silver():
+    return dlt.read_stream("patients_bronze")
+"""
+
+# --- Step 3 — create & run ---
+# Pipelines -> Create pipeline -> ETL -> Source = Step 2 notebook ->
+# target catalog=workspace, schema=default -> Start.
+
+# EXPECT / observe:
+#   - patients_silver = 4 rows (row 3 dropped by expect_or_drop for null name).
+#   - row 4 (short zip) STAYS IN — expect() only warns, doesn't remove.
+#   - silver node -> Data quality panel shows per-expectation pass/fail counts.
+# OPTIONAL: switch warn_zip to @dlt.expect_or_fail -> whole pipeline FAILS on
+#   row 4 (the "system's broken" mode). Then switch back.
+#
+# heuristic: fail = system's broken (missing key); drop = row's bad (garbage zip);
+#            warn = still learning what normal looks like.
+#
+# AS-RUN RESULTS (fill after running): _______________________________________
