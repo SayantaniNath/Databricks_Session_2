@@ -427,3 +427,21 @@ Detectability| Spark detects skew at runtime| You control the logic
 Use when| Spark 3+, standard join skew| Spark 2.x, groupBy skew, or AQE not tuned right  
   
 Interview one-liner: "Salting distributes a hot key across N partitions by appending a random integer — the other side is replicated N times to match. For Spark 3+ I'd enable AQE first; salting is the fallback for groupBy skew or older clusters."
+
+## Structured Streaming — writeStream syntax (asked 2026-07-06)
+
+Q: What's the syntax of the writeStream chain? (asked 2026-07-06, during 2D Ex-5 lab)
+    
+    
+    query = (df.writeStream
+        .format("delta")                          # sink type: delta | kafka | console | memory | parquet
+        .option("checkpointLocation", "/path")    # sink options — checkpoint required for durable sinks
+        .outputMode("append")                     # append | update | complete
+        .trigger(processingTime="5 seconds")      # optional — default is "next batch ASAP"
+        .start("/output/path"))                   # ← THE ACTION — nothing runs until this line
+
+  * Builder methods before the terminal call are lazy config, any order; **`.start()` launches the stream** (streaming twin of `.write.save()`).
+  * `.toTable("catalog.schema.table")` is an alternative terminal call — same action, but targets a UC _table name_ instead of a raw path.
+  * Returns a `StreamingQuery` handle: `query.stop()`, `query.status`, `query.lastProgress`.
+
+

@@ -37,22 +37,6 @@ Lives in the same three-level namespace: `workspace.default.mydata` = catalog.sc
 
 Why the Ex-5 lab uses one: a streaming checkpoint needs a durable directory to write `offsets/` and `commits/` into; in Free Edition the sanctioned file-storage location is a volume — hence `ckpt = "/Volumes/workspace/default/mydata/ex5_ckpt"`.
 
-Q: What's the syntax of the writeStream chain? (asked 2026-07-06, during 2D Ex-5 lab)
-    
-    
-    query = (df.writeStream
-        .format("delta")                          # sink type: delta | kafka | console | memory | parquet
-        .option("checkpointLocation", "/path")    # sink options — checkpoint required for durable sinks
-        .outputMode("append")                     # append | update | complete
-        .trigger(processingTime="5 seconds")      # optional — default is "next batch ASAP"
-        .start("/output/path"))                   # ← THE ACTION — nothing runs until this line
-
-  * Builder methods before the terminal call are lazy config, any order; **`.start()` launches the stream** (streaming twin of `.write.save()`).
-  * `.toTable("catalog.schema.table")` is an alternative terminal call — same action, but targets a UC _table name_ instead of a raw path.
-  * Returns a `StreamingQuery` handle: `query.stop()`, `query.status`, `query.lastProgress`.
-
-
-
 ## Photon Recap + Catalyst / Tungsten / Photon Layer Map (asked 2026-07-06, pre-2E recap)
 
 Q: What are Catalyst and Tungsten, and where does Photon fit?
