@@ -511,3 +511,20 @@ Practical consequence: replace Python UDFs with built-in functions where possibl
 Q: Why does vectorized + columnar beat row-at-a-time on modern CPUs?
 
 Row-at-a-time: the CPU handles one value, checks what to do, moves on — high overhead per value. Vectorized: load a batch of one column's values and apply **one SIMD instruction to many values at once**. Columnar layout puts those batches contiguously in memory → CPU cache stays hot. Less overhead per value + hardware parallelism = the 2–8x.
+
+Q: Stateless vs stateful streams — what's the difference and why does it matter? (asked 2026-07-06 and again 2026-07-07 — retention flag)
+
+**Stateless** — each row processed on its own; Spark remembers nothing between micro-batches. `filter`, `select`, `map`. Batch 7 needs nothing from batches 1–6.
+
+**Stateful** — the answer depends on rows from earlier batches, so Spark carries memory forward in the checkpoint's `state/` folder. `groupBy(window(...)).count()`: batch 7's job is "add these events to the totals so far" — the totals ARE the state.
+
+**Why it matters (checkpoint deletion):**
+
+  * Stateless → worst case reprocessing/duplicates — visible, fixable.
+  * Stateful → window counts / watermark / dedup history gone; counts restart from zero mid-window; job reports a plausible-looking **wrong** number with no error — _silently wrong_.
+
+
+
+The trap: `dropDuplicates("order_id")` looks stateless but is **stateful** — it must remember every order_id ever seen. Checkpoint gone → old duplicates sail through → double-counted revenue downstream.
+
+Rule of thumb: if this batch requires remembering anything from previous batches — aggregation, window, dedup, stream-stream join — it's stateful.
