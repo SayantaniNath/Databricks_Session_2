@@ -138,8 +138,8 @@ Structured by interview round order — the thing tested first is built first.
 
 **2D COMPLETE ✅ 2026-07-03** (marked at her request; Ex-5 lab completed 2026-07-06).
 
-### 2E: Delta Live Tables (DLT) ⭐
-*Est. start: 2026-07-07 | Est. completion: 2026-07-11*
+### 2E: Delta Live Tables (DLT) ⭐ — ✅ COMPLETE 2026-07-07
+*Actual completion: 2026-07-07 (all concepts + retention checks; hands-on lab deferred by her choice to move to DEA prep)*
 
 | Topic | Status |
 |---|---|
@@ -147,9 +147,9 @@ Structured by interview round order — the thing tested first is built first.
 | DLT vs manually writing Spark pipelines — what problem it solves | ✅ intro level |
 | Expectations: warn / drop / fail modes, when to use each | ✅ taught + checks passed 2026-07-06 (§35) |
 | Streaming live table vs materialized view | ✅ taught + checks passed 2026-07-06 (§36) |
-| Schema drift prevention: StructType + Expectations pattern | 🟡 taught 2026-07-06 (§37) — recap Wed before lab |
+| Schema drift prevention: StructType + Expectations pattern | ✅ recapped + check passed 2026-07-07 (§37; schema = shape guard, Expectations = content guard) |
 | Pipeline update modes: complete vs append | ✅ taught + check passed 2026-07-06 (§38) |
-| **Hands-on lab** (added 2026-07-03): build a mini Lakeflow pipeline in Free Edition — bronze→silver with expectations (warn/drop/fail), watch a violation get dropped | ⏳ |
+| **Hands-on lab** (added 2026-07-03): build a mini Lakeflow pipeline in Free Edition — bronze→silver with expectations (warn/drop/fail), watch a violation get dropped | ⏹️ deferred 2026-07-07 — optional during DEA hands-on |
 
 ### 2F: Unity Catalog ⭐
 *Est. start: 2026-07-11 | Est. completion: 2026-07-14*
