@@ -316,3 +316,51 @@ def orders_silver():
 #         'customer_not_null', halted on order_id=3 (null). Then reverted to
 #         expect_or_drop -> green again.
 #   => all three modes (warn / drop / fail) demonstrated end-to-end. 2E lab DONE.
+
+# -----------------------------------------------------------------------------
+# 6b. FOLLOW-ON — streaming table vs materialized view IDEMPOTENCY (run 2026-07-16)
+# -----------------------------------------------------------------------------
+# Q she asked: "is it idempotent — can I change expectations and rerun freely?"
+# Answer proven hands-on. Added a SECOND source file (streaming_demo.py) with
+# NEW table names so the MV lab above stayed intact (new names => no MV->ST
+# type conflict, normal Run works, no full refresh needed on first build).
+#
+# Setup (normal notebook, batch): built a Delta source table first, because a
+# streaming table needs a real streaming source, not an inline list.
+"""
+data = [(1,"C001",250.0),(2,"C002",100.0),(3,None,75.0),
+        (4,"C003",-20.0),(5,"C004",500.0),(6,None,None)]
+spark.createDataFrame(data,["order_id","customer_id","amount"]) \
+    .write.mode("overwrite").saveAsTable("workspace.lakeflow_lab.orders_raw")
+"""
+# Pipeline source (streaming_demo.py) — streaming tables (readStream / read_stream):
+"""
+import dlt
+@dlt.table
+def orders_bronze_stream():
+    return spark.readStream.table("workspace.lakeflow_lab.orders_raw")
+
+@dlt.table
+@dlt.expect("amount_positive", "amount > 0")
+@dlt.expect_or_drop("customer_not_null", "customer_id IS NOT NULL")
+def orders_silver_stream():
+    return dlt.read_stream("orders_bronze_stream")
+"""
+# Append 2 new rows (batch notebook) then rerun pipeline NORMALLY:
+"""
+new = [(7,"C005",300.0),(8,None,40.0)]
+spark.createDataFrame(new,["order_id","customer_id","amount"]) \
+    .write.mode("append").saveAsTable("workspace.lakeflow_lab.orders_raw")
+"""
+# OBSERVED:
+#   First build: orders_silver_stream = 4 (all 6 read, 2 null-customer dropped).
+#   After appending 2 + NORMAL rerun: silver_stream = 5 (added only order 7;
+#     order 8 dropped). It processed ONLY the 2 new rows — checkpoint remembered
+#     where it left off. An MV would have re-read all 8.
+#
+# TAKEAWAY (answer to the idempotency Q):
+#   MATERIALIZED VIEW  -> full recompute each run  -> idempotent; a changed rule
+#                         re-judges ALL rows automatically.
+#   STREAMING TABLE    -> incremental (new data only) -> old rows stay as-written;
+#                         a tightened rule only affects FUTURE rows unless you
+#                         run FULL REFRESH to replay history.
