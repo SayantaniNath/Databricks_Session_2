@@ -364,3 +364,60 @@ spark.createDataFrame(new,["order_id","customer_id","amount"]) \
 #   STREAMING TABLE    -> incremental (new data only) -> old rows stay as-written;
 #                         a tightened rule only affects FUTURE rows unless you
 #                         run FULL REFRESH to replay history.
+
+# =============================================================================
+# 7. UNITY CATALOG — 2F GOVERNANCE LAB (run 2026-07-16, Free Edition, SQL)
+# Concepts: 3-level namespace, USE-vs-SELECT grants, row filter, column mask,
+#           lineage, metastore. All 5 taught + checks passed same day.
+# Key grant rule proven: to read a table need USE CATALOG + USE SCHEMA (the
+#   "key to the door") AND SELECT (the "contents"). No DENY; deny-by-default.
+# is_account_group_member('g') -> TRUE/FALSE per querying user, evaluated at
+#   query time. Not in the group => ELSE / filtered branch (perfect solo test).
+# =============================================================================
+
+# --- Step 1 — schema + PII table ---
+"""
+CREATE SCHEMA IF NOT EXISTS workspace.uc_lab;
+CREATE OR REPLACE TABLE workspace.uc_lab.patients (
+  patient_id INT, name STRING, ssn STRING, state STRING, diagnosis STRING);
+INSERT INTO workspace.uc_lab.patients VALUES
+  (1,'Alice','111-22-3333','CA','Diabetes'),
+  (2,'Bob',  '222-33-4444','NY','Hypertension'),
+  (3,'Cara', '333-44-5555','CA','Asthma'),
+  (4,'Dan',  '444-55-6666','TX','Flu');
+"""
+
+# --- Step 2 — COLUMN MASK on ssn (PII) ---
+"""
+CREATE OR REPLACE FUNCTION workspace.uc_lab.mask_ssn(ssn STRING)
+RETURN CASE WHEN is_account_group_member('hr') THEN ssn
+            ELSE 'XXX-XX-' || right(ssn, 4) END;
+ALTER TABLE workspace.uc_lab.patients
+  ALTER COLUMN ssn SET MASK workspace.uc_lab.mask_ssn;
+"""
+# OBSERVED: not in 'hr' => SSNs displayed as XXX-XX-#### (base data untouched). ✅
+
+# --- Step 3 — ROW FILTER (only CA rows unless auditor) ---
+"""
+CREATE OR REPLACE FUNCTION workspace.uc_lab.filter_ca(state STRING)
+RETURN is_account_group_member('auditors') OR state = 'CA';
+ALTER TABLE workspace.uc_lab.patients
+  SET ROW FILTER workspace.uc_lab.filter_ca ON (state);
+"""
+# OBSERVED: not in 'auditors' => table dropped to 2 rows (Alice, Cara / CA). ✅
+
+# --- Step 4 — real GRANT (built-in 'account users' = everyone) ---
+"""
+GRANT USE CATALOG ON CATALOG workspace           TO `account users`;
+GRANT USE SCHEMA  ON SCHEMA  workspace.uc_lab     TO `account users`;
+GRANT SELECT      ON TABLE   workspace.uc_lab.patients TO `account users`;
+"""
+
+# --- Step 5 — LINEAGE ---
+# Catalog Explorer -> workspace.lakeflow_lab.orders_silver_stream -> Lineage tab
+# -> auto-captured graph orders_raw -> orders_bronze_stream -> orders_silver_stream.
+#
+# cleanup (optional): ALTER TABLE ... DROP ROW FILTER;
+#                     ALTER TABLE workspace.uc_lab.patients ALTER COLUMN ssn DROP MASK;
+#
+# => 2F Unity Catalog COMPLETE (concepts + lab). Next Pillar 2 stage: 2G Auto Loader.
