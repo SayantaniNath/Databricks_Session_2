@@ -274,4 +274,45 @@ def patients_silver():
 # heuristic: fail = system's broken (missing key); drop = row's bad (garbage zip);
 #            warn = still learning what normal looks like.
 #
-# AS-RUN RESULTS (fill after running): _______________________________________
+# -----------------------------------------------------------------------------
+# AS-RUN 2026-07-16 (Free Edition, new Lakeflow Pipelines editor)
+# -----------------------------------------------------------------------------
+# NOTE on tooling: the new "ETL pipeline" flow does NOT use a separate source
+# notebook. Create pipeline -> it scaffolds a project folder with a .py file
+# under transformations/. That .py file IS the source code — replaced the
+# scaffold with the block below. target catalog=workspace, schema=lakeflow_lab.
+# `import dlt` + @dlt.table decorators run fine inside the new editor.
+#
+# Ran an ORDERS variant (not the patients template above) — same lesson:
+"""
+import dlt
+from pyspark.sql import functions as F
+
+@dlt.table(comment="Raw orders — includes intentionally bad rows")
+def orders_bronze():
+    data = [
+        (1, "C001", 250.0),
+        (2, "C002", 100.0),
+        (3, None,    75.0),   # null customer_id  -> DROP
+        (4, "C003", -20.0),   # negative amount    -> WARN only (kept)
+        (5, "C004", 500.0),
+        (6, None,   None),    # null customer_id   -> DROP
+    ]
+    return spark.createDataFrame(data, ["order_id", "customer_id", "amount"])
+
+@dlt.table(comment="Cleaned orders")
+@dlt.expect("amount_positive", "amount > 0")                        # WARN
+@dlt.expect_or_drop("customer_not_null", "customer_id IS NOT NULL") # DROP
+def orders_silver():
+    return dlt.read("orders_bronze")
+"""
+# OBSERVED:
+#   DROP: orders_bronze=6 -> orders_silver=4. SELECT * confirmed ids 1,2,4,5
+#         (orders 3 & 6 with null customer_id removed).
+#   WARN: order 4 (amount -20) STAYED IN silver; amount_positive shows 1 failing
+#         record but 0 dropped. Proved expect() counts-but-keeps.
+#   FAIL: swapped customer_not_null -> @dlt.expect_or_fail, rerun -> whole update
+#         went RED. Error: EXPECTATION_VIOLATION.VERBOSITY_ALL, named
+#         'customer_not_null', halted on order_id=3 (null). Then reverted to
+#         expect_or_drop -> green again.
+#   => all three modes (warn / drop / fail) demonstrated end-to-end. 2E lab DONE.
