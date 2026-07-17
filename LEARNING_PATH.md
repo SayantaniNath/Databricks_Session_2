@@ -32,7 +32,9 @@ Structured by interview round order — the thing tested first is built first.
 | Complex GROUP BY, HAVING, CTEs, set operations | ✅ | |
 | JOIN types, NULL handling, conversion math | ✅ | |
 | SCD Type 2 with Delta MERGE INTO syntax | ⏳ | Covered in Pillar 2C |
-| DataLemur — 2 problems/week (Tue/Thu 20 min) | 🟡 | Ongoing through Oct |
+| DataLemur — 2 problems/week (Tue/Thu 20 min) | 🟡 | Ongoing through Oct; from Jul 2026 filter to Meta-tagged questions |
+| **StrataScratch — Meta-tagged SQL (added 2026-07-17 for Meta loop)** | 🟡 | Daily during Meta prep. Session 1 (2026-07-17), 4 hard: consecutive-days streaks (gaps-and-islands — redo from blank), best-seller/month (top-1 per group), rank improvement Dec→Jan (DENSE_RANK + self-join — **passed, own assembly**), MoM % change (LAG — finish Tue) |
+| Meta screen patterns to drill: retention cohorts, funnels, gaps-and-islands, top-N per group, LAG/MoM, DENSE_RANK vocabulary | 🟡 | Dialect note: StrataScratch = Postgres (`date - rn::int`, subquery alias required); Meta CoderPad = Presto (`date_add('day', -rn, d)`) |
 
 ### Python DE Foundations ← Jun 27–30 (rescheduled from Aug)
 *Topics 1–3: Jun 27 (Sat, ~1.5 hr) | Topics 4–5: Jun 30 (Mon, first 45 min of regular slot)*
