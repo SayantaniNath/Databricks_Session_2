@@ -86,3 +86,70 @@ Q: Stateless vs stateful streams — what's the difference and why does it matte
 The trap: `dropDuplicates("order_id")` looks stateless but is **stateful** — it must remember every order_id ever seen. Checkpoint gone → old duplicates sail through → double-counted revenue downstream.
 
 Rule of thumb: if this batch requires remembering anything from previous batches — aggregation, window, dedup, stream-stream join — it's stateful.
+
+---
+
+## Auto Loader — 2G lab (2026-07-17): why did schema evolution fail on the WRITE side, not the read side?
+
+**There are TWO independent schema guards** in a `cloudFiles → Delta` pipeline, and evolving one does nothing for the other:
+
+| Guard | Controlled by | State lives in |
+|---|---|---|
+| Read side | `cloudFiles.schemaEvolutionMode` | `schemaLocation` |
+| Write side | `mergeSchema` | the table's `_delta_log` |
+
+Observed: landing a file with a new `region` column threw `DELTA_METADATA_MISMATCH`, **not** `UnknownFieldException`. `DeltaSink.updateMetadata` in the stack = the failure is on the **sink**. Table schema had 4 cols, data schema had 5 → Auto Loader had *already* evolved its read schema (the file was in the dir at stream start), and Delta's **schema enforcement** (2C) then rejected the wider DataFrame.
+
+Normal fix = `.option("mergeSchema","true")` on `writeStream`. **On UC standard access mode** Table ACLs block automatic schema migration → must widen explicitly:
+
+```sql
+ALTER TABLE workspace.autoloader_lab.orders_bronze ADD COLUMN region STRING;
+```
+
+Result: 4 rows, `region='us-west'` on the new row, **NULL** on the older three. Delta backfills nothing — rows that landed before the column existed have no value for it.
+
+## Why does `addNewColumns` FAIL on a new column instead of silently adding it?
+
+**Mechanical reason:** a stream's schema is fixed when the query starts. `.load()` resolves a schema and Spark builds the query plan around it; that plan is what executors run. A DataFrame's schema **cannot change mid-flight**. So on an unknown column Auto Loader writes the wider schema to `schemaLocation` and stops. The next start reads it, plans around it, and the column flows.
+
+The "fail" is a **handoff, not a rejection** — fail → update → restart.
+
+In production it isn't disruptive: a job with retries (or a Lakeflow pipeline) restarts automatically and resumes from the checkpoint — nothing lost, nothing reprocessed. It only looks harsh when you're the one clicking Run.
+
+Alternatives: `"rescue"` never fails but new columns land in `_rescued_data` as JSON; `"none"` ignores them. `addNewColumns` is the default because a brief restart is a good trade for the column actually existing in the table.
+
+## How do you PROVE the checkpoint made ingestion incremental? (the "1, not 3" test)
+
+`DESCRIBE HISTORY <table>` — one commit per run. Observed: v0 `CREATE TABLE` (implicit, from `toTable`), v1 `numOutputRows=2`, v2 `numOutputRows=1`.
+
+**The inference:** on run 2 both files were still in the directory — nothing moved or deleted. With no memory it would have reprocessed both → 3 rows written and rows 1–2 duplicated. It wrote **1** → it skipped file 1 → the checkpoint (RocksDB) remembered. Swap `cloudFiles` for `spark.read.json` and that run writes 3 *every time*.
+
+Also in the history:
+
+  * Same `queryId` across both runs with `epochId` 0→1 — **stream identity lives in the checkpoint, not the session** (same lesson as the 2D lab, where a notebook restart wiped the vars but the stream resumed).
+  * `isBlindAppend=true` — the write read no existing data, which is what makes an append stream cheap and conflict-free under OCC.
+
+File-level proof instead: `.load(base).selectExpr("*", "_metadata.file_name as source_file")` — but add it **before** the first run; earlier rows won't have it.
+
+**Gotchas:** `numFilesInputted` is *not* a real key. `lastProgress` has `numInputRows` at top level; Auto Loader adds `numFilesOutstanding`/`numBytesOutstanding` under `sources[0].metrics`. And keep the query handle — chaining `.awaitTermination()` onto `.toTable()` throws it away.
+
+## What are the alternatives to Auto Loader for ingesting JSON — and what do the commands look like?
+
+  * **Batch PySpark:** `spark.read.json(path)` · `spark.read.format("json").load(path)` · `spark.read.schema(s).json(path)` (explicit schema skips inference).
+  * **Batch SQL:** ``SELECT * FROM json.`/path` `` · `SELECT * FROM read_files('/path', format => 'json')` · `CREATE TABLE t USING JSON LOCATION '/path'`.
+  * **Incremental SQL:** `COPY INTO t FROM '/path' FILEFORMAT = JSON` — idempotent, tracks loaded files, good for thousands of files on a schedule.
+  * **Legacy file streaming source:** `spark.readStream.format("json").schema(s).load(path)` — streams, but re-lists the whole directory every batch and needs an explicit schema: no inference, no evolution, no RocksDB registry. **Auto Loader is its replacement.**
+
+**Dividing line:** only **Auto Loader and COPY INTO remember what they already ingested**; only Auto Loader scales to millions of files with schema evolution. The rest reprocess.
+
+Lakeflow Declarative Pipelines (2E) still use Auto Loader underneath — the pipeline just manages the stream and expectations for you.
+
+## Auto Loader path/setup details worth remembering
+
+  * **Two `format` calls:** `.format("cloudFiles")` = the source is Auto Loader; `.option("cloudFiles.format","json")` = the underlying file type.
+  * `cloudFiles.inferColumnTypes=true` matters — without it every inferred column comes back as a **string** (`amount` would be `"100"`, not a bigint).
+  * `_schema` and `_ckpt` can live **inside** the scanned directory: Spark's file source skips paths starting with `_` or `.`. Drop the underscore and Auto Loader would try to ingest its own checkpoint.
+  * Schema versions are inspectable: `dbutils.fs.ls(f"{schema_loc}/_schemas")` → `0`, `1`, ... Two versions = the fail→update→restart cycle ran.
+  * Volume path = the 2F three-level namespace on the file side: `/Volumes/<catalog>/<schema>/<volume>`. UI: **Catalog → workspace → autoloader_lab → Volumes → landing**.
+  * `dbutils.fs.put` only **lands** a file (like a source system dropping into S3) — it touches no table. Ingestion happens on the next stream run. Alternatives: `open()`/`pathlib` (volumes behave like a real filesystem), `%sh echo >`, `spark.createDataFrame(...).write.json()` (writes a *directory* of part-files), or Catalog UI → Upload to this volume.
+  * `display()` is read-only — it renders `SELECT *`, it never inserts.

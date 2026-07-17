@@ -421,3 +421,132 @@ GRANT SELECT      ON TABLE   workspace.uc_lab.patients TO `account users`;
 #                     ALTER TABLE workspace.uc_lab.patients ALTER COLUMN ssn DROP MASK;
 #
 # => 2F Unity Catalog COMPLETE (concepts + lab). Next Pillar 2 stage: 2G Auto Loader.
+
+
+# =============================================================================
+# 8. AUTO LOADER — 2G INCREMENTAL INGEST LAB (run 2026-07-17, Free Edition)
+# Concepts (all taught + checks passed 2026-07-16): cloudFiles model, Auto Loader
+#   vs COPY INTO, listing vs notification discovery, schema inference/evolution/
+#   hints, cloudFiles in PySpark streaming.
+# HEADLINE FINDING: there are TWO independent schema guards in this pipeline.
+#   read side  -> cloudFiles.schemaEvolutionMode, state in schemaLocation
+#   write side -> mergeSchema,                   state in the table's _delta_log
+#   Evolving the read schema does NOT widen the sink. Both must be handled.
+# =============================================================================
+
+# --- Step 0 — schema + volume ---
+"""
+CREATE SCHEMA IF NOT EXISTS workspace.autoloader_lab;
+CREATE VOLUME IF NOT EXISTS workspace.autoloader_lab.landing;
+"""
+# Volume path maps onto the 2F 3-level namespace: /Volumes/<catalog>/<schema>/<volume>
+# UI: Catalog -> workspace -> autoloader_lab -> Volumes -> landing
+
+base       = "/Volumes/workspace/autoloader_lab/landing"
+schema_loc = f"{base}/_schema"   # inferred schema, versioned under _schemas/0,1,...
+ckpt       = f"{base}/_ckpt"     # offsets + commits + RocksDB processed-file registry
+
+# NOTE: _schema and _ckpt live INSIDE the scanned dir and do not get ingested —
+# Spark's file source skips paths starting with "_" or ".". Drop the underscore
+# and Auto Loader would try to read its own checkpoint.
+
+# --- Step 1 — land file 1, ingest ---
+dbutils.fs.put(f"{base}/orders_1.json", """
+{"order_id": 1, "customer": "ana", "amount": 100}
+{"order_id": 2, "customer": "bo", "amount": 250}
+""", True)   # newline-delimited JSON (one object per line, no wrapping array)
+
+q = (spark.readStream
+       .format("cloudFiles")                                 # source = Auto Loader
+       .option("cloudFiles.format", "json")                  # underlying file type
+       .option("cloudFiles.inferColumnTypes", "true")        # else everything = string
+       .option("cloudFiles.schemaLocation", schema_loc)      # required for inference/evolution
+       .load(base)
+     .writeStream
+       .option("checkpointLocation", ckpt)                   # exactly-once
+       .trigger(availableNow=True)                           # drain what's there, then stop
+       .toTable("workspace.autoloader_lab.orders_bronze"))   # starts stream implicitly
+q.awaitTermination()          # keep the handle — chaining awaitTermination() throws it away
+print(q.lastProgress)         # numInputRows at top level; Auto Loader adds
+                              # numFilesOutstanding/numBytesOutstanding under sources[0].metrics
+                              # (there is NO "numFilesInputted" key)
+# OBSERVED: 2 rows. ✅
+
+# --- Step 2 — land file 2, RE-RUN THE SAME CELL -> incremental pickup ---
+dbutils.fs.put(f"{base}/orders_2.json", """
+{"order_id": 3, "customer": "cy", "amount": 75}
+""", True)
+# OBSERVED via DESCRIBE HISTORY workspace.autoloader_lab.orders_bronze:
+#   v0 CREATE TABLE (implicit, from toTable)
+#   v1 STREAMING UPDATE numOutputRows=2   <- orders_1.json
+#   v2 STREAMING UPDATE numOutputRows=1   <- orders_2.json ONLY          ✅
+# THE PROOF IS "1, NOT 3": both files were sitting in the dir on run 2, nothing
+# was moved/deleted. No memory => it would have reprocessed both => 3 rows written
+# and orders 1-2 duplicated. It wrote 1 => it skipped file 1 => the checkpoint
+# (RocksDB) remembered. Plain spark.read.json(base) writes 3 EVERY run.
+# Also in the history: same queryId across both runs, epochId 0 -> 1 — stream
+# identity lives in the checkpoint, not the session (same lesson as the 2D lab).
+# isBlindAppend=true — the write read no existing data, so it is cheap + OCC-safe.
+
+# Alternative file-level proof (add BEFORE the first run — later rows only):
+#   .load(base).selectExpr("*", "_metadata.file_name as source_file")
+#   SELECT source_file, count(*) FROM orders_bronze GROUP BY source_file;
+
+# --- Step 3 — land file 3 with a NEW COLUMN -> schema evolution ---
+dbutils.fs.put(f"{base}/orders_3.json", """
+{"order_id": 4, "customer": "dev", "amount": 500, "region": "us-west"}
+""", True)
+# dbutils.fs.put only LANDS the file (like a source system dropping into S3).
+# It touches no table — ingestion happens when the STREAM cell is re-run.
+
+# EXPECTED: UnknownFieldException from the read side.
+# ACTUAL:   DELTA_METADATA_MISMATCH from the WRITE side (DeltaSink.updateMetadata
+#           in the stack = failure is on the sink, not the source):
+#             Table schema: amount, customer, order_id, _rescued_data
+#             Data  schema: amount, customer, order_id, _rescued_data, region
+#           => Auto Loader's read side had ALREADY evolved (schemaLocation updated
+#              at startup, because orders_3.json was already in the dir when the
+#              stream started — so it never had to fail mid-batch to discover it).
+#           => Delta's schema ENFORCEMENT (2C) then rejected the wider DataFrame.
+# Check which path the read took:  dbutils.fs.ls(f"{schema_loc}/_schemas")
+#   two versions (0, 1) => the fail -> update -> restart cycle ran; v1 adds region.
+
+# Normal fix: .option("mergeSchema", "true") on writeStream.
+# BUT on UC standard access mode the error says: "Table ACLs are enabled in this
+# cluster, so automatic schema migration is not allowed. Please use ALTER TABLE."
+"""
+ALTER TABLE workspace.autoloader_lab.orders_bronze ADD COLUMN region STRING;
+"""
+# Then re-run the stream cell unchanged.
+# OBSERVED: 4 rows; region='us-west' on order 4, NULL on orders 1-3. ✅
+# The NULLs are the point — Delta backfills nothing. Rows that landed before the
+# column existed simply have no value for it.
+
+# WHY addNewColumns FAILS RATHER THAN SILENTLY ADDING (the mechanical reason):
+#   A stream's schema is fixed when the query starts — .load() resolves a schema
+#   and Spark plans around it; that plan is what executors run. A DataFrame's
+#   schema cannot change mid-flight. So on an unknown column Auto Loader writes
+#   the wider schema to schemaLocation and STOPS. The next start reads it, plans
+#   around it, and the column flows. The "fail" is a handoff, not a rejection —
+#   and in production a job with retries (or a Lakeflow pipeline) restarts it
+#   automatically, resuming from the checkpoint with nothing lost/reprocessed.
+#   Alternatives: "rescue" never fails but new cols land in _rescued_data as JSON;
+#   "none" ignores them. addNewColumns is the default because a brief restart is
+#   a good trade for the column actually existing in the table.
+
+# INGEST ALTERNATIVES (command forms):
+#   batch PySpark : spark.read.json(base) / .format("json").load(base) / .schema(s).json(base)
+#   batch SQL     : SELECT * FROM json.`/path`
+#                   SELECT * FROM read_files('/path', format => 'json')
+#                   CREATE TABLE t USING JSON LOCATION '/path'
+#   incremental   : COPY INTO t FROM '/path' FILEFORMAT = JSON
+#   streaming     : spark.readStream.format("json").schema(s).load(base)  <- legacy file
+#                   source: re-lists the whole dir every batch, explicit schema required,
+#                   no inference/evolution/RocksDB registry. Auto Loader replaces it.
+#   Only Auto Loader + COPY INTO remember what they already ingested; only Auto
+#   Loader scales to millions of files with schema evolution.
+# Landing a test file, alternatives: open()/pathlib (volumes = real filesystem),
+#   %sh echo >, spark.createDataFrame(...).write.json() (writes a DIR of part-files),
+#   or Catalog UI -> Upload to this volume.
+#
+# => 2G Auto Loader COMPLETE (concepts + lab). Next Pillar 2 stage: 2H MLflow Basics.
