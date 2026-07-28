@@ -109,7 +109,47 @@ Put `order_total` on a line-grain fact and every 3-line order counts its total t
 
 #### Additivity — the three kinds of measure
 
-> **The test:** pick a dimension, and ask whether SUM across it produces a number a business person would accept. Do it for *every* dimension, and **always test time separately** — time is where semi-additive measures break.
+> **The test:** pick a dimension, and ask whether SUM across it produces a number a business person would accept. Do it for *every* dimension, and **always test time separately and last** — time is the discriminator.
+
+- Yes for **all** dimensions including time → fully additive
+- Yes for some, **No for time** → semi-additive
+- No essentially everywhere → non-additive
+
+**How to predict the answer without running the test.** Ask: is this number *NEW* at this row, *RESTATED* at this row, or *DERIVED by division*?
+
+| | Meaning | Result |
+|---|---|---|
+| **New** | The event generated this quantity; it didn't exist before | Fully additive |
+| **Restated** | The row reports what the total already *was* at that moment | Semi-additive |
+| **Derived** | A rate, ratio, or per-unit value — a denominator is baked in | Non-additive |
+
+**The test, run out loud**
+
+| Measure | New / restated / derived? | Across entities | Across time | Verdict |
+|---|---|---|---|---|
+| `line_revenue` | **New** — this line generated ₹3,000 that didn't exist before | ✓ | ✓ | Additive |
+| `duration_min` | **New** — this trip consumed 23 min no other trip consumed | ✓ | ✓ | Additive |
+| `quantity_on_hand` | **Restated** — Monday says 100, Tuesday says 100; the *same* 100 units | ✓ different stock | ✗ same stock twice | Semi-additive |
+| `drivers_online` | **Restated** — 40 at 18:00 and 40 at 18:05 are largely the same people | ✓ across zones | ✗ | Semi-additive |
+| `unit_price` | **Derived** — revenue ÷ quantity | ✗ | ✗ | Non-additive |
+| `surge_multiplier` | **Derived** — total_fare ÷ base_fare | ✗ | ✗ | Non-additive |
+| `rating_value` | **Derived** — a 1–5 score, not a quantity of anything | ✗ | ✗ | Non-additive |
+
+`quantity_on_hand` is the instructive row: it's the only one where the answer *changes* depending on which dimension you test — which is exactly what "semi" means.
+
+**Three shortcuts that get you there in seconds**
+
+1. **If the fact table is a periodic snapshot, its main measure is almost certainly semi-additive.** Snapshots restate a level by definition — spotting the fact type gives you the additivity for free.
+2. **Name-sniffing.** Contains *rate, ratio, percent, price, score, per, avg* → non-additive. Contains *balance, on_hand, headcount, backlog, currently* → semi-additive. A count of events or money generated → additive.
+3. **"Could this row's value have been true yesterday too?"** If yes, it's a level → semi-additive. Revenue of ₹3,000 belongs to *this* order and no other day. Stock of 100 units was probably also true yesterday.
+
+**What you do about each**
+
+- **Additive** — SUM, no thought required.
+- **Semi-additive** — SUM across non-time dimensions, **LAST or AVG across time**. Define that rule explicitly in the semantic layer, because the default SUM will silently be wrong.
+- **Non-additive** — ideally don't store it; store the components and compute after aggregation.
+
+> **The standard Kimball resolution for `unit_price`:** keep it for reference, but *also* store `extended_price = unit_price × quantity`, which **is** additive. The fact table then has something summable and nobody accidentally sums the price. Same trick everywhere — alongside any non-additive measure, store the additive quantity it was derived from.
 
 | | Fully additive | Semi-additive | Non-additive |
 |---|---|---|---|
