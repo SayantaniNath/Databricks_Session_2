@@ -1,9 +1,36 @@
 # DE Interview Prep — Full Learning Path
 
-> **Vacation 2026-07-09 → 2026-07-14** (noted Jul 6): ~5 sessions lost; back Wed Jul 15. Pillar 2 wrap slips ~1 week (2E → ~Jul 17, 2F–2J shift accordingly). AWS CCP + DEA exams (Aug 10–16) unaffected. Detailed date reshuffle happens in the Jul 15 session.
-**Sayantani Nath | Updated: 2026-07-03**
+**Sayantani Nath | Updated: 2026-07-28**
 **Goal:** Job-ready for FAANG / Databricks DE roles by Oct 1, 2026
 **Base:** Strong SQL, Python, Snowflake/Redshift production, AWS CCP in progress
+
+---
+
+## ⚡ CURRENT PLAN — rebuilt 2026-07-28
+
+**Two live interview loops:**
+- **Ōura — Senior Data Architect (SF).** Recruiter reached out Jul 28 to move ahead. JD stack: Snowflake, dbt, Iceberg, Databricks/BigQuery, Kafka/Kinesis, Airflow/Dagster, Fivetran, data mesh + federated governance, MDM, HIPAA/PHI, vector/RAG architecture. 8+ yrs, $172.5–203K, in-office SF.
+- **Meta — DE Product Analytics (E5).** HR screen done Jul 24; likely rerouted req; technical screen expected ~Aug 24, ball on recruiter's side.
+
+**Exams moved again: AWS CCP + Databricks DEA now sit Sep 1–6** (were Aug 10–16, then Aug 24–31). Aug 22–31 becomes dedicated prep runway rather than a cram week, and the Aug 24 Meta-screen collision is cleared.
+
+### AUG 1–21 PUSH — Pillar 4 + Pillar 7 compressed for interview readiness
+
+The Oura JD maps almost 1:1 onto the untouched P4/P7 backlog, so those stopped being "resume breadth" and became direct prep.
+
+**Design principle: P4 and P7 are the SAME sessions, not competing tracks.** Fraud Detection = the Kafka capstone. CDC Pipeline = Kafka + the SCD2-MERGE hands-on still owed from 2J. Airflow gets wired into both. Built serially these were ~40 hrs against ~14 hrs of slots; merged, they fit.
+
+| Week | Mon/Wed/Fri (1 hr) | Tue/Thu (1 hr) | Sat (~3 hr) |
+|---|---|---|---|
+| **Aug 1–7** | 8/3 Kafka: exactly-once, idempotent producer, transactional API, partitioning · 8/5 Kafka Connect + Debezium + kafka-python · 8/7 ClinicalFlow Ph2 deploy to MWAA + tear down | 8/4 Snowflake 4C pt.1 — warehouses, micro-partitions, time travel/fail-safe, zero-copy clone · 8/6 4C pt.2 — Snowpipe, Streams, Tasks, VARIANT/FLATTEN, RBAC | 8/1 ClinicalFlow **Phase 2** — MWAA DAG, local dev first |
+| **Aug 8–14** | 8/10 Fraud Detection pt.1 — Kafka producer + Structured Streaming → Delta · 8/12 pt.2 — IsolationForest + alert topic + first Airflow DAG · 8/14 **CDC Pipeline** — Debezium → Kafka → Delta CDF + SCD2 MERGE | 8/11 4C pt.3 — Snowpipe auto-ingest + Streams/Tasks CDC on Synthea · 8/13 4C wrap — vs-Databricks articulation, warehouse sizing | 8/8 ClinicalFlow **Phase 3** — Kinesis → Lambda → Firehose → S3 |
+| **Aug 15–21** | 8/17 Airflow — wire both project DAGs + vs-Databricks-Workflows articulation · 8/21 **Portfolio** — READMEs, architecture diagrams, push, resume bullets | 8/18 dbt 4D pt.1 — structure, ref/source, materializations, incremental · 8/19 pt.2 — tests, dbt-expectations, snapshots (SCD2), profiles.yml → Snowflake · 8/20 pt.3 — Elementary, Jinja/macros, docs lineage, staging→mart | 8/15 Airflow 4B concentrated — operators, retries, SLAs, TaskGroup, XCom, sensors |
+
+**Targets:** Snowflake 4C ✅ and all remaining P7 projects ✅ by **Aug 14**. Pillar 4 fully ✅ by **Aug 21**.
+
+**Open call (not yet confirmed):** cut **Databricks Lakehouse + AI Monitor** (P7 capstone, ~12 hrs) from August → September. Its content is already taught and retained (DLT ✅, UC ✅, medallion ✅) and its old Aug 18–29 slot is now cert-prep window. The table above assumes this cut.
+
+**Meta sprint daily items** — timed 5-SQL+5-Python CoderPad drills, behavioral story building, data modeling mocks — continue on top of the above, unchanged.
 
 ---
 
