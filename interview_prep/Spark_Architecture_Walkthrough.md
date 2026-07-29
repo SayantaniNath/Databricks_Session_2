@@ -1542,3 +1542,133 @@ Two-layer defense against evolving source files:
 * * *
 
 Updated 2026-07-06 — 2D Ex-5 checkpoint lab completed (as-run scripts in databricks_exercises.py §5); Photon + Catalyst/Tungsten layer recap verified; 2E taught in full in one day: §34 declarative vs imperative, §35 expectations, §36 streaming table vs MV, §37 schema drift prevention, §38 update modes — all checks passed except §37 (recap Wednesday). Remaining for 2E: hands-on bronze→silver expectations lab in Free Edition (Wed 2026-07-08).
+
+* * *
+
+## 39. Format decision guide, OCC deep-dive, liquid clustering, MPP & distributed systems
+
+*Added 2026-07-29. Recap session driven by the Ōura Senior Data Architect JD (Iceberg + lakehouse + Snowflake/BigQuery named explicitly). Extends §23–27.*
+
+### 39.1 Why Hive tables broke — the one idea behind all three formats
+
+A Hive table was **a directory plus a metastore entry**. The table *was* whatever files sat in that directory. Everything wrong with it follows from that:
+
+| Problem | Cause |
+|---|---|
+| No atomicity | A write is just files appearing; readers see half a job's output |
+| No isolation | Two writers to a partition silently clobber each other |
+| Expensive planning | Must **LIST** the directory — millions of files on S3, slow and historically eventually-consistent |
+| Pruning only on partition columns | No min/max for ordinary columns without opening files |
+| Partitioning is physical | Repartitioning = rewrite the whole table |
+| No time travel / rollback | Nothing records prior state |
+| Unsafe schema changes | Columns tracked by name/position in the layout |
+
+**The fix, common to Delta/Iceberg/Hudi:** stop defining the table by its directory; define it by explicit **metadata that lists exactly which files belong right now**. Once the file list is authoritative you get atomicity (swap the list atomically), isolation (readers pin one list), time travel (keep old lists), and cheap planning (read metadata, not the filesystem).
+
+### 39.2 When to use which
+
+| Situation | Pick | Why |
+|---|---|---|
+| Databricks is the primary engine | **Delta** | Native, Photon-optimised, liquid clustering, Lakeflow/DLT. Enable **UniForm** so outside engines read it as Iceberg |
+| Multi-engine: Spark + Trino + Flink + Snowflake/BigQuery on one dataset | **Iceberg** | Vendor-neutral, widest engine support, REST catalog |
+| Must change partitioning on an existing huge table | **Iceberg** | Only one with native partition evolution. Delta's answer is "don't partition — use liquid clustering" |
+| Streaming CDC, frequent record-level upserts, minute-level freshness | **Hudi** | Merge-on-read + record-level index; built upsert-first |
+| Greenfield, safest long-term bet | **Iceberg** | Where the industry converged — Databricks bought Tabular; Snowflake and BigQuery read it natively |
+| Regulatory need to physically separate/delete by partition | Partitioned **Iceberg or Delta** | Physical separation is the point; clustering doesn't provide it |
+
+**Hudi's differentiator, precisely:**
+- **Copy-on-Write (COW)** — an update rewrites the whole file. Fast reads, high write amplification. What Delta and Iceberg do by default.
+- **Merge-on-Read (MOR)** — an update appends a small **delta log file**; the merge happens *at read time*; background **compaction** folds logs into base files later. Cheap writes, costlier reads.
+
+MOR is why Hudi wins on high-frequency upserts — you don't rewrite a 500 MB Parquet file to change three rows. Its **record-level index** locates a key's file without scanning.
+
+**Interview line:** *"Delta and Iceberg optimise for read-heavy analytics with batch/micro-batch writes; Hudi optimises for write-heavy upsert ingestion. The Delta/Iceberg format war is effectively over — UniForm plus the Tabular acquisition mean they interoperate — while Hudi stays a specialist choice for CDC-heavy pipelines."*
+
+### 39.3 Iceberg hierarchy — the exact order
+
+```
+catalog pointer
+   └─→ vN.metadata.json      schema, partition specs, snapshot list, current snapshot
+          └─→ manifest list   (avro) — one entry per manifest, with partition ranges
+                 └─→ manifest — one entry per data file, with column stats
+                        └─→ data files (Parquet/ORC/Avro)
+```
+
+Commit = write a **new** `metadata.json`, then **atomically swap the catalog pointer** (compare-and-swap). That's why Iceberg *requires* a catalog supporting atomic swap: Hive Metastore, Glue, Nessie, JDBC, or REST. Pruning happens at three levels — manifest list (partition ranges) → manifest (per-file stats) → file.
+
+Contrast with Delta: flat **ordered log** of JSON commits + Parquet checkpoint every 10th, `_last_checkpoint` pointing at the newest; current version = highest-numbered commit file; atomicity via atomic creation of the next commit file.
+
+### 39.4 OCC — optimistic concurrency control
+
+Three phases:
+
+1. **Read** — writer reads current version N, records *which files it read* and what it intends to change.
+2. **Write** — does the work, writes new Parquet files. **Nothing visible yet** — no commit points at them.
+3. **Validate & commit** — attempts to create commit file `N+1`.
+   - `N+1` free → success, atomic, done.
+   - `N+1` taken → **conflict detection**: read what commits N+1…M did, compare against what I read and what I'm writing.
+     - No overlap → **rebase and retry** as M+1
+     - Overlap → **throw**
+
+**Retry vs throw — the distinction that needed a walkthrough:**
+
+| Scenario | Outcome |
+|---|---|
+| Two appends to different partitions | **Retry succeeds** — different files |
+| Append + a MERGE that read those files | **Throw** — `ConcurrentAppendException`; the merge decided on stale state |
+| Two MERGEs on overlapping files | **Throw** — `ConcurrentDeleteDeleteException` |
+| Any write + a schema change | **Throw** — `MetadataChangedException` |
+
+**Why optimistic, not locking:** analytics has few writers running long transactions, so conflicts are rare — zero coordination cost in the common path, cost only on conflict. And there's no natural lock manager over object storage. OLTP flips both assumptions (many short transactions, high conflict probability) → pessimistic locking wins there.
+
+**Isolation:** readers get **snapshot isolation** — one consistent version, never a partial write. Writers default to **WriteSerializable**; full `Serializable` available, stricter and slower.
+
+**Failure mode to name:** many concurrent small writers on the same partitions → conflict storms → retry loops → throughput collapse. Fix by partitioning writers so they don't overlap, or by batching.
+
+### 39.5 Liquid clustering
+
+**The problem with the alternatives:**
+- **Hive-style partitioning** — chosen upfront, physically baked into the layout. Change it → rewrite. High-cardinality column → millions of tiny partitions. Skewed column → one giant partition.
+- **Z-ORDER** — genuinely multi-dimensional, but `OPTIMIZE ZORDER BY` **rewrites all affected data every run**, and newly-landed data stays unclustered until the next run.
+
+```sql
+CREATE TABLE t (...) CLUSTER BY (customer_id, event_date);
+ALTER TABLE t CLUSTER BY (region, event_date);   -- no rewrite of existing data
+```
+
+- **Not a physical partition** — a declared clustering key, no directory explosion
+- **Incremental** — new data clustered as it lands; `OPTIMIZE` touches only what needs it
+- **Changeable** — alter the key; old data keeps its layout, new writes use the new key
+- Handles **high cardinality and skew** far better than partitioning
+- **Hilbert curves** rather than Z-order curves — better locality preservation
+- `CLUSTER BY AUTO` lets Databricks pick columns from query history
+- **Gotcha:** mutually exclusive with partitioning on the same table
+
+**Still partition when** you need genuine *physical* separation — bulk deletion by partition, retention policies, regulatory data separation.
+
+**The connective insight:** liquid clustering is Delta's answer to Iceberg's partition evolution. Iceberg says *"change the partition spec freely."* Delta says *"stop partitioning — declare clustering keys you can change freely."* Same pain, two solutions — strong material when asked to compare the formats.
+
+### 39.6 MPP — massively parallel processing
+
+A **shared-nothing** database: data partitioned across nodes; each node has its own CPU, memory and local disk; each processes its slice; results merged. Both of her production systems are MPP — **Redshift** (classic) and **Snowflake** (modern).
+
+- **Distribution key** — how rows spread across nodes (Redshift `DISTKEY`). Bad choice → skew, one node does all the work.
+- **Sort key / clustering** — Redshift `SORTKEY`, Snowflake clustering keys + micro-partition pruning. Enables block skipping.
+- **Data movement is the cost.** Joining tables whose keys aren't co-located means **redistributing rows across the network**. Redshift `EXPLAIN` says it literally: `DS_DIST_NONE` (co-located, free), `DS_DIST_INNER` (redistribute), `DS_BCAST_INNER` (broadcast the small side).
+
+**That is the same trade-off as Spark's BHJ vs SHJ** (§17). Small table → ship it everywhere. Large tables → shuffle both by join key. MPP databases and Spark solved an identical problem with identical strategies.
+
+**Classic vs modern MPP:** Redshift originally coupled storage and compute — resize the cluster to get storage. Snowflake broke that apart: storage in S3, compute as independent virtual warehouses, many warehouses on one dataset. The lakehouse goes one further — storage is an **open format** anyone can read, not a vendor's internal one.
+
+**MPP vs Spark:** MPP is a *database* (SQL only, tightly coupled optimizer + storage, long-lived cluster). Spark is a general *compute engine* (arbitrary code, storage-agnostic, ephemeral). Photon narrows the gap by bringing MPP-style vectorized columnar execution into Spark.
+
+### 39.7 Distributed systems — the parts that surface in DE interviews
+
+- **Shared-nothing** dominates: no shared memory or disk, coordination only over the network. Scales horizontally; any cross-node operation is expensive.
+- **Partitioning** — hash (even spread, no range queries), range (range queries work, hotspot risk), round-robin (even, no locality). Spark partitions, Kafka partitions, Redshift distkeys, Iceberg partition specs all make this choice.
+- **Skew** is the recurring practical failure — one key dominates, one task does all the work, the job waits. Hands-on in §20–21: 16× skew ratio, salting, `ceiling(max/target)` = 9 buckets.
+- **Optimistic vs pessimistic concurrency** — Delta chose optimistic (rare conflicts, expensive distributed locking); OLTP chooses pessimistic (frequent conflicts).
+- **Consistency** — these formats give **snapshot isolation**, not full serializability. A deliberate trade.
+- **The best story in this area:** Delta on S3 was hard because **S3 historically had no atomic put-if-absent** — two writers could each believe they created commit `000011.json`. Databricks needed an external mutual-exclusion service (DynamoDB) for multi-cluster writes. Iceberg dodged it by pushing atomicity into the catalog. A real distributed-systems constraint directly shaping a storage format's design.
+
+*Formal treatments: DDIA Ch5 replication, Ch6 partitioning, Ch7 transactions, Ch9 consensus — parked until Sep 1.*
