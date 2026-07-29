@@ -442,4 +442,264 @@ FactSales → DimCustomer → DimGeography
 
 ---
 
+## Part 6 — The conceptual-model formula (2026-07-29)
+
+### The sentence parse
+
+> **"A `<who>` `<does what>` to a `<what>` at a `<where>`, on a `<when>`, via a `<how>`, because of `<why>` — for `<how much>`."**
+
+Every part of speech maps to exactly one structure:
+
+| Question | Grammatical role | Becomes |
+|---|---|---|
+| **Does what** | the **verb** | the **fact table name** |
+| **Who** | actor noun | dimension (`DimCustomer`, `DimDriver`) |
+| **What** | object noun | dimension (`DimProduct`, `DimAccount`) |
+| **Where** | location noun | dimension (`DimStore`, `DimZone`) |
+| **When** | time | `DimDate` + `DimTime` — never a process, always the spine |
+| **How** | method/channel noun | dimension (`DimPaymentMethod`, `DimDevice`) |
+| **To whom** | second actor | second dimension role, or role-playing dimension |
+| **Why** | reason noun | dimension (`DimCancellationReason`) |
+| **How much / how many** | the **numbers** | **measures** on the fact |
+
+Worked: *"A **customer** **purchases** a **product** at a **store** on **2026-07-29** via **credit card** for ₹2,500."* → `FactSale`; dimensions Customer, Product, Store, Date, PaymentMethod; measure `sale_amount`.
+
+**Four rules that make it mechanical:**
+
+1. **The verb is the fact table name — always.** If the name isn't verb-derived, it's a measure (`FactRevenue`) or a noun (`FactShowtime`). Reread the sentence, take the verb.
+2. **The grain is the sentence made singular and precise.** Not "customers buy products" but *"one row per product per order."* If you can't say it with the word "one" in it, you don't have a grain.
+3. **A noun becomes a dimension only if it has attributes you'd filter or group by.** A bare identifier with nothing hanging off it is a **degenerate dimension** — stays on the fact, gets no table.
+4. **A number is a measure only if it's true at the grain.** Order total on a line-grain fact double-counts on every aggregation. Ratios: store numerator and denominator, because ratios don't sum.
+
+**Three questions the sentence can't answer** — the shape comes from the parse, the correctness from these:
+
+- **Does this repeat, or happen once?** Repeatable → transaction fact. Fixed ordered stages, once each → **accumulating snapshot** (milestones become columns, not tables). Measured at intervals → **periodic snapshot**.
+- **Does any dimension attribute change over time, and does history matter?** → SCD type.
+- **Is this the same entity later, or a genuinely different grain?** → *a new fact table needs a different grain, not a later timestamp.*
+
+### Layer boundaries — where most people lose the round
+
+A conceptual model has **no attributes, no keys, no datatypes, no fact/dimension labels.** Entities and relationships in business language, readable by a stakeholder. The moment you write `customer_key BIGINT` you've left the conceptual layer.
+
+| Layer | Contains | Audience |
+|---|---|---|
+| **Conceptual** | Entities, relationships, cardinality. Business nouns and verbs. | Business stakeholders |
+| **Logical** | Attributes, keys, normalization or star structure. Platform-agnostic. | Data teams |
+| **Physical** | Datatypes, partitioning, clustering, indexes, file format. | The engine |
+
+Interviewers ask for conceptual specifically to see whether you can *stay* there.
+
+### The six-step procedure
+
+1. **Capture decisions, not data.** Who consumes this, and what decision do they make? Finance, merchandising and ops want three different models of the same business.
+2. **List the verbs.** Every real business event. Filter with the timestamp test.
+3. **List the nouns.** Things the business talks about across *multiple* processes. A noun in one process only is usually not a core entity.
+4. **Draw relationships, name every one with a verb.** `Customer ——places——< Order` tells you something; an unnamed line tells you nothing. Naming forces you to know what the relationship is.
+5. **Constrain the size — 10–20 boxes.** At 60 you're modeling tables, not concepts.
+6. **Validate by narration.** Trace each Step-1 business question as a path through the diagram, out loud. No path → something's missing. A box on no path → it doesn't belong.
+
+### The artifact differs by target
+
+**OLTP** → an **ER diagram**: entities, named relationships, crow's-foot cardinality. Normalization comes later, at the logical layer.
+
+**Analytics** → a **bus matrix**, and this is the point most candidates miss: *the conceptual model of a warehouse **is** the bus matrix.* Rows are the verbs, columns are the nouns, checkmarks are the relationships. Shared columns are the conformed dimensions, visible at a glance — the artifact that makes a data-mesh conversation possible, since it shows which domains must agree on what.
+
+### Where the formula breaks
+
+- **Graph domains** (social networks, fraud rings, supply-chain traversal) — the *relationship* is the primary object. ER modeling inverts badly; use a property graph.
+- **Document/hierarchical** (clinical notes, nested catalogs, event payloads) — the shape is a tree. Forcing it into boxes destroys the nesting that carries meaning.
+- **Continuous time-series** (sensor telemetry, wearable readings) — no meaningful entity; the grain is a continuous measurement stream. Lives outside the dimensional model, referenced by business key.
+
+> Saying "this domain doesn't fit the formula, and here's why" is a stronger signal than forcing every domain into a star.
+
+---
+
+## Part 7 — Worked Model: Ride-sharing, conceptual → logical → physical (2026-07-29)
+
+Supersedes the thinner Part 3 treatment. Same facts and dimensions where those were right; adds the layer progression and the physical design.
+
+### CONCEPTUAL
+
+**Step 1 — consumers and decisions**
+
+| Consumer | Decisions | Implication |
+|---|---|---|
+| Marketplace ops | Where to incentivize drivers, why requests go unfilled | Needs *unfilled* requests, not just completed trips |
+| Finance | Revenue, commission, payouts, tax by jurisdiction | Money at legal-entity and city grain |
+| Pricing | Surge multipliers by zone and time | Zone-interval supply/demand |
+| Driver ops | Utilization, earnings, churn | Online time, not just trip time |
+| Trust & safety | Rating patterns, incident follow-up | Both rating directions |
+
+The first row shapes everything: **ops needs failed requests**, which forces the trip grain onto the *request*, not the completed ride.
+
+**Step 2 — the verbs**
+
+*Genuine processes:* rider requests a ride · driver goes online/offline · payment is charged · driver is paid out · rating is submitted · surge is priced for a zone-interval
+
+*Not processes — milestones on the trip:* driver matched · driver arrived · trip started · trip ended · trip cancelled
+
+> "Driver arrived" is the same trip, later — a timestamp column, not a fact table. The carry rule doing its work.
+
+**Step 3 — the nouns:** Rider · Driver · Vehicle · Zone · City/Market · Payment Method · Promotion · Cancellation Reason · Vehicle Class · Date · Time
+
+**Step 4 — relationships, every line named**
+
+```
+Rider ──requests──< Trip >──fulfilled by── Driver ──operates──< Vehicle
+                      │                        │
+              originates in                 works
+                      │                        │
+                    Zone ──belongs to── City   └──< Shift
+
+Trip ──settled by──< Payment ──uses── Payment Method
+Trip ──receives──< Rating
+Zone ──priced by──< Surge Interval
+```
+
+**Step 5 — the bus matrix**
+
+| Process ↓ / Dimension → | Date | Time | Rider | Driver | Vehicle | Zone | City | Pay Method | Reason |
+|---|---|---|---|---|---|---|---|---|---|
+| **Ride requested** | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| **Payment charged** | ✓ | ✓ | ✓ | | | | ✓ | ✓ | |
+| **Driver paid out** | ✓ | | | ✓ | | | ✓ | | |
+| **Rating submitted** | ✓ | | ✓ | ✓ | | | | | |
+| **Driver shift** | ✓ | ✓ | | ✓ | ✓ | ✓ | ✓ | | |
+| **Zone priced** | ✓ | ✓ | | | | ✓ | ✓ | | |
+
+Conformed dimensions fall out visually: **Date, Driver, Zone, City** span nearly everything — the four needing central governance, and in a data-mesh org the cross-domain contract.
+
+### LOGICAL
+
+| Fact | Grain (one row per…) | Type | Why |
+|---|---|---|---|
+| `FactTripRequest` | **request** — filled or not | Accumulating snapshot | Grain on completed trips permanently loses "% of requests unfilled, by zone" — ops' primary metric |
+| `FactPayment` | payment **event** per trip | Transaction | Zero-to-many per trip: charge, refund, tip, promo credit, split fare |
+| `FactDriverPayout` | payout **line** per driver per period | Transaction | Weekly settlement, different actor, different timing |
+| `FactRating` | trip **per direction** | Transaction | Rider rates driver *and* driver rates rider — leave direction out of the key and one silently overwrites the other |
+| `FactDriverShift` | driver **online session** | Accumulating snapshot | Utilization denominator; cannot be computed from trips |
+| `FactZoneInterval` | zone **per 5-min interval** | Periodic snapshot | Supply/demand state for pricing |
+
+> **Why `FactPayment` is separate but "driver arrived" is not** — the test both times is *cardinality*, not chronology. A payment happens 0/1/many times per trip and carries its own measures. An arrival happens exactly once, in a fixed position, with no measures. Different grain → different table; later timestamp → column.
+
+**`FactTripRequest` detail**
+
+```
+Keys        request_id (DD), rider_key, driver_key, vehicle_key,
+            pickup_zone_key, dropoff_zone_key, city_key,
+            request_date_key, request_time_key, cancellation_reason_key,
+            promotion_key, vehicle_class_key
+Milestones  requested_ts, matched_ts, driver_arrived_ts,
+            started_ts, ended_ts, cancelled_ts
+Measures    wait_time_sec, time_to_match_sec, distance_km, duration_min,
+            base_fare, surge_multiplier, total_fare,
+            driver_payout, platform_commission, tip_amount, promo_discount
+Status      trip_status, cancelled_by
+```
+
+- **`surge_multiplier` is non-additive.** Store `base_fare` and `total_fare`, derive it. The average of ratios is not the ratio of averages.
+- **Unmatched requests carry NULL driver_key** → point at a "Not Assigned" dimension row, not NULL, so joins don't silently drop your most important rows.
+
+**Dimensions**
+
+| Dimension | SCD | Note |
+|---|---|---|
+| `DimDriver` | **Type 2** | Tier, city, status, vehicle change over time |
+| `DimRider` | **Type 2** | Segment and city change; loyalty tier at trip time matters |
+| `DimVehicle` | **Type 2** | Ownership and class change |
+| `DimZone` | **Type 2** | Zone boundaries get redrawn — under-modeled real problem; silently breaks YoY comparison unless versioned |
+| `DimCity` | Type 1 | Effectively static |
+| `DimVehicleClass` | Type 1 | UberX / XL / Black |
+| `DimPaymentMethod` | Type 1 | |
+| `DimCancellationReason` | Type 1 | |
+| `DimPromotion` | **Type 2** | Terms change |
+| `DimDate` / `DimTime` | static | |
+
+**Role-playing:** `DimZone` plays pickup/dropoff; `DimDate` plays request/start/end. **Degenerate:** `request_id`, `trip_id`, `payment_id`. **`DimTime` separate from `DimDate`** because time-of-day *is* the analysis — rush hour vs 3am is the entire surge question.
+
+### PHYSICAL
+
+**First decision: what does not go in the warehouse.**
+
+Driver GPS pings — hundreds of thousands of drivers at 1-second resolution — do not belong in the dimensional model. Billions of rows/day of positional data nobody aggregates.
+
+```
+Raw pings → Kafka → object storage, Iceberg/Delta
+            partitioned by (event_date, hour), 7–30 day retention
+Rollups   → zone-minute aggregates → FactZoneInterval in the warehouse
+```
+
+Naming this unprompted is the strongest signal in a ride-share design round — same reasoning as wearable telemetry at Ōura.
+
+**Databricks / Delta**
+
+```sql
+CREATE TABLE gold.fact_trip_request (
+  request_id            STRING    NOT NULL,
+  rider_key             BIGINT    NOT NULL,
+  driver_key            BIGINT,
+  pickup_zone_key       BIGINT    NOT NULL,
+  dropoff_zone_key      BIGINT,
+  request_date_key      INT       NOT NULL,
+  requested_ts          TIMESTAMP NOT NULL,   -- UTC
+  requested_ts_local    TIMESTAMP,            -- city-local
+  matched_ts            TIMESTAMP,
+  driver_arrived_ts     TIMESTAMP,
+  started_ts            TIMESTAMP,
+  ended_ts              TIMESTAMP,
+  cancelled_ts          TIMESTAMP,
+  trip_status           STRING    NOT NULL,
+  distance_km           DECIMAL(8,3),
+  base_fare             DECIMAL(12,2),        -- never FLOAT
+  surge_multiplier      DECIMAL(4,2),
+  total_fare            DECIMAL(12,2),
+  driver_payout         DECIMAL(12,2),
+  platform_commission   DECIMAL(12,2),
+  currency_code         STRING    NOT NULL
+)
+USING DELTA
+PARTITIONED BY (request_date_key)
+CLUSTER BY (pickup_zone_key, city_key);
+```
+
+- **`DECIMAL`, never `FLOAT`, for money.** Floating-point money fails reconciliation — payouts and commission won't sum to fare. Caught in audits; interviewers ask.
+- **UTC plus city-local timestamps.** A 2am local trip three timezones away lands on the wrong date in UTC and quietly corrupts every daily metric. Store both, derive `date_key` from local.
+- **Partition on date, cluster on zone** — date is the dominant filter, zone the dominant group-by, and zone bounds hotspot size.
+- **`FactTripRequest` is mutable** — a request lands, then milestones fill in over minutes → `MERGE` upserts, late-arrival window, idempotent reprocessing. `FactRating` and `FactPayment` are append-only.
+
+**Snowflake equivalent**
+
+```sql
+CREATE TABLE gold.fact_trip_request (
+  request_id          VARCHAR       NOT NULL,
+  rider_key           NUMBER(38,0)  NOT NULL,
+  base_fare           NUMBER(12,2),
+  requested_ts        TIMESTAMP_NTZ NOT NULL,
+  CONSTRAINT pk_ftr PRIMARY KEY (request_id) RELY
+)
+CLUSTER BY (request_date_key, pickup_zone_key);
+```
+
+No explicit partitioning — micro-partitions are automatic and `CLUSTER BY` is a maintained background service you pay for. Constraints aren't enforced, but `RELY` enables optimizer join elimination. CDC is `Streams + Tasks` rather than Delta CDF.
+
+**Ingestion and SLA** — different consumers, different freshness, one table:
+
+| Consumer | Freshness | Path |
+|---|---|---|
+| Ops dashboards | ~2–15 min | Kafka → Structured Streaming → Delta MERGE |
+| Pricing | ~1–5 min | Zone-interval rollups from the stream |
+| Finance | Daily, reconciled | Batch T+1, after settlement closes |
+
+**Data quality gates**
+
+- Completed trips must have non-null `ended_ts` and `total_fare`
+- `driver_payout + platform_commission + promo_discount` reconciles to `total_fare`
+- `ended_ts > started_ts > matched_ts > requested_ts` — monotonic milestones
+- Every `pickup_zone_key` resolves to a live `DimZone` version
+- Cancelled trips must carry a `cancellation_reason_key`
+
+> **The 30-second summary:** grain on the *request* so unfilled demand survives · milestones as columns not tables · payments split out on cardinality · GPS telemetry outside the warehouse entirely · money in DECIMAL with dual-timezone timestamps.
+
+---
+
 *Directly reusable for the Ōura Senior Data Architect loop — a data-mesh shop will ask you to model a domain.*
