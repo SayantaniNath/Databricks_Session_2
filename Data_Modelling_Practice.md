@@ -324,4 +324,122 @@ Verb → `FactTrip`. Nouns → `DimDriver`, `DimRider`, `DimZone`, `DimDate`, `D
 
 ---
 
+## Part 5 — Concept Q&A (2026-07-29)
+
+Questions asked during the session, with the answers as delivered. These are the *why* behind the method in Part 1.
+
+### Q1. Why is normalization required for OLTP data models?
+
+Because OLTP is optimized for **writes**, and redundancy is what makes writes go wrong.
+
+In a transactional system the dominant operation is a small, concurrent, single-entity change — one customer updates an address, one order is placed. If a customer's address is copied into 400 order rows, that one logical change becomes 400 physical writes, and any row you miss is now a contradiction the database cannot detect. Normalization stores each fact **in exactly one place**, so a change is one write and correctness is structural rather than dependent on application code doing it right.
+
+Two supporting reasons that matter operationally:
+
+- **Concurrency.** Narrower tables mean narrower row locks and less contention. A wide denormalized row makes unrelated transactions fight over the same page.
+- **Enforcement.** Foreign keys, unique constraints and NOT NULL only work when a fact has one home. Denormalize and enforcement moves into application code, where it silently rots.
+
+> **The architect layer.** Normalization is a **write-time optimization, paid for at read time in joins.** That's a reasonable trade for OLTP, where reads are point lookups by key, not aggregations across millions of rows. OLAP inverts every assumption — data is historical and effectively immutable, so update anomalies cannot occur, and reads are wide scans where joins are the dominant cost. Same data, opposite optimization target, because the workload is opposite.
+
+Practical stopping point: **3NF**. BCNF and beyond buy diminishing correctness for real complexity. In high-scale OLTP teams *do* selectively denormalize back — a cached counter, a materialized read model — but as a deliberate, owned exception with a defined refresh path, not as the default.
+
+### Q2. The three anomalies, worked
+
+One badly designed table — everything crammed into orders:
+
+| order_id | customer_id | cust_name | cust_email | product_id | product_name | price |
+|---|---|---|---|---|---|---|
+| 1001 | C-1 | Priya | priya@x.com | P-9 | Keyboard | 2500 |
+| 1002 | C-1 | Priya | priya@x.com | P-7 | Mouse | 800 |
+| 1003 | C-2 | Arjun | arjun@x.com | P-9 | Keyboard | 2500 |
+
+Priya's email appears twice; the keyboard's name and price appear twice. Neither fact is *about an order* — they're about a customer and a product. That's the design error, and all three anomalies fall out of it.
+
+| Anomaly | What happens here | Normalized fix |
+|---|---|---|
+| **Update** | Priya changes her email. It lives in rows 1001 and 1002. Update only 1001 and the table now says Priya has two different emails — with no way for the DB to flag it, since those are just two rows that happen to disagree. | Email lives once, in `customers`. One update, no possible disagreement. |
+| **Insert** | You want to add product P-12 (a monitor) before anyone buys it. The only table is orders, so you'd invent a fake order or insert a row with `order_id` NULL. The product exists in the real world but the schema has nowhere to put it. Same for a registered customer who hasn't ordered. | `products` and `customers` are their own tables. A product exists independently of whether it ever sold. |
+| **Delete** | Arjun cancels order 1003, his only order. Delete the row and Arjun is gone entirely — name, email, the fact he's a customer. If that had been the last P-9 order, the keyboard's price goes with it. | Deleting from `orders` touches only the order. Arjun stays in `customers`. |
+
+> **The pattern under all three:** each happens because a fact about *entity A* is stored inside a row about *entity B*. Normalization is the discipline of giving every fact exactly one home, so its lifecycle is independent of anything else's.
+
+### Q3. In what case does denormalization help in OLAP?
+
+Start with the bridge case — `price` on an order row. It looks like redundancy but it's **defensible, arguably required**: it's the price *at the time of sale*. Normalize it away and read the current price from `products`, and a price change silently rewrites the revenue of every historical order. The value is a snapshot of a moment, not a live copy, so it genuinely belongs to the order.
+
+That's the whole principle in one column: **duplicating immutable, historical values is safe, because every anomaly requires the value to change.**
+
+**The worked example.** Normalized OLTP side:
+
+```
+orders → order_lines → products → categories → departments
+                    ↘ customers → cities → states → countries
+```
+
+Analyst question: *"total revenue by product category by state, last 3 years."* Normalized, that's a 7-table join over hundreds of millions of order lines. Every join is a shuffle, and none carry business value — they exist only because normalization scattered the attributes.
+
+Denormalized into a star:
+
+```
+FactSales (500M rows)
+  date_key, product_key, customer_key, store_key,
+  quantity, revenue, discount
+
+DimProduct (50K rows)
+  product_key, product_name, category, department, brand, supplier
+       ↑ category and department REPEATED on every product row
+
+DimCustomer (2M rows)
+  customer_key, name, city, state, country, segment
+       ↑ state and country REPEATED on every customer row
+```
+
+Same query is now a 3-table join, and the dimensions are small enough to broadcast — the difference between a broadcast hash join and a series of shuffles.
+
+**Why the anomalies don't apply:**
+
+- **Update?** `category = 'Peripherals'` is duplicated across thousands of rows, but nobody UPDATEs a dimension in place — a category change is a Type 2 insert or a controlled full reload. One write path, owned by ETL, not thousands of concurrent application writes.
+- **Insert?** Doesn't arise. Dimensions load independently of facts — a product can have zero sales.
+- **Delete?** Warehouses don't delete. That's the point of the historical record.
+
+> **The architect layer.** Denormalize the *dimensions*, never the *grain*. Flattening product hierarchy into DimProduct is free. Pre-aggregating FactSales to daily totals to "make it faster" destroys everything below that grain — that's a mistake, not a trade-off.
+
+### Q4. Should you snowflake `state`/`country` out of a 2M-row DimCustomer?
+
+**No — not for storage.** Size is the right axis but the threshold matters: `state` and `country` are ~20 bytes per row, so 2M × 20 ≈ 40 MB before columnar compression crushes repeated strings like 'California' to almost nothing. Against a 500M-row fact table that's a rounding error, and you've added a join to every geography query forever.
+
+The real test is the **ratio** — dimension size relative to the fact table — and the **width of what's actually repeated**. Two short strings on 2M rows never justifies it. Fifty columns of address, demographic and firmographic text on 200M rows might.
+
+**What would actually justify a DimGeography** — none of which is row count:
+
+1. **It's conformed.** DimCustomer, DimStore and DimSupplier all carry geography, so you're maintaining the same hierarchy three times and they will drift. One shared table is a *governance* win. Strongest argument by far.
+2. **The hierarchy has its own attributes and lifecycle** — population, timezone, sales region, tax jurisdiction — with its own owner and refresh cadence.
+3. **The repeated block is genuinely wide**, not two columns.
+
+> **The reusable rule:** snowflake for *governance and conformance*, essentially never for *storage*. Storage is the argument everyone reaches for and it's almost always the weakest one.
+
+### Q5. What is an outrigger dimension?
+
+A dimension table that joins to **another dimension**, not directly to the fact.
+
+```
+FactSales → DimCustomer → DimGeography
+                 ↑              ↑
+          joins to fact    joins to DimCustomer, not the fact
+```
+
+`DimCustomer` carries a `geography_key`; `DimGeography` holds the full hierarchy — city, state, country, region, timezone, tax jurisdiction.
+
+**Outrigger vs snowflake.** Snowflaking is systematic: normalize the whole hierarchy out and *remove* the attributes from the primary dimension. An outrigger is targeted and additive — you **keep** the common attributes denormalized on `DimCustomer` (`state`, `country` stay right there for the 90% query) *and* add the key for cases needing the full hierarchy. Fast path preserved, shared reference data available. It's the answer that refuses the star-vs-snowflake binary.
+
+**When it earns its place:**
+
+- The hierarchy is **shared across several dimensions** and would otherwise be maintained multiple times.
+- The secondary table has its own **attributes and refresh cadence**, owned by someone else.
+- A **date attribute inside a dimension** needs real date semantics — `DimProduct.introduction_date_key → DimDate` lets you ask "products introduced in Q3 of a fiscal year" without reimplementing the fiscal calendar.
+
+> **Kimball's position, worth quoting:** outriggers are permitted but should be used *sparingly*. Every one adds a join and makes the model harder for BI tools and analysts to navigate. Five outriggers means you've snowflaked by accident.
+
+---
+
 *Directly reusable for the Ōura Senior Data Architect loop — a data-mesh shop will ask you to model a domain.*
