@@ -137,6 +137,54 @@ Mar 3 | 700    Mar 6 | 750</pre>
 
 <p class="meta">Discriminator to say out loud in an interview: <em>"Is the old value wrong, or was it right at the time?"</em> Wrong → Type 1. Right at the time → Type 2.</p>
 
+<h2>4b. Additivity — additive / semi-additive / non-additive</h2>
+
+<table>
+<tr><th>Type</th><th>Sums across…</th><th>Examples</th><th>How to handle</th></tr>
+<tr><td><strong>Additive</strong></td><td>every dimension, time included</td><td><code>sales_amount</code>, quantity sold, receipts</td><td><code>SUM</code> anywhere</td></tr>
+<tr><td><strong>Semi-additive</strong></td><td>every dimension <em>except</em> time</td><td>on-hand inventory, account balance, headcount, subscribers</td><td>Across time use <code>AVG</code> / <code>LAST</code> / point-in-time, not <code>SUM</code></td></tr>
+<tr><td><strong>Non-additive</strong></td><td>nothing</td><td>occupancy rate, margin %, conversion rate, unit price</td><td><strong>Store numerator and denominator as additive facts; compute the ratio at query time</strong></td></tr>
+</table>
+
+<p>700 units Mon + 700 Tue ≠ 1,400 — same stock counted twice (semi-additive). 40% + 60% ≠ 100% (non-additive). Periodic snapshots are the classic semi-additive table.</p>
+
+<div class="rule">
+<strong>Why this kills bad table names:</strong> you cannot store a ratio at a grain. <code>FactOccupancyRate</code> / <code>FactRevPAR</code> are impossible tables — you store the <em>countable thing</em> that produces both halves (<code>FactRoomNight</code>) and divide at query time.
+</div>
+
+<h2>4c. Deriving the grain — reusable formula</h2>
+
+<p><strong>Grain = the composite unique key of the fact table, stated in business language.</strong></p>
+<ol>
+<li><strong>Name the event</strong> (verb, not measure) → that's the table name.</li>
+<li>Ask: <em>what is the smallest thing that produced one row?</em> → the atomic entity.</li>
+<li>List the dimensions you must fix to land on <strong>exactly one</strong> row — dimensions only, never measures.</li>
+<li>Say: <strong>"one row per ⟨A⟩ per ⟨B⟩ per ⟨C⟩."</strong></li>
+</ol>
+<p>Two checks: <strong>Countable?</strong> — the sentence should let someone compute the row count (3M meters × 96 fifteen-minute intervals = 288M rows/day). <strong>Low enough?</strong> — if they asked "which procedures," claim-header grain fails.</p>
+<p>Rule of thumb: <strong>go to the most atomic level the source gives you. You can always roll up; you can never roll down.</strong></p>
+
+<h2>4d. Fact-table naming — the trap and the fix</h2>
+
+<div class="gap">
+<strong>The failure shape (7/23 and again 7/31):</strong> naming the table after <em>the number the executive asked for</em> instead of <em>the thing that happened</em>.
+</div>
+
+<table>
+<tr><th>Scenario</th><th>Wrong (derived measure)</th><th>Right (the event)</th><th>Grain</th></tr>
+<tr><td>Smart meters</td><td><code>FactMeterConsumption</code>, <code>FactUsage</code></td><td><code>FactMeterReading</code></td><td>one row per meter per 15-minute interval</td></tr>
+<tr><td>Hotel occupancy</td><td><code>FactRevenue</code>, <code>FactOccupancyRate</code>, <code>FactRevPAR</code></td><td><code>FactRoomNight</code></td><td>one row per room per property per night, occupied <em>or vacant</em></td></tr>
+<tr><td>Airline OTP</td><td><code>FactAirlinePerformance</code>, <code>FactDelay</code>, <code>FactFlightSchedule</code></td><td><code>FactFlightLeg</code></td><td>one row per leg per scheduled departure date</td></tr>
+</table>
+
+<div class="rule">
+<strong>Naming rule to carry:</strong> the fact table is named after <em>the verb in the sentence</em>, never <em>the noun in the metric</em>. Finish "one row per ___" first — then name the table after that thing.
+</div>
+
+<p><strong>Keep the denominator.</strong> Vacant hotel rooms get rows; on-time flights get rows. <code>FactAirlineDelay</code> would contain only late flights, so on-time <em>rate</em> becomes uncomputable. Filtering the denominator out of existence is the same non-additive mistake one layer down.</p>
+
+<p><strong>Legitimate second facts</strong> (different grain, therefore different table): <code>FactCustomerBill</code> alongside meter readings; <code>FactReservation</code> alongside room-nights — one booking of 3 nights = 1 reservation row but 3 room-night rows, and only reservations know booking lead time.</p>
+
 <h2>5. Drill results — 2026-07-31</h2>
 
 <table>
@@ -146,6 +194,19 @@ Mar 3 | 700    Mar 6 | 750</pre>
 <tr><td>D-3</td><td>A supplier restocks inventory</td><td>🟡 Process ✅ and named the <em>event</em> (<code>factRestock</code>) not a derived measure ✅ — fact-naming gap holding. Fact <em>type</em> wrong: said periodic, it's transaction.</td></tr>
 <tr><td>SCD-1</td><td>Priya's region transfer</td><td>❌ <strong>"Not sure"</strong> — Checkpoint 2 failed. Second cold miss on Type 2. Battery stopped per the hard-stop rule; Block 2 (fact naming) not run.</td></tr>
 </table>
+
+<p><strong>Block 2 (fact naming) — run afterwards at her request, overriding the hard-stop:</strong></p>
+
+<table>
+<tr><th>Item</th><th>Asked</th><th>Result</th></tr>
+<tr><td>FN-1</td><td>Utility smart meters</td><td>🟡 <code>factMeterConsumption</code> — named the measure, not the event. Fact <em>types</em> both correct ✅ (periodic readings + transaction billing), raised the billing fact unprompted ✅. Grain sentence included a measure → corrected.</td></tr>
+<tr><td>FN-2</td><td>Hotel occupancy / RevPAR</td><td>❌ <code>FactRevenue</code> + <code>FactOccupancyRate</code> — the 7/23 trap verbatim. <strong>But the grain was right</strong> ("per property per room per day"), and after one nudge she recovered cleanly via non-additivity: "store num/den separately." → <code>FactRoomNight</code>.</td></tr>
+<tr><td>FN-3</td><td>Airline on-time performance</td><td>❌ <code>FactAirlinePerformance</code>, then <code>FactAirlineDelay</code> after the nudge. Derived-measure trap twice. → <code>FactFlightLeg</code>.</td></tr>
+</table>
+
+<div class="win">
+<strong>Diagnosis:</strong> this is a naming <em>habit</em>, not a concept gap — her grain reasoning was correct even when the name was wrong, and she applied non-additivity correctly under pressure to kill her own bad table name. Faster to fix than a concept miss.
+</div>
 
 <div class="win">
 <strong>Genuine wins to keep:</strong> fact-table <em>naming</em> is holding (named the event, not the KPI, on D-3 — the 7/23 gap). And the "later timestamp ≠ new fact table" instinct fired correctly on D-2 without prompting, which is exactly what failed on 7/28.
