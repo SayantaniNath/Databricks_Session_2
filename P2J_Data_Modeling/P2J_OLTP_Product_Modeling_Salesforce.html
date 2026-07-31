@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>P2J — OLTP Product Data Modeling (Salesforce Senior Data Modeler prep)</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+         max-width: 950px; margin: 2rem auto; padding: 0 1.25rem; line-height: 1.65; color: #1c1e21; }
+  h1 { border-bottom: 3px solid #00a1e0; padding-bottom: .4rem; }
+  h2 { margin-top: 2.4rem; border-bottom: 1px solid #d8dbdf; padding-bottom: .3rem; }
+  h3 { margin-top: 1.7rem; color: #032d60; }
+  h4 { margin-top: 1.2rem; margin-bottom: .3rem; color: #444; }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: .94rem; }
+  th, td { border: 1px solid #d8dbdf; padding: .5rem .65rem; text-align: left; vertical-align: top; }
+  th { background: #f1f4f9; }
+  code { background: #f1f4f9; padding: .1rem .3rem; border-radius: 3px; font-size: .9em;
+         font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  pre { background: #f6f8fa; border: 1px solid #d8dbdf; border-radius: 6px; padding: .8rem;
+        overflow-x: auto; font-size: .87rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .rule { background: #fff8e1; border-left: 4px solid #f0a500; padding: .8rem 1rem; margin: 1.2rem 0; }
+  .risk { background: #ffeceb; border-left: 4px solid #d93025; padding: .8rem 1rem; margin: 1.2rem 0; }
+  .win  { background: #e9f7ef; border-left: 4px solid #1e8e3e; padding: .8rem 1rem; margin: 1.2rem 0; }
+  .spoiler { background: #eef1f6; border-left: 4px solid #6b7280; padding: .8rem 1rem; margin: 1rem 0; }
+  .meta { color: #5f6368; font-size: .9rem; }
+  .say { background: #f0f7ff; border-left: 4px solid #00a1e0; padding: .7rem 1rem; margin: .9rem 0; font-style: italic; }
+</style>
+</head>
+<body>
+
+<h1>OLTP Product Data Modeling — Salesforce Senior Data Modeler</h1>
+<p class="meta">Built Fri 2026-07-31 for the Sat 2026-08-01 session · Interview Tue 2026-08-04 · Salesforce T&amp;P Data Modeling Team</p>
+
+<h2>0. What this role is, in one paragraph</h2>
+
+<p>You are not modeling a warehouse and you are not administering an org. This team designs the <strong>logical data model inside Salesforce's products</strong> — the entities and relationships that engineers then implement, across Sales, Service, industry clouds and Data 360. You sit with PMs, UX and architects as a <em>design authority</em>: sketch the ERD, surface risks, drive to approval, defend the trade-offs.</p>
+
+<div class="rule">
+<strong>Therefore the likely interview shape:</strong> a live logical modeling session where the interviewer plays a PM describing a feature vaguely, and watches how you <em>interrogate</em>, <em>sketch</em>, <em>surface risk</em>, and <em>defend</em>. The 6 mocks run on 7/23 were exactly this shape. Talking out loud is not optional here — it <em>is</em> the evaluated skill.
+</div>
+
+<h3>The trade-off vocabulary, straight from the JD</h3>
+<p>They name the axes a design must balance: <strong>stability, architecture, user experience, performance, speed to market, software cost of ownership.</strong> Use these words. When you defend a decision, name which axis you optimised and which you sacrificed. That single habit reads as "design authority" rather than "engineer with opinions."</p>
+
+<h2>1. Cold check — run first (5 min)</h2>
+<p class="meta">Do not read ahead. These are asked verbally at the start of the session.</p>
+<ol>
+<li>A telecom subscriber's <code>plan_type</code> changes and invoices must still report under the old plan. Name the technique and list the columns.</li>
+<li>An order is placed, packed, shipped, delivered. One table or four? Why?</li>
+</ol>
+<div class="spoiler"><strong>Bar:</strong> (1) says "SCD Type 2" unprompted, and names <em>both</em> the surrogate key and the <strong>natural key that stays the same on every version</strong> — the piece missed on 7/31. (2) says "accumulating snapshot" — one row, milestone timestamp columns, updated in place.</div>
+
+<h2>2. Normalization — the product-design version</h2>
+
+<p>Nobody in this interview wants the textbook definitions. They want to hear <em>why a form breaks</em> if you skip a step. Learn it as three questions you ask of a table:</p>
+
+<table>
+<tr><th>Form</th><th>Question</th><th>What breaks if you skip it</th></tr>
+<tr><td><strong>1NF</strong></td><td>Does any column hold more than one value?</td><td>Comma-separated <code>phone_numbers</code>. Can't index, can't validate, can't ask "who else has this number." Every filter becomes a <code>LIKE</code> scan.</td></tr>
+<tr><td><strong>2NF</strong></td><td>Does every non-key column depend on the <em>whole</em> composite key?</td><td>On <code>OrderLine(order_id, product_id)</code>, storing <code>order_date</code> — it depends on <code>order_id</code> alone. Now the date is repeated on every line and two lines can disagree.</td></tr>
+<tr><td><strong>3NF</strong></td><td>Does any non-key column depend on <em>another non-key column</em>?</td><td>Storing <code>account_id</code> and <code>account_industry</code> on <code>Contact</code>. Industry belongs to the account. Update it in one place, ten contacts now lie.</td></tr>
+</table>
+
+<div class="rule">
+<strong>The one-liner to have ready:</strong> <em>"Normalization is about making each fact live in exactly one place, so there is exactly one place to change it."</em> Anomalies (insert / update / delete) are just the symptoms of that rule being broken.
+</div>
+
+<h4>The three anomalies, with a concrete instance each</h4>
+<ul>
+<li><strong>Insert anomaly</strong> — you can't record a new product until someone orders it, because product data lives on the order line.</li>
+<li><strong>Update anomaly</strong> — a customer changes address; you update 400 order rows and miss 3. Now the data disagrees with itself.</li>
+<li><strong>Delete anomaly</strong> — the last order for a product is deleted and the product ceases to exist.</li>
+</ul>
+
+<h3>When to denormalize in OLTP <span class="meta">(the check never answered on 7/23 — expect it)</span></h3>
+<p>OLTP defaults to normalized. You break it deliberately, and you must be able to say what you're paying:</p>
+<table>
+<tr><th>Legitimate reason</th><th>Example</th><th>The cost you accept</th></tr>
+<tr><td>Read path is hot and the join is on the critical path</td><td>Denormalized <code>account_name</code> onto <code>Case</code> for a list view rendered millions of times/day</td><td>Must maintain it on rename — trigger, job, or accept staleness</td></tr>
+<tr><td>Point-in-time truth is required</td><td>Copying <code>unit_price</code> onto the order line at time of sale</td><td>None — this is <em>not</em> denormalization, it's a genuinely different fact ("price charged" ≠ "price now"). Say this out loud; it's a classic trap.</td></tr>
+<tr><td>Aggregate needed transactionally</td><td>Roll-up counters (open cases per account)</td><td>Write contention on the parent row; needs careful concurrency design</td></tr>
+</table>
+<div class="say">"I'd normalize by default and denormalize on evidence — a measured read path, not a guess. And I'd write down who owns keeping the copy correct, because an unowned duplicate is how a model rots."</div>
+
+<h2>3. Keys</h2>
+
+<table>
+<tr><th>Term</th><th>Meaning</th><th>Watch for</th></tr>
+<tr><td>Natural / business key</td><td>Identifier the business already uses (email, SSN, order number)</td><td>They change. People change email. Countries reissue IDs. Never make one the PK if it can change.</td></tr>
+<tr><td>Surrogate key</td><td>System-generated, meaningless, immutable</td><td>Default PK choice. Salesforce does this everywhere — the 15/18-char record Id.</td></tr>
+<tr><td>Candidate key</td><td>Any column set that uniquely identifies a row</td><td>The ones you <em>don't</em> pick as PK still deserve <code>UNIQUE</code> constraints — that's where real data quality lives.</td></tr>
+<tr><td>Composite key</td><td>Uniqueness across several columns</td><td>Common on junction entities. Still usually give it a surrogate PK <em>plus</em> a unique constraint on the pair.</td></tr>
+</table>
+
+<div class="rule"><strong>Answer to have ready:</strong> "Surrogate primary key, always. Natural keys become <code>UNIQUE</code> constraints. That way identity never changes even when the business identifier does — and every FK in the model is insulated from business change."</div>
+
+<h2>4. Relationships — the actual core of this job</h2>
+
+<h3>4.1 Cardinality <em>and</em> optionality</h3>
+<p>Most candidates state cardinality (1:M) and stop. Optionality is where the design decisions live, and it's what a PM never tells you unprompted.</p>
+
+<table>
+<tr><th>Question</th><th>Design consequence</th></tr>
+<tr><td>Can a Contact exist with no Account?</td><td>FK nullable or not — and whether "orphan" is a valid business state</td></tr>
+<tr><td>Must every Order have at least one line?</td><td>Can't be enforced by FK; needs application/transaction logic. <strong>Say so</strong> — knowing the limits of declarative constraints is a senior signal.</td></tr>
+<tr><td>What happens to children when the parent is deleted?</td><td>Cascade vs restrict vs orphan — this is exactly master-detail vs lookup in Salesforce</td></tr>
+<tr><td>Can it change over time?</td><td>Reparenting allowed? Do you need history of the relationship (which makes the <em>relationship</em> an entity)?</td></tr>
+</table>
+
+<h3>4.2 One-to-one — usually wrong, sometimes right</h3>
+<p>Default assumption: a genuine 1:1 means the two entities should be one table. Justify it or merge it. Legitimate reasons to keep them apart:</p>
+<ul>
+<li><strong>Optionality</strong> — the extension exists for only 5% of rows (a Person Account's individual attributes)</li>
+<li><strong>Security</strong> — sensitive columns split so access can be granted separately (compensation, SSN)</li>
+<li><strong>Volatility / size</strong> — a large blob or a hot-updated counter kept off the main row to reduce contention and row width</li>
+<li><strong>Lifecycle</strong> — the two halves are created and retired at different times by different systems</li>
+</ul>
+
+<h3>4.3 Many-to-many — resolve with an associative entity</h3>
+<pre>Student ──&lt; Enrollment &gt;── CourseSection
+              |
+              +-- enrolled_on, status, grade, waitlist_position</pre>
+<div class="rule">
+<strong>The tell that decides everything:</strong> if the join carries <em>any attribute of its own</em>, it is not plumbing — it is a real entity with its own name and its own lifecycle. Name it after the relationship as a noun (<code>Enrollment</code>, <code>Assignment</code>, <code>Membership</code>), never <code>StudentCourse</code>.
+</div>
+<p>Follow-up they may push on: <em>"can the same student enroll in the same section twice?"</em> If no → unique constraint on the pair. If yes (re-taking a course in a later term) → the term is part of the key, and you just discovered a missing dimension of the grain.</p>
+
+<h3>4.4 Self-referencing relationships</h3>
+<p>Account hierarchies, org charts, product bundles, case parent/child. Model as an FK back to the same table (<code>parent_account_id</code>).</p>
+<ul>
+<li><strong>Ask:</strong> is it a strict tree, or can a node have multiple parents? Multiple parents = M:M against itself = an associative entity, not a self-FK.</li>
+<li><strong>Ask:</strong> how deep, and are cycles possible? Depth affects whether recursive traversal is viable at query time.</li>
+<li><strong>Risk to surface:</strong> nothing in a plain FK prevents A→B→C→A. Cycle prevention is application logic.</li>
+</ul>
+
+<h3>4.5 Polymorphic relationships <span class="meta">— very Salesforce</span></h3>
+<p>"A Task can relate to a Lead <em>or</em> a Contact" (<code>WhoId</code>), "and to an Account, Opportunity or Case" (<code>WhatId</code>). Three ways to model it:</p>
+<table>
+<tr><th>Option</th><th>Shape</th><th>Trade-off</th></tr>
+<tr><td>Multiple nullable FKs</td><td><code>lead_id</code>, <code>contact_id</code>, both nullable, exactly one populated</td><td>Referential integrity preserved ✅, but a new target type means a schema change ❌</td></tr>
+<tr><td>Type + id pair</td><td><code>related_to_type</code> + <code>related_to_id</code></td><td>Extensible ✅, but <strong>the database can no longer enforce the FK</strong> ❌ — integrity moves to the application</td></tr>
+<tr><td>Supertype table</td><td>All targets share a common parent entity; FK points at the parent</td><td>Integrity ✅ and extensible ✅, at the cost of an extra join and a shared key space</td></tr>
+</table>
+<div class="say">"I'd want to know whether the set of target types is open or closed. Closed and small — separate FKs, keep the integrity. Open and growing — a supertype, so I keep the constraint instead of pushing it into application code."</div>
+
+<h3>4.6 Supertype / subtype <span class="meta">— the single most Salesforce-relevant pattern</span></h3>
+<p>Party model: <code>Account</code> is sometimes an organization, sometimes a person. Same for Payment (card / ACH / wire), or Product (physical / subscription / service).</p>
+<table>
+<tr><th>Strategy</th><th>Shape</th><th>When</th></tr>
+<tr><td>Single table + type discriminator</td><td>One wide table, <code>record_type</code> column, irrelevant columns NULL</td><td>Subtypes differ by only a few attributes; you query across all types constantly. <em>This is essentially what Salesforce Record Types do.</em></td></tr>
+<tr><td>Table per subtype</td><td>Separate tables, no shared parent</td><td>Subtypes share almost nothing and are never queried together</td></tr>
+<tr><td>Supertype + subtype tables</td><td>Common attributes on the parent, specifics on children, shared PK</td><td>Substantial shared behaviour <em>and</em> substantial differences — the usual right answer at enterprise scale</td></tr>
+</table>
+<div class="rule"><strong>The question that decides it:</strong> "do users ever need a single list containing all of them?" If yes, the common attributes must live in one place.</div>
+
+<h3>4.7 When the relationship itself needs history</h3>
+<p>"Who owned this account, and when?" The moment history is required, the relationship stops being an FK and becomes an entity with <code>effective_from</code> / <code>effective_to</code> — an OLTP cousin of SCD Type 2. Listen for the words "used to be", "at the time", "audit", "as of".</p>
+
+<h2>5. Designing for extensibility <span class="meta">— they ship to every industry on earth</span></h2>
+
+<p>This team's whole problem is that the same model has to serve financial services, health, manufacturing and retail. Have an opinion on how you'd extend a model without forking it:</p>
+
+<table>
+<tr><th>Approach</th><th>Good</th><th>Bad</th></tr>
+<tr><td>Add nullable columns per industry</td><td>Simple, typed, indexable</td><td>Table sprawls; 90% NULL; every industry's concerns leak into a shared object</td></tr>
+<tr><td>Extension table per industry (1:1)</td><td>Isolates concerns; core stays clean</td><td>Extra join; proliferation of tables</td></tr>
+<tr><td>EAV / metadata-driven</td><td>Infinitely extensible without DDL</td><td>No typing, no constraints, poor query performance — <em>unless the platform is built for it</em></td></tr>
+</table>
+
+<div class="win">
+<strong>High-value prep read (1 hour, worth it):</strong> Salesforce's own multi-tenant architecture whitepaper. Their platform stores every tenant's custom objects and fields in a shared, metadata-driven schema with pivot-table indexing — i.e. they made the "bad" EAV option work at enormous scale, deliberately. Being able to say <em>"you've industrialised the metadata-driven approach, which is why custom fields don't require DDL per tenant"</em> puts you ahead of almost every candidate. Verify the current details before quoting specifics.
+</div>
+
+<h2>6. Salesforce relationship vocabulary <span class="meta">(fuller treatment Sunday — know these names by Tuesday)</span></h2>
+
+<table>
+<tr><th>Salesforce term</th><th>Relational equivalent</th><th>Key behaviour</th></tr>
+<tr><td><strong>Lookup</strong></td><td>Nullable FK, no cascade</td><td>Child survives parent deletion; independent ownership and sharing; optional</td></tr>
+<tr><td><strong>Master-detail</strong></td><td>Required FK with cascade delete</td><td>Child deleted with parent; inherits ownership/sharing from parent; <strong>required for roll-up summary fields</strong></td></tr>
+<tr><td><strong>Junction object</strong></td><td>Associative entity resolving M:M</td><td>A custom object with two master-detail relationships</td></tr>
+<tr><td><strong>Record Type</strong></td><td>Subtype discriminator</td><td>Different page layouts / picklist values on one object — single-table inheritance</td></tr>
+<tr><td><strong>Roll-up summary</strong></td><td>Maintained aggregate on the parent</td><td>Only over master-detail children — an in-OLTP denormalization the platform maintains for you</td></tr>
+<tr><td><strong>Person Account</strong></td><td>Supertype/subtype collapsed into one object</td><td>Account behaving as an individual — the party-model problem, productised</td></tr>
+</table>
+
+<p><strong>Core objects to be able to sketch cold:</strong> Lead → (converts to) Account + Contact + Opportunity; Case; Opportunity ──&lt; OpportunityLineItem &gt;── Product; Account ──&lt; Contact; Account self-hierarchy; Task/Event with polymorphic Who/What.</p>
+
+<h2>7. How to run the design session itself</h2>
+
+<h3>The discovery questions (ask before you draw anything)</h3>
+<ol>
+<li><strong>Who are the users and what are they trying to do?</strong> — the entity list falls out of the verbs</li>
+<li><strong>Walk me through one real example, end to end</strong> — concrete instances expose cardinality that abstractions hide</li>
+<li><strong>What's the volume and the access pattern?</strong> — 100 rows vs 100M changes everything downstream</li>
+<li><strong>Can it be zero? Can it be many? Can it change?</strong> — optionality, cardinality, mutability, for every relationship</li>
+<li><strong>Does anyone need to know what it <em>used to</em> be?</strong> — the history question; ask it early, it restructures the model</li>
+<li><strong>Which of these already exists in the Salesforce model?</strong> — reusing Account/Contact beats inventing a new object, and this JD explicitly asks you to map into existing models</li>
+<li><strong>What's out of scope for v1?</strong> — speed to market is a named axis; design the seam, don't build past it</li>
+</ol>
+
+<div class="rule">
+<strong>The behavior change from 7/31 — this is the one thing to fix:</strong> before naming anything, say two sentences out loud — <em>"What happens here is ___."</em> and <em>"One row per ___."</em> Slowly. Every miss on 7/31 came from answering on instinct first. The reasoning was never wrong when it was actually run.
+</div>
+
+<h3>Surfacing risk like a design authority</h3>
+<p>Say the risk, the consequence, and the mitigation — in that order, in one sentence.</p>
+<div class="say">"If we let this be a free-text field, we can't report on it in six months and we'll be migrating dirty data under pressure. I'd make it a reference entity now — it costs us a day and it's reversible later, whereas the free-text version isn't."</div>
+
+<h2>8. Live mocks — Saturday</h2>
+<p class="meta">Scenarios only. Do not read the spoiler blocks before the session.</p>
+
+<h3>Mock 1 — Field Service scheduling</h3>
+<blockquote>"We want customers to be able to book an appointment with a technician. Not every technician can do every job — you need the right skills and the right certifications. Techs work in territories and have working hours. Design the data model."</blockquote>
+
+<div class="spoiler">
+<strong>Expected coverage:</strong> <code>WorkOrder</code> (the customer's request) vs <code>ServiceAppointment</code> (the scheduled slot) as <em>separate</em> entities — one work order can need several visits. <code>ServiceResource</code> (technician) ──&lt; <code>ResourceSkill</code> &gt;── <code>Skill</code> as a resolved M:M carrying <em>proficiency level and certification expiry</em> (the attribute that proves it's a real entity). <code>WorkOrder</code> ──&lt; <code>WorkOrderSkillRequirement</code>. Availability modelled as recurring working hours + exceptions, not as pre-generated slot rows. Territory as a dimension with a self-hierarchy.<br><br>
+<strong>Risks she should surface:</strong> double-booking is a concurrency problem no FK prevents; certification expiry means a valid assignment can become invalid with the passage of time alone; appointment lifecycle (scheduled → dispatched → in progress → completed) is <em>status on one row</em>, not four tables — the accumulating-snapshot instinct in OLTP clothing.<br><br>
+<strong>Traps:</strong> collapsing WorkOrder and ServiceAppointment into one table; making <code>skills</code> a comma-separated field (1NF); generating a row per technician per 15-minute slot forever.
+</div>
+
+<h3>Mock 2 — Households for Financial Services Cloud</h3>
+<blockquote>"Advisors need to see a household — a married couple, their kids, maybe a trust — and roll up total assets across the household. People move between households after a divorce. Design it."</blockquote>
+
+<div class="spoiler">
+<strong>Expected coverage:</strong> Household as its own entity, <em>not</em> an attribute on Contact. Contact ──&lt; <code>HouseholdMember</code> &gt;── Household, with <code>role</code> (primary / spouse / dependent / trustee), <code>effective_from</code>, <code>effective_to</code> — because membership <em>changes</em> and advisors must see history. Contact-to-Contact relationships (spouse of, parent of) as a self-referencing M:M with a role, and the reciprocal-record question ("if A is spouse of B, does B automatically get a row?"). Asset rollup: a maintained aggregate vs computed on read — name the trade-off explicitly (staleness vs query cost).<br><br>
+<strong>The senior signal:</strong> recognising that "people move between households" makes the <em>relationship</em> temporal, so the join table needs effective dating — the OLTP sibling of SCD Type 2. Also: can a person be in two households simultaneously (a child of divorced parents)? That kills any one-household-per-contact shortcut.<br><br>
+<strong>Traps:</strong> <code>household_id</code> as a column on Contact; no history, so divorce silently rewrites the past; modelling relationships as picklist text.
+</div>
+
+<h2>9. Positioning — what to say about your own background</h2>
+
+<div class="risk">
+<strong>The stated bar is 10+ years of relational (OLTP) design.</strong> Don't try to manufacture that, and don't apologise for it either — they granted the interview knowing your profile. Compete on <em>design judgement demonstrated live</em>, which is what the session actually measures.
+</div>
+
+<p>Anchor stories to reach for, framed as <em>design authority</em>, not implementation:</p>
+<ul>
+<li><strong>Citi (DCRM / Data Acquisition Platform)</strong> — logical and physical models, views ingesting Kafka topics into Redis. The story is <em>whose requirements you reconciled and what you traded off</em>, not the pipeline.</li>
+<li><strong>IQVIA</strong> — healthcare domain, HIPAA/GDPR constraints shaping the model. Regulatory constraint <em>is</em> a design axis; this JD lists industries including health.</li>
+<li><strong>ClinicalFlow</strong> — end-to-end ownership with explicit de-identification and consent modelling.</li>
+</ul>
+
+<div class="win">
+<strong>Your free differentiator:</strong> the JD makes AI-assisted modeling a pillar of the role and says they want to <em>improve</em> those capabilities. You genuinely work this way daily (Claude Code, AI-assisted development). Have one concrete story: what you used it for, where it was wrong, how you caught it. <strong>"Where it was wrong and how I caught it"</strong> is the part that separates enthusiasm from judgement — and it's exactly what a design-authority role needs to hear.
+</div>
+
+<h2>10. Open risks going into Tuesday</h2>
+<table>
+<tr><th>Risk</th><th>Status</th></tr>
+<tr><td><strong>Behavioral / stakeholder stories</strong> — the JD is dense with mentoring, consensus, defending to leadership</td><td>❌ Pillar 8 not started. <strong>Biggest single gap.</strong> Sunday.</td></tr>
+<tr><td>Answering before running the tests</td><td>🟡 identified 7/31; fix is the two spoken sentences</td></tr>
+<tr><td>SCD2 / temporal recall under cold ask</td><td>🟡 re-check Saturday</td></tr>
+<tr><td>Salesforce platform vocabulary</td><td>⏳ Sunday</td></tr>
+<tr><td>Location / India-based disclosure</td><td>⚠️ handle in writing with the recruiter before it surfaces live — the JD explicitly wants India overlap hours, which works in your favour</td></tr>
+</table>
+
+</body>
+</html>
