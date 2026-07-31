@@ -294,6 +294,36 @@ Two lines worth saying in an interview: accumulating snapshots are the <strong>o
 <strong>Open, highest priority before Tue 8/4:</strong> naming SCD Type 2 cold, and connecting "milestone in a lifecycle" to the words <em>accumulating snapshot</em>. Plan: 5-minute cold re-tests Sat 8/1 and Mon 8/3 — spacing, not another lecture.
 </div>
 
+<h2>5b. Process vs dimension vs milestone — the three tests, and the rapid-fire results</h2>
+
+<table>
+<tr><th>Test</th><th>Question</th><th>Verdict</th></tr>
+<tr><td>Noun vs verb</td><td>Say it as a sentence — what's the verb?</td><td>No verb → dimension. An insurance <em>policy</em> exists; a policy being <em>issued</em> happens.</td></tr>
+<tr><td>Parent test</td><td>A milestone is always a stage of something <strong>already in flight</strong>. What row would it be a stage <em>of</em>?</td><td>No parent at the same grain → it's a process.</td></tr>
+<tr><td>Cardinality</td><td>How many per parent?</td><td>1:1 → column (milestone). 0-to-many with own measures → own table (process).</td></tr>
+</table>
+
+<p><strong>Careful with the parent test:</strong> a plausible parent still has to survive the grain check. Enrollment <em>feels</em> like a stage of admission — but admission is one row per student per program per term, while enrollment is one row per student per <em>course section</em> per term. One admission, five enrollments → different grain → own table.</p>
+
+<table>
+<tr><th>Item</th><th>Answer</th><th>Result 7/31</th></tr>
+<tr><td>Sales territory</td><td>Dimension (Type 2 candidate)</td><td>✅ clean</td></tr>
+<tr><td>A shipment clears customs</td><td><strong>Milestone</strong> — <code>customs_cleared_ts</code> column on the fulfillment accumulating snapshot</td><td>❌ said process. Same shape as the 7/28 "order packed at warehouse" miss — a verb + timestamp reading as a process. She did interrogate cardinality ("many times?"), which is the right move; the default is once per border crossing.</td></tr>
+<tr><td>A refund is issued</td><td><strong>Process</strong> — own transaction fact, 0-to-many per order, own amount + reason code</td><td>❌→✅ after nudge</td></tr>
+<tr><td>An insurance policy</td><td><strong>Dimension</strong> — has dates, but the timestamp test asks whether it <em>happens</em>, not whether it <em>has</em> a date</td><td>❌→✅ after nudge</td></tr>
+<tr><td>A student enrolls in a course</td><td><strong>Process</strong> — <code>FactEnrollment</code>, one row per student per course section per term, near-factless</td><td>❌ tried "milestone of admission"; killed by the grain check</td></tr>
+</table>
+
+<div class="win">
+<strong>The real finding: 1/5 clean, but every single nudge landed immediately.</strong> The tests work when she runs them; she answers on instinct first and reasons second. Not a knowledge gap — a sequencing habit.
+</div>
+
+<div class="rule">
+<strong>The one behavior change for interview day:</strong> before naming anything, say two sentences out loud —<br>
+<em>"What happened here is ___."</em> and <em>"One row per ___."</em><br>
+Slowly. Interviewers read it as method, not hesitation. Every miss on 7/31 came from skipping straight to the answer; the reasoning was never wrong when it was actually run.
+</div>
+
 <h2>6. Interview quick-fire</h2>
 
 <table>
