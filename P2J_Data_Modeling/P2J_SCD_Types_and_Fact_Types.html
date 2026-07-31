@@ -137,6 +137,55 @@ Mar 3 | 700    Mar 6 | 750</pre>
 
 <p class="meta">Discriminator to say out loud in an interview: <em>"Is the old value wrong, or was it right at the time?"</em> Wrong → Type 1. Right at the time → Type 2.</p>
 
+<h2>2b. Structural difference — what the three fact tables actually look like</h2>
+
+<p>The tell: <strong>how many date keys the table has, and whether rows get updated.</strong></p>
+
+<p><strong>Transaction</strong> — one date key, insert-only:</p>
+<pre>FactOrderLine
+order_date_key | product_key | store_key | customer_key
+order_id (degenerate) | line_number
+quantity | sales_amount | discount_amount        &lt;- fully additive</pre>
+<p>Rows born from events, never updated, grows with business volume.</p>
+
+<p><strong>Periodic snapshot</strong> — one date key, insert-only, rows born from the <em>calendar</em>:</p>
+<pre>FactInventorySnapshot
+snapshot_date_key | product_key | warehouse_key
+on_hand_qty | on_hand_value | units_received_today   &lt;- semi-additive</pre>
+<p>Every SKU × warehouse × day gets a row whether or not anything moved. Predictable size = dimensions × periods.</p>
+
+<p><strong>Accumulating snapshot</strong> — <strong>many</strong> date keys, rows get <code>UPDATE</code>d:</p>
+<pre>FactOrderFulfillment
+order_key (one row per order)
+order_date_key | packed_date_key | shipped_date_key | delivered_date_key
+customer_key | warehouse_key | current_status_key
+order_amount
+days_order_to_ship | days_ship_to_deliver | days_total   &lt;- lag measures</pre>
+<p>Inserted when the order is placed, later date keys pointing at a "not yet happened" row in the date dimension; each milestone rewrites the row.</p>
+
+<table>
+<tr><th></th><th>Transaction</th><th>Periodic</th><th>Accumulating</th></tr>
+<tr><td>Rows born from</td><td>an event</td><td>the clock</td><td>a lifecycle starting</td></tr>
+<tr><td>Date keys</td><td>1</td><td>1</td><td>many (one per milestone)</td></tr>
+<tr><td>Write pattern</td><td>INSERT only</td><td>INSERT only</td><td>INSERT then <strong>UPDATE</strong></td></tr>
+<tr><td>Grows with</td><td>volume</td><td>dimensions × periods</td><td>lifecycle instances</td></tr>
+<tr><td>Measures</td><td>additive</td><td>semi-additive</td><td>durations, lags, status</td></tr>
+<tr><td>Typical question</td><td>"how much did we sell Tuesday?"</td><td>"what was on hand Tuesday?"</td><td>"how long from order to delivery?"</td></tr>
+</table>
+
+<div class="rule">
+Two lines worth saying in an interview: accumulating snapshots are the <strong>only</strong> fact type you routinely update — which is why Delta <code>MERGE INTO</code> shows up in these pipelines and why they are awkward on append-only storage. And if you are adding a <em>fourth</em> date key to a transaction fact, you actually have an accumulating snapshot.
+</div>
+
+<h2>2c. Column vs table — the cardinality test</h2>
+
+<div class="rule">
+<strong>1:1 with the row → column. 0-to-many with its own measures → its own table.</strong><br>
+"It happens later" never decides it. Settlement happens later and is a <em>column</em>; a chargeback happens later and is a <em>table</em>. The difference is cardinality, not the clock.
+</div>
+
+<p><strong>Card payments worked example.</strong> <code>FactPayment</code> = accumulating snapshot, one row per payment attempt, <code>auth_ts</code> / <code>capture_ts</code> / <code>settle_ts</code> as columns, updated in place — auth and settle are the same money, exactly 1:1. <code>FactChargeback</code> = separate transaction fact: most payments have <strong>zero</strong>, some have one, some are disputed twice or charged back for a <em>partial</em> amount with its own reason code and outcome. A column cannot hold "two chargebacks," and you would carry millions of NULLs.</p>
+
 <h2>4b. Additivity — additive / semi-additive / non-additive</h2>
 
 <table>
@@ -181,6 +230,26 @@ Mar 3 | 700    Mar 6 | 750</pre>
 <strong>Naming rule to carry:</strong> the fact table is named after <em>the verb in the sentence</em>, never <em>the noun in the metric</em>. Finish "one row per ___" first — then name the table after that thing.
 </div>
 
+<h3>The mechanical motion (taught 7/31 after the 4th repeat slip)</h3>
+
+<p><strong>The table name is the noun phrase at the end of your own grain sentence.</strong> Do not invent a name — read it off the grain you just said.</p>
+
+<table>
+<tr><th>Grain sentence</th><th>Name</th></tr>
+<tr><td>one row per meter per <strong>15-min reading</strong></td><td><code>FactMeterReading</code></td></tr>
+<tr><td>one row per room per <strong>night</strong></td><td><code>FactRoomNight</code></td></tr>
+<tr><td>one row per <strong>flight leg</strong> per date</td><td><code>FactFlightLeg</code></td></tr>
+<tr><td>one row per member per <strong>class booking</strong></td><td><code>FactClassBooking</code></td></tr>
+<tr><td>one row per <strong>claim line</strong></td><td><code>FactClaimLine</code></td></tr>
+</table>
+
+<h3>Deriving the name in three questions (worked on the airline case)</h3>
+<ol>
+<li><strong>Cross out every metric word in the question.</strong> "on-time performance", "delay causes" — both are analysis, neither ever <em>happens</em>, so neither can name a table. If little is left, the question handed you metrics only and you must supply the event yourself.</li>
+<li><strong>What physically happened?</strong> A plane pushed back at SFO, flew, landed at ORD. Past tense, real-world verb: <em>a flight operated.</em></li>
+<li><strong>"One row per ___?"</strong> Per flight number? No — one row for all history. Per flight number per date? Closer. But UA328 may fly SFO→ORD→JFK — one number, two hops, each with its own delay. Atomic unit = the <strong>leg</strong>. → one row per flight leg per scheduled departure date → <code>FactFlightLeg</code>.</li>
+</ol>
+
 <p><strong>Keep the denominator.</strong> Vacant hotel rooms get rows; on-time flights get rows. <code>FactAirlineDelay</code> would contain only late flights, so on-time <em>rate</em> becomes uncomputable. Filtering the denominator out of existence is the same non-additive mistake one layer down.</p>
 
 <p><strong>Legitimate second facts</strong> (different grain, therefore different table): <code>FactCustomerBill</code> alongside meter readings; <code>FactReservation</code> alongside room-nights — one booking of 3 nights = 1 reservation row but 3 room-night rows, and only reservations know booking lead time.</p>
@@ -202,6 +271,15 @@ Mar 3 | 700    Mar 6 | 750</pre>
 <tr><td>FN-1</td><td>Utility smart meters</td><td>🟡 <code>factMeterConsumption</code> — named the measure, not the event. Fact <em>types</em> both correct ✅ (periodic readings + transaction billing), raised the billing fact unprompted ✅. Grain sentence included a measure → corrected.</td></tr>
 <tr><td>FN-2</td><td>Hotel occupancy / RevPAR</td><td>❌ <code>FactRevenue</code> + <code>FactOccupancyRate</code> — the 7/23 trap verbatim. <strong>But the grain was right</strong> ("per property per room per day"), and after one nudge she recovered cleanly via non-additivity: "store num/den separately." → <code>FactRoomNight</code>.</td></tr>
 <tr><td>FN-3</td><td>Airline on-time performance</td><td>❌ <code>FactAirlinePerformance</code>, then <code>FactAirlineDelay</code> after the nudge. Derived-measure trap twice. → <code>FactFlightLeg</code>.</td></tr>
+</table>
+
+<p><strong>Block 2 continued — 3 more reps after the naming motion was taught:</strong></p>
+
+<table>
+<tr><th>Item</th><th>Result</th></tr>
+<tr><td>FN-4 fitness classes</td><td>🟡 gave three tables (<code>FactFitnessClassDetails</code>, <code>FactBooking</code>, <code>FactMembersAvailability</code>) — but <strong><code>FactBooking</code> is right</strong> and she produced it herself. Grain "per class per member per day" → refined to <strong>per class session</strong> (a class can run 6am and 6pm). ✅ Nailed the follow-up cold: no-show is a <em>column</em> on the booking row, same grain.</td></tr>
+<tr><td>FN-5 health insurance claims</td><td>🟡 <strong>grain correct and below header level</strong> ("per member per procedure per hospital per session") — she avoided the claim-header trap unprompted, the interesting wrong answer. Then named it <code>FactCostIncurred</code> ❌ — derived measure, 4th repeat. → <code>FactClaimLine</code>. This is where the "read the name off the grain" motion was given.</td></tr>
+<tr><td>FN-6 card payments (hardest)</td><td>🟡 said "transaction fact" first, then after one nudge produced <strong>accumulating snapshot</strong> ✅ for auth→settle. Chargeback: answered "another column on the same row" ❌ — <strong>over-applied</strong> the carry rule rather than ignoring it. → taught the missing half.</td></tr>
 </table>
 
 <div class="win">
