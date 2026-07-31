@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PySpark / Spark — Q&amp;A Log</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #ffffff;
+    --fg: #1a1a1a;
+    --muted: #666;
+    --card: #f6f8fa;
+    --border: #e1e4e8;
+    --accent: #d35400;
+    --code-bg: #f0f2f4;
+    --code-fg: #c0392b;
+    --q-bg: #fff4e6;
+    --q-border: #d35400;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0d1117;
+      --fg: #e6edf3;
+      --muted: #9da7b1;
+      --card: #161b22;
+      --border: #30363d;
+      --accent: #f0883e;
+      --code-bg: #1c2128;
+      --code-fg: #ff9b8a;
+      --q-bg: #2a1f12;
+      --q-border: #f0883e;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    line-height: 1.6;
+    max-width: 820px;
+    margin: 0 auto;
+    padding: 24px 18px 80px;
+    font-size: 16px;
+  }
+  h1 { font-size: 1.6rem; margin-bottom: 4px; }
+  .sub { color: var(--muted); font-size: 0.9rem; margin-bottom: 28px; }
+  .date-head {
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: var(--accent);
+    border-bottom: 2px solid var(--border);
+    padding-bottom: 6px;
+    margin: 36px 0 18px;
+  }
+  .qa { margin-bottom: 28px; }
+  .q {
+    background: var(--q-bg);
+    border-left: 4px solid var(--q-border);
+    padding: 10px 14px;
+    border-radius: 6px;
+    font-weight: 600;
+    margin-bottom: 12px;
+  }
+  .q::before { content: "Q: "; color: var(--accent); }
+  .a { padding-left: 4px; }
+  code {
+    background: var(--code-bg);
+    color: var(--code-fg);
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-family: "SF Mono", Menlo, Consolas, monospace;
+    font-size: 0.88em;
+  }
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 16px;
+    overflow-x: auto;
+    font-size: 0.85rem;
+    line-height: 1.5;
+  }
+  pre code { background: none; color: var(--fg); padding: 0; }
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 14px 0;
+    font-size: 0.9rem;
+  }
+  th, td {
+    border: 1px solid var(--border);
+    padding: 7px 10px;
+    text-align: left;
+  }
+  th { background: var(--card); }
+  ul { padding-left: 22px; }
+  li { margin-bottom: 5px; }
+  .key { color: var(--accent); font-weight: 600; }
+  hr { border: none; border-top: 1px solid var(--border); margin: 0; }
+</style>
+</head>
+<body>
+
+<h1>PySpark / Spark — Q&amp;A Log</h1>
+<div class="sub">Running log of questions asked during learning sessions, with answers. Newest date at bottom. Refresh anytime.</div>
+
+<div class="date-head">2026-06-02 — Stage 2B, PySpark SQL (Lesson 3)</div>
+
+<!-- ============ Q1 ============ -->
+<div class="qa">
+  <div class="q">Refresh me on lazy vs wide (transformations).</div>
+  <div class="a">
+    <p><span class="key">"Wide vs lazy" are two different axes, not opposites.</span></p>
+    <p><strong>Axis 1 — Lazy vs eager (WHEN work happens)</strong></p>
+    <ul>
+      <li><strong>Transformations are lazy</strong> — <code>select</code>, <code>filter</code>, <code>withColumn</code>, <code>groupBy</code>, <code>join</code>, <code>spark.sql("SELECT…")</code> just record a recipe (build the DAG). Nothing runs.</li>
+      <li><strong>Actions are eager</strong> — <code>show()</code>, <code>count()</code>, <code>collect()</code>, <code>write</code> — trigger the whole recipe to execute.</li>
+      <li>Payoff: Spark sees the full plan before running, so Catalyst optimizes across steps (push filters down, pick join strategy).</li>
+    </ul>
+    <p><strong>Axis 2 — Narrow vs wide (HOW MUCH data moves across the network)</strong></p>
+    <ul>
+      <li><strong>Narrow</strong> — each input partition feeds one output partition. No network movement. <code>select</code>, <code>filter</code>, <code>withColumn</code>. Cheap.</li>
+      <li><strong>Wide</strong> — output partitions pull from many input partitions → <strong>shuffle</strong> (data sent across executors). <code>groupBy</code>, <code>join</code> (non-broadcast), <code>orderBy</code>, <code>distinct</code>. Expensive — the #1 thing you tune.</li>
+      <li>A <strong>stage boundary</strong> is exactly where a shuffle happens. Count shuffles → count stages.</li>
+    </ul>
+    <p><strong>How they combine in Lesson 3:</strong></p>
+    <table>
+      <tr><th>Operation</th><th>Lazy/eager</th><th>Narrow/wide</th></tr>
+      <tr><td><code>SELECT … WHERE</code></td><td>lazy until <code>.show()</code></td><td>narrow</td></tr>
+      <tr><td><code>GROUP BY</code></td><td>lazy until <code>.show()</code></td><td><strong>wide</strong> (shuffle)</td></tr>
+      <tr><td><code>ORDER BY</code></td><td>lazy until <code>.show()</code></td><td><strong>wide</strong> (shuffle)</td></tr>
+      <tr><td><code>JOIN</code></td><td>lazy until <code>.show()</code></td><td><strong>wide</strong> — unless broadcast (tiny <code>coin_meta</code> → BroadcastHashJoin, no shuffle)</td></tr>
+    </table>
+    <p>Full reference: <code>~/Downloads/Spark_Architecture_Walkthrough.html</code></p>
+  </div>
+</div>
+
+<hr>
+
+<!-- ============ Q2 ============ -->
+<div class="qa">
+  <div class="q">What does this do? <code>spark = (SparkSession.builder.appName("…").getOrCreate())</code></div>
+  <div class="a">
+    <p>It creates (or reuses) the <span class="key">SparkSession</span> — the entry point every DataFrame/SQL call goes through.</p>
+    <pre><code>spark = (
+    SparkSession.builder              # a configurator to set up a session
+    .appName("FinFlow_Lesson3_SQL")   # name shown in Spark UI (localhost:4040)
+    .getOrCreate()                    # build it — or hand back the existing one
+)</code></pre>
+    <ul>
+      <li><strong><code>SparkSession.builder</code></strong> — a configurator you chain settings onto (app name, configs, master URL). Nothing exists yet.</li>
+      <li><strong><code>.appName(...)</code></strong> — labels the application; purely for identification in the Spark UI and logs.</li>
+      <li><strong><code>.getOrCreate()</code></strong> — the actual build. "Get" the active session if one exists in this process, else "create" one. A JVM allows only one active session, so re-running won't spin up duplicates or error.</li>
+    </ul>
+    <p><strong>What you get back (<code>spark</code>):</strong> the handle that owns <code>spark.read.json(...)</code>, <code>spark.sql("…")</code>, and launches the Driver + Spark UI on <code>localhost:4040</code>. This <code>spark</code> object <em>is</em> the Driver's entry point — builds the DAG, hands tasks to executors. Creating it is setup, not an action — nothing computes here.</p>
+    <p>The outer parentheses are just Python letting you split a chained call across lines for readability — no Spark meaning.</p>
+  </div>
+</div>
+
+<hr>
+
+<!-- ============ Q3 ============ -->
+<div class="qa">
+  <div class="q">Why is the path wrapped in <code>str(...)</code>? <code>DATA = str(Path.home() / "Downloads" / … / "sample.jsonl")</code></div>
+  <div class="a">
+    <p>Because <code>Path.home() / "…"</code> produces a <span class="key">PosixPath object</span>, and Spark's reader wants a plain <strong>string</strong>.</p>
+    <ul>
+      <li><strong><code>Path.home()</code></strong> → a <code>Path</code> object (<code>/Users/sayantaninath</code>).</li>
+      <li><strong><code>/ "Downloads" / …</code></strong> → the <code>/</code> operator is overloaded on <code>Path</code> to join segments. Still a <code>Path</code>, not text. (Readable, OS-agnostic joins — the nice part of <code>pathlib</code>.)</li>
+      <li><strong><code>str(...)</code></strong> → flattens it into the real string <code>"/Users/sayantaninath/Downloads/…/sample.jsonl"</code>.</li>
+    </ul>
+    <p><strong>Why Spark needs the string:</strong> <code>spark.read.json(path)</code> hands the path <strong>across to the JVM</strong> (Spark's engine is Scala/Java). The JVM doesn't understand a Python <code>PosixPath</code> — it expects a Java string. Pure-Python libs like <code>pandas.read_json</code> accept a <code>Path</code> directly (they honor <code>os.PathLike</code>); the Python→JVM boundary doesn't, so you convert explicitly. Skip the <code>str()</code> and you'd likely hit a <code>py4j</code> type error.</p>
+    <p><strong>Pattern:</strong> use <code>pathlib</code> to build the path readably, wrap in <code>str()</code> at the moment you hand it to Spark.</p>
+    <pre><code>p = Path.home() / "Downloads"
+print(type(p))        # &lt;class 'pathlib.PosixPath'&gt;
+print(type(str(p)))   # &lt;class 'str'&gt;</code></pre>
+  </div>
+</div>
+
+<hr>
+
+<!-- ============ Q4 ============ -->
+<div class="qa">
+  <div class="q">What's the alternative to <code>show(n)</code> to show ALL records?</div>
+  <div class="a">
+    <p><code>df.show()</code> defaults to <span class="key">20 rows</span> and truncates long columns at 20 chars. To show all:</p>
+    <pre><code>df.show(df.count())                 # pass the exact row count as n
+df.show(df.count(), truncate=False) # + full untruncated column values</code></pre>
+    <table>
+      <tr><th>Method</th><th>Returns</th><th>When to use</th></tr>
+      <tr><td><code>df.show(df.count())</code></td><td>prints, nothing returned</td><td>quick visual scan of all rows</td></tr>
+      <tr><td><code>df.collect()</code></td><td>Python list of Row objects</td><td>pull data to driver to loop/process</td></tr>
+      <tr><td><code>df.toPandas()</code></td><td>pandas DataFrame</td><td>nicer display (notebooks), pandas ops</td></tr>
+    </table>
+    <p><span class="key">⚠️ The catch:</span> all three pull every row to the Driver — an <strong>action</strong> that can blow up driver memory or hang on a big table. Fine on 6 rows, dangerous in production. <code>df.show(20)</code> exists so you peek cheaply without dragging the whole dataset back.</p>
+    <p><code>truncate=False</code> is the flag you'll reach for most — keeps timestamps and names from being cut off.</p>
+  </div>
+</div>
+
+<hr>
+
+<!-- ============ Q5 ============ -->
+<div class="qa">
+  <div class="q">Difference between using the DataFrame API and Spark SQL?</div>
+  <div class="a">
+    <p><span class="key">Two front-ends to the same engine — no performance difference.</span> Both compile through the same Catalyst optimizer to the same physical plan.</p>
+    <pre><code># DataFrame API
+df.select("coin", "price_usd").filter(F.col("price_usd") > 1000)
+
+# Spark SQL — identical result, identical plan
+spark.sql("SELECT coin, price_usd FROM prices WHERE price_usd > 1000")</code></pre>
+    <p>Run <code>.explain()</code> on both → same physical plan (that's Ex 10 in Lesson 3).</p>
+    <p><strong>Why have both? About how you write/read code, not speed:</strong></p>
+    <table>
+      <tr><th></th><th>DataFrame API</th><th>Spark SQL</th></tr>
+      <tr><td>Looks like</td><td>Python method chaining</td><td>SQL strings</td></tr>
+      <tr><td>Errors caught</td><td>compile/build time (bad method name fails immediately)</td><td>runtime (bad SQL fails only when query runs)</td></tr>
+      <tr><td>Composability</td><td>great — build <code>df</code> step by step, reuse, pass to functions</td><td>weaker — string concatenation gets ugly</td></tr>
+      <tr><td>Complex logic readability</td><td>nested chains get hard to read</td><td>complex joins/aggs often read cleaner</td></tr>
+      <tr><td>Who reaches for it</td><td>Python engineers, programmatic pipelines</td><td>analysts, SQL-first, ad-hoc queries</td></tr>
+      <tr><td>IDE support</td><td>autocomplete, type hints</td><td>just a string — no help</td></tr>
+    </table>
+    <p><strong>Guidance:</strong> DataFrame API for dynamically-built logic (loops/conditionals/reusable fns) or compile-time safety; Spark SQL for gnarly multi-join/aggregation queries that read cleaner as SQL or SQL-fluent collaborators. <strong>Mix freely</strong> — <code>createOrReplaceTempView</code> flips a DataFrame into SQL and back (common: heavy transforms in the API, final aggregation in SQL).</p>
+    <p><span class="key">Interview takeaway:</span> "Same engine, same Catalyst plan, same performance — choice is readability, composability, and compile-time vs runtime error checking." Proving equivalence with <code>.explain()</code> is what they're testing.</p>
+  </div>
+</div>
+
+<hr>
+
+<!-- ============ Q6 ============ -->
+<div class="qa">
+  <div class="q">What is Iceberg, Hudi, Trino?</div>
+  <div class="a">
+    <p><span class="key">Iceberg &amp; Hudi are table formats; Trino is a query engine</span> — different layers of the stack.</p>
+    <p><strong>The problem they exist for:</strong> a raw data lake is just Parquet files in object storage (S3). Files alone give no transactions, no time travel, no safe concurrent writes. The lakehouse stack fixes that.</p>
+    <p><strong>Table formats — Iceberg &amp; Hudi (and Delta)</strong> — a metadata layer on top of Parquet files that turns a pile of files into a real table with: ACID transactions, time travel (query old snapshots), schema evolution, and MERGE/upserts/deletes.</p>
+    <table>
+      <tr><th>Format</th><th>Born at</th><th>Sweet spot</th><th>Ecosystem</th></tr>
+      <tr><td>Delta</td><td>Databricks</td><td>tight Databricks/Spark integration</td><td>Databricks</td></tr>
+      <tr><td>Iceberg</td><td>Netflix</td><td>huge tables, engine-neutral, hidden partitioning</td><td>Apple, Netflix, Snowflake, AWS — momentum winner</td></tr>
+      <tr><td>Hudi</td><td>Uber</td><td>streaming upserts, CDC, incremental pulls</td><td>Uber, Robinhood</td></tr>
+    </table>
+    <p>Same problem; differences are partition handling, how updates are stored, and which engines/vendors back them.</p>
+    <p><strong>Trino</strong> — a distributed SQL query engine (formerly PrestoSQL), <em>not</em> a storage format. Doesn't store data; runs fast SQL <em>across</em> data wherever it lives. Superpower: <strong>federation</strong> — one query can join S3 (Iceberg/Hudi/Delta) + PostgreSQL + MySQL. "The SQL brain you point at many sources," vs Spark which is more a general compute/ETL engine.</p>
+    <p><span class="key">Interview takeaway:</span> table format (Delta/Iceberg/Hudi) = ACID + time travel on lake files; query engine (Trino, Spark SQL, Athena) = runs SQL over them. "Why Iceberg?" → engine-neutral + scales to massive tables + industry momentum. "Why Delta?" → best if all-in on Databricks.</p>
+  </div>
+</div>
+
+<div class="section">
+  <h2>show() vs display()</h2>
+  <div class="qa-block">
+    <div class="question">Q: What is the difference between <code>show()</code> and <code>display()</code> in Spark?</div>
+    <p><strong>Both show data from a DataFrame — but they work in different environments.</strong></p>
+
+    <p><code>show()</code> — PySpark, works anywhere</p>
+    <pre><code>df.show()                  # first 20 rows (default)
+df.show(5)                 # first 5 rows
+df.show(truncate=False)    # don't cut off long strings</code></pre>
+    <p>Output is plain text in the terminal or console.</p>
+
+    <p><code>display()</code> — Databricks notebooks only</p>
+    <pre><code>display(df)</code></pre>
+    <p>Output is a rich interactive table — sortable columns, filter, chart view (bar/line/pie), download as CSV. Not available outside Databricks.</p>
+
+    <table>
+      <tr><th></th><th>show()</th><th>display()</th></tr>
+      <tr><td>Works in</td><td>Anywhere (terminal, script, notebook)</td><td>Databricks notebooks only</td></tr>
+      <tr><td>Output</td><td>Plain text table</td><td>Interactive UI table</td></tr>
+      <tr><td>Charts</td><td>❌ No</td><td>✅ Yes — built-in</td></tr>
+      <tr><td>Truncates long strings</td><td>Yes (use truncate=False to disable)</td><td>No — shows full content</td></tr>
+      <tr><td>Use in production scripts</td><td>✅ Yes</td><td>❌ No</td></tr>
+    </table>
+
+    <p><span class="key">Rule:</span> In Databricks → <code>display()</code>. In a local script or terminal → <code>show()</code>.</p>
+  </div>
+</div>
+
+<div class="section">
+  <h2>PySpark vs Flink vs Presto/Trino — when to use which</h2>
+  <div class="qa-block">
+    <div class="question">Q: When do you use PySpark vs Flink vs Presto/Trino?</div>
+
+    <table>
+      <tr><th></th><th>PySpark</th><th>Flink</th><th>Presto/Trino</th></tr>
+      <tr><td>Best for</td><td>Batch ETL, ML, large-scale transforms</td><td>True real-time streaming (sub-second)</td><td>Fast ad-hoc SQL on existing data</td></tr>
+      <tr><td>Processing model</td><td>Micro-batch or batch</td><td>Continuous, event-by-event</td><td>Query engine only — no pipeline</td></tr>
+      <tr><td>Latency</td><td>Seconds to minutes</td><td>Milliseconds to seconds</td><td>Seconds (query time)</td></tr>
+      <tr><td>Stores data?</td><td>No</td><td>No</td><td>No — queries data where it lives</td></tr>
+      <tr><td>Typical use</td><td>DW pipelines, Delta Lake, feature engineering</td><td>Fraud detection, real-time alerts, CDC</td><td>BI dashboards, cross-source federation</td></tr>
+    </table>
+
+    <p><strong>PySpark</strong> — data is large, you need transformations + joins + aggregations, seconds of latency is fine. 90% of DE work.</p>
+    <p><strong>Flink</strong> — true sub-second real-time needed (fraud scoring per transaction as it happens). More operationally complex than Spark Streaming.</p>
+    <p><strong>Presto/Trino</strong> — data already exists in S3/Delta/Iceberg/Postgres and you want fast SQL without moving it. Superpower: federation — one query across multiple sources.</p>
+
+    <p><span class="key">Interview one-liner:</span> PySpark = batch/streaming ETL engine. Flink = true real-time streaming engine. Presto/Trino = fast SQL query engine across existing data stores. They solve different problems and often coexist in the same stack.</p>
+  </div>
+</div>
+
+
+<div class="section">
+  <h2>Delta Lake — OCC (Optimistic Concurrency Control)</h2>
+  <div class="qa-block">
+    <div class="question">Q: Two writers start at the same time. Writer A commits first. Does Writer B retry automatically or throw ConcurrentModificationException?</div>
+    <p><strong>Delta throws — it does NOT retry automatically.</strong></p>
+    <p>Delta uses optimistic concurrency: writers don't lock the table upfront. When B tries to commit, Delta checks: <em>do B's read/write files overlap with what A just modified?</em></p>
+    <table>
+      <tr><th>Scenario</th><th>Result</th></tr>
+      <tr><td>B's files overlap with A's changed files</td><td>Delta throws <code>ConcurrentModificationException</code> — your code must retry</td></tr>
+      <tr><td>B's files don't overlap (e.g. different partitions)</td><td>B's commit succeeds — both writers coexist</td></tr>
+    </table>
+    <p><span class="key">Key point:</span> Retry is your application's responsibility. Delta only detects and reports the conflict — it does not auto-retry.</p>
+    <p><span class="key">Common wrong answer:</span> "B retries automatically." Delta throws; you retry.</p>
+  </div>
+</div>
+
+<div class="section">
+  <h2>Delta Lake — VACUUM Retention Horizon</h2>
+  <div class="qa-block">
+    <div class="question">Q: A table has commits 0–25. You run VACUUM with default settings. What is the earliest version Delta keeps data files for?</div>
+    <p><strong>VACUUM is time-based, not commit-count-based.</strong></p>
+    <p>It removes data files (Parquet) that are no longer referenced by any version <em>within the last 7 days</em> (default retention). Commit numbers don't matter — only timestamps do.</p>
+    <ul>
+      <li>If all 26 commits happened in the last 3 days → VACUUM removes nothing.</li>
+      <li>If commits 0–10 happened 2 weeks ago → those versions' Parquet files may be removed.</li>
+    </ul>
+    <p><strong>What VACUUM touches:</strong> Parquet data files only. The <code>_delta_log</code> is untouched. Time travel uses the log to reconstruct versions — but if the Parquet files have been vacuumed, the read will fail.</p>
+    <p><span class="key">Common wrong answer:</span> "Earliest version is commit 20" — you can't derive a version number from a retention window without knowing timestamps.</p>
+  </div>
+</div>
+
+<div class="section">
+  <h2>Delta Lake — VACUUM Commands (all variants)</h2>
+  <div class="qa-block">
+    <div class="question">Q: What are the VACUUM command variants in Delta Lake?</div>
+    <pre><code>-- Default (7-day retention)
+VACUUM my_table
+
+-- Custom retention
+VACUUM my_table RETAIN 336 HOURS       -- 14 days
+VACUUM my_table RETAIN 168 HOURS       -- 7 days (explicit)
+
+-- Dry run — shows what WOULD be deleted, deletes nothing
+VACUUM my_table DRY RUN
+
+-- Go below 7 days (disables safety check — breaks time travel)
+SET spark.databricks.delta.retentionDurationCheck.enabled = false;
+VACUUM my_table RETAIN 0 HOURS;</code></pre>
+    <p><span class="key">Rule:</span> Always run <code>DRY RUN</code> first on production tables. Never go below 7 days unless you explicitly don't need time travel for that table.</p>
+  </div>
+</div>
+
+<div class="section">
+  <h2>Delta Lake — MERGE Write Amplification</h2>
+  <div class="qa-block">
+    <div class="question">Q: You MERGE 1,000 rows into a Delta table with 500 Parquet files. Only 20 files contain matching rows. How many files are rewritten? Why is this a problem at scale?</div>
+    <p><strong>All 20 files are rewritten in full — even if each file had only 1 matching row.</strong></p>
+    <p>Parquet files are immutable. Delta cannot update a single row in-place. For every file that contains at least one match, Delta must:</p>
+    <ol>
+      <li>Read the entire file</li>
+      <li>Apply the change to the matching rows</li>
+      <li>Write a brand new Parquet file</li>
+      <li>Mark the old file as deleted in <code>_delta_log</code></li>
+    </ol>
+    <p>The other 480 files are untouched.</p>
+    <p><strong>The scale problem:</strong> If those 20 files are 1 GB each → 20 GB of I/O for a 1,000-row change. Actual data changed is tiny; write cost is enormous.</p>
+    <table>
+      <tr><th>Mitigation</th><th>Why it helps</th></tr>
+      <tr><td>Partition on merge key</td><td>Delta prunes to relevant partitions — far fewer files touched</td></tr>
+      <tr><td>Z-ORDER on merge key</td><td>Co-locates matching rows into fewer files</td></tr>
+      <tr><td>OPTIMIZE before large MERGE</td><td>Compaction → fewer files → less file-open overhead</td></tr>
+    </table>
+    <p><span class="key">Interview one-liner:</span> MERGE rewrites every touched file in full because Parquet is immutable. Partition + Z-ORDER on your merge key to minimize how many files get touched.</p>
+  </div>
+</div>
+
+
+<div class="section">
+  <h2>Spark Cluster Sizing &amp; Partitioning — Classic Interview Question</h2>
+  <div class="qa-block">
+    <div class="question">Q: You have a Spark cluster with 5 executors, 4 cores each, 16 GB memory each. You need to process a 300 GB dataset. How would you plan partitioning, parallelism, memory usage, and performance tuning?</div>
+
+    <h4>Step 1 — Establish resources</h4>
+    <pre><code>5 executors × 4 cores  = 20 total task slots
+5 executors × 16 GB    = 80 GB total memory
+Dataset                = 300 GB</code></pre>
+
+    <h4>Step 2 — Input partitioning</h4>
+    <p>Target partition size = 128–200 MB (<code>maxPartitionBytes = 128 MB</code> default).</p>
+    <pre><code>300 GB / 128 MB = ~2,400 input partitions
+2,400 / 20 cores = 120 waves of tasks   ← healthy</code></pre>
+    <pre><code>spark.conf.set("spark.sql.files.maxPartitionBytes", "134217728")  # 128 MB</code></pre>
+
+    <h4>Step 3 — Shuffle partitions</h4>
+    <p>Default 200 shuffle partitions → 300 GB / 200 = 1.5 GB per partition → too large, will spill.</p>
+    <p>Fix: target 200 MB per shuffle partition → 300 GB / 200 MB = ~1,500 partitions.</p>
+    <pre><code># Manual
+spark.conf.set("spark.sql.shuffle.partitions", "1500")
+
+# Or enable AQE (Spark 3+) and let it coalesce dynamically
+spark.conf.set("spark.sql.adaptive.enabled", "true")
+spark.conf.set("spark.sql.shuffle.partitions", "2000")  # set high, AQE coalesces</code></pre>
+
+    <h4>Step 4 — Memory breakdown per executor</h4>
+    <table>
+      <tr><th>Layer</th><th>Calculation</th><th>Amount</th></tr>
+      <tr><td>Total heap</td><td>executor memory</td><td>16 GB</td></tr>
+      <tr><td>Reserved (hardcoded)</td><td>Spark internal</td><td>300 MB</td></tr>
+      <tr><td>Usable heap</td><td>16 GB − 300 MB</td><td>~15.7 GB</td></tr>
+      <tr><td>Unified pool (execution + storage)</td><td>60% of usable</td><td>~9.4 GB</td></tr>
+      <tr><td>User memory (UDFs, data structures)</td><td>40% of usable</td><td>~6.3 GB</td></tr>
+      <tr><td><strong>Per-task unified memory</strong></td><td>9.4 GB / 4 cores</td><td><strong>~2.35 GB/task</strong></td></tr>
+    </table>
+    <p>2.35 GB per task for 128 MB partitions = ~18× headroom. If you see spill in Spark UI, partitions are too large or joins are blowing up the hash table.</p>
+    <pre><code>spark.conf.set("spark.executor.memoryOverhead", "2g")  # prevent container OOM kills</code></pre>
+
+    <h4>Step 5 — Performance tuning checklist</h4>
+    <table>
+      <tr><th>Lever</th><th>When</th><th>Config / Action</th></tr>
+      <tr><td>Broadcast join</td><td>Small table &lt; 10 MB</td><td><code>spark.sql.autoBroadcastJoinThreshold = 10485760</code></td></tr>
+      <tr><td>AQE skew join</td><td>Max task &gt;&gt; median in Spark UI</td><td><code>spark.sql.adaptive.skewJoin.enabled = true</code></td></tr>
+      <tr><td>Salting</td><td>Known skewed key, no AQE</td><td>Append random suffix to join key — see salting section below</td></tr>
+      <tr><td>Kryo serialization</td><td>Always</td><td><code>spark.serializer = org.apache.spark.serializer.KryoSerializer</code></td></tr>
+      <tr><td>Caching</td><td>Dataset reused 2+ times</td><td>Cache derived aggregations only — 300 GB won't fit in 80 GB cluster</td></tr>
+    </table>
+
+    <p><span class="key">Interview answer (say out loud):</span> "With 20 cores I'd target 2,400 input partitions at 128 MB each — 120 task waves. For shuffles I'd set 1,500 partitions to keep each around 200 MB, or enable AQE to tune it dynamically. Each executor gets ~2.35 GB per task for execution memory — enough for these partition sizes without spilling. I'd watch the Spark UI for skew and spill, use broadcast joins for small tables, and enable AQE skew join handling as a safety net."</p>
+  </div>
+</div>
+
+<div class="section">
+  <h2>Data Skew — Salting Pattern</h2>
+  <div class="qa-block">
+    <div class="question">Q: What is data skew, how do you detect it, and how does salting fix it?</div>
+
+    <h4>What is skew?</h4>
+    <p>Skew happens when one partition holds far more rows than others — usually because a join or groupBy key has a highly unequal value distribution (e.g., a "unknown" customer_id representing 40% of all rows). One task takes 10× longer than all others → the whole stage waits for it.</p>
+
+    <h4>How to detect</h4>
+    <ul>
+      <li>Spark UI → Stages → Tasks tab: sort by Duration. If max task duration >> median → skew.</li>
+      <li>Shuffle Read Size: Min/Median vs Max. A 16× ratio (e.g. median 2,596 rows, max 41,468 rows) is textbook skew.</li>
+      <li>Many empty partitions (median = 0 B) is also a sign — data is piled into a few partitions.</li>
+    </ul>
+    <pre><code># Detect skew in code — check partition sizes
+from pyspark.sql.functions import spark_partition_id, count
+
+df.groupBy(spark_partition_id().alias("partition_id")) \
+  .agg(count("*").alias("row_count")) \
+  .orderBy("row_count", ascending=False) \
+  .show(20)</code></pre>
+
+    <h4>Salting — fix for join skew</h4>
+    <p>Append a random integer (the "salt") to the skewed key before joining. This spreads one hot partition across N partitions. The other table gets replicated N times to match.</p>
+    <pre><code>from pyspark.sql.functions import col, floor, rand, lit, explode, array
+
+SALT_BUCKETS = 9  # ceil(max_partition_rows / target_rows) = ceil(41468 / 5000)
+
+# Skewed side: append random salt 0..8 to join key
+skewed_df = skewed_df.withColumn(
+    "salted_key",
+    concat(col("customer_id"), lit("_"), (floor(rand() * SALT_BUCKETS)).cast("int"))
+)
+
+# Other side: explode to replicate each row N times with salt 0..8
+other_df = other_df.withColumn(
+    "salted_key",
+    explode(array([concat(col("customer_id"), lit(f"_{i}")) for i in range(SALT_BUCKETS)]))
+)
+
+# Join on salted key
+result = skewed_df.join(other_df, "salted_key")</code></pre>
+
+    <h4>Salting for groupBy skew (two-pass aggregation)</h4>
+    <p>When the hot key is in a groupBy (not a join), use a two-pass approach:</p>
+    <pre><code># Pass 1 — partial aggregation with salt (spreads the hot key)
+partial = df.withColumn("salt", (floor(rand() * SALT_BUCKETS)).cast("int")) \
+            .groupBy("customer_id", "salt") \
+            .agg(sum("amount").alias("partial_sum"))
+
+# Pass 2 — final aggregation drops salt
+result = partial.groupBy("customer_id").agg(sum("partial_sum").alias("total_amount"))</code></pre>
+
+    <h4>SALT_BUCKETS formula</h4>
+    <pre><code># From Spark UI: max partition rows = 41,468 | target = 5,000 rows/partition
+SALT_BUCKETS = ceil(41468 / 5000) = ceil(8.29) = 9</code></pre>
+
+    <h4>AQE vs manual salting</h4>
+    <table>
+      <tr><th></th><th>AQE Skew Join</th><th>Manual Salting</th></tr>
+      <tr><td>Effort</td><td>Zero — just enable the config</td><td>Code change required</td></tr>
+      <tr><td>Works for</td><td>Joins only (Spark 3.0+)</td><td>Joins + groupBy</td></tr>
+      <tr><td>Detectability</td><td>Spark detects skew at runtime</td><td>You control the logic</td></tr>
+      <tr><td>Use when</td><td>Spark 3+, standard join skew</td><td>Spark 2.x, groupBy skew, or AQE not tuned right</td></tr>
+    </table>
+
+    <p><span class="key">Interview one-liner:</span> "Salting distributes a hot key across N partitions by appending a random integer — the other side is replicated N times to match. For Spark 3+ I'd enable AQE first; salting is the fallback for groupBy skew or older clusters."</p>
+  </div>
+</div>
+
+<div class="section">
+  <h2>Structured Streaming — writeStream syntax (asked 2026-07-06)</h2>
+  <div class="qa-block">
+    <div class="question">Q: What's the syntax of the writeStream chain? (asked 2026-07-06, during 2D Ex-5 lab)</div>
+    <pre><code>query = (df.writeStream
+    .format("delta")                          # sink type: delta | kafka | console | memory | parquet
+    .option("checkpointLocation", "/path")    # sink options — checkpoint required for durable sinks
+    .outputMode("append")                     # append | update | complete
+    .trigger(processingTime="5 seconds")      # optional — default is "next batch ASAP"
+    .start("/output/path"))                   # ← THE ACTION — nothing runs until this line</code></pre>
+    <ul>
+      <li>Builder methods before the terminal call are lazy config, any order; <strong><code>.start()</code> launches the stream</strong> (streaming twin of <code>.write.save()</code>).</li>
+      <li><code>.toTable("catalog.schema.table")</code> is an alternative terminal call — same action, but targets a UC <em>table name</em> instead of a raw path.</li>
+      <li>Returns a <code>StreamingQuery</code> handle: <code>query.stop()</code>, <code>query.status</code>, <code>query.lastProgress</code>.</li>
+    </ul>
+  </div>
+</div>
+
+</body>
+</html>

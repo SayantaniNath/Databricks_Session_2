@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sayantani — DE Learning Plan</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #ffffff; --fg: #1a1a1a; --muted: #666; --card: #f6f8fa;
+    --border: #e1e4e8; --accent: #0066cc; --green: #2ea44f; --orange: #d35400;
+    --code-bg: #f0f2f4; --tag-done: #d4edda; --tag-done-fg: #155724;
+    --tag-wip: #fff3cd; --tag-wip-fg: #856404; --tag-todo: #f8f9fa; --tag-todo-fg: #555;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0d1117; --fg: #e6edf3; --muted: #8b949e; --card: #161b22;
+      --border: #30363d; --accent: #58a6ff; --green: #3fb950; --orange: #f0883e;
+      --code-bg: #1c2128; --tag-done: #1a3a2a; --tag-done-fg: #3fb950;
+      --tag-wip: #3a2f0a; --tag-wip-fg: #e3b341; --tag-todo: #21262d; --tag-todo-fg: #8b949e;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { background: var(--bg); color: var(--fg); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; line-height: 1.6; max-width: 900px; margin: 0 auto; padding: 24px 18px 80px; font-size: 15px; }
+  h1 { font-size: 1.7rem; margin-bottom: 4px; }
+  .meta { color: var(--muted); font-size: 0.88rem; margin-bottom: 32px; }
+  h2 { font-size: 1.15rem; font-weight: 700; color: var(--accent); border-bottom: 2px solid var(--border); padding-bottom: 6px; margin: 36px 0 14px; }
+  h3 { font-size: 1rem; font-weight: 700; margin: 20px 0 8px; color: var(--fg); }
+  .stage { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 16px 20px; margin-bottom: 18px; }
+  .stage-header { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
+  .stage-title { font-weight: 700; font-size: 1rem; }
+  .stage-target { color: var(--muted); font-size: 0.83rem; }
+  .badge { display: inline-block; padding: 2px 10px; border-radius: 20px; font-size: 0.78rem; font-weight: 600; white-space: nowrap; }
+  .done { background: var(--tag-done); color: var(--tag-done-fg); }
+  .wip { background: var(--tag-wip); color: var(--tag-wip-fg); }
+  .todo { background: var(--tag-todo); color: var(--tag-todo-fg); }
+  ul { padding-left: 20px; margin: 6px 0; }
+  li { margin-bottom: 5px; }
+  .item-done::marker { content: "✅ "; }
+  .item-wip::marker { content: "🟡 "; }
+  .item-todo::marker { content: "⏳ "; }
+  .item-skip::marker { content: "⏹️ "; }
+  .item-star::marker { content: "⭐ "; }
+  .note { background: var(--code-bg); border-left: 3px solid var(--orange); padding: 8px 12px; border-radius: 0 6px 6px 0; font-size: 0.87rem; margin: 8px 0; color: var(--muted); }
+  code { background: var(--code-bg); padding: 1px 5px; border-radius: 3px; font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 0.86em; }
+  .schedule-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; margin: 10px 0; }
+  .schedule-table th, .schedule-table td { border: 1px solid var(--border); padding: 7px 10px; text-align: left; }
+  .schedule-table th { background: var(--card); }
+  .snapshot { width: 100%; border-collapse: collapse; font-size: 0.88rem; margin: 10px 0; }
+  .snapshot th, .snapshot td { border: 1px solid var(--border); padding: 6px 10px; text-align: left; }
+  .snapshot th { background: var(--card); }
+  .updated { font-size: 0.78rem; color: var(--muted); margin-top: 40px; border-top: 1px solid var(--border); padding-top: 12px; }
+</style>
+</head>
+<body>
+
+<h1>Sayantani — DE Learning Plan</h1>
+<div class="meta">Target: AI Data Engineer, SF Bay Area — Apply-ready by Oct 2026 &nbsp;|&nbsp; 1 hr/day &nbsp;|&nbsp; Last updated: 2026-06-05</div>
+
+<!-- SNAPSHOT TABLE -->
+<h2>Progress Snapshot</h2>
+<table class="snapshot">
+  <tr><th>Stage</th><th>Status</th><th>Target</th></tr>
+  <tr><td>Stage 1 — Kaggle Python</td><td><span class="badge done">✅ Complete</span></td><td>May 21 (done early)</td></tr>
+  <tr><td>Stage 2 — Kaggle Pandas</td><td><span class="badge done">✅ Complete</span></td><td>Jun 4 (done May 26)</td></tr>
+  <tr><td>Stage 2B — PySpark + Spark + Databricks</td><td><span class="badge wip">🟡 In Progress</span></td><td>Jun 4–18</td></tr>
+  <tr><td>AWS Cloud Practitioner (Maarek)</td><td><span class="badge wip">🟡 In Progress</span></td><td>Mid-late Jun</td></tr>
+  <tr><td>Stage 3 — Redis + Kafka</td><td><span class="badge todo">⏳ Not Started</span></td><td>Jun 18 – Jul 2</td></tr>
+  <tr><td>Stage 4 — Airflow</td><td><span class="badge todo">⏳ Not Started</span></td><td>Jul 2–16</td></tr>
+  <tr><td>Stage 5 — GraphQL</td><td><span class="badge todo">⏳ Not Started</span></td><td>Jul 16–23</td></tr>
+  <tr><td>Stage 6 — DeepLearning.AI LLM Foundations</td><td><span class="badge todo">⏳ Not Started</span></td><td>Jul 23 – Aug 6</td></tr>
+  <tr><td>Stage 6.5 — System Design (4 phases)</td><td><span class="badge wip">🟡 Phase A (Ch 1–3 done)</span></td><td>Now → Oct 15</td></tr>
+  <tr><td>Stage 7 — RAG Pipelines</td><td><span class="badge todo">⏳ Not Started</span></td><td>Aug 6–20</td></tr>
+  <tr><td>Stage 8 — Agentic Workflows</td><td><span class="badge todo">⏳ Not Started</span></td><td>Aug 20 – Sep 3</td></tr>
+  <tr><td>Stage 9 — Portfolio Polish</td><td><span class="badge todo">⏳ Not Started</span></td><td>Oct 15–31</td></tr>
+  <tr><td>GCP / Vertex AI Track</td><td><span class="badge todo">⏳ Not Started</span></td><td>Parallel w/ Stages 6–8</td></tr>
+  <tr><td>Databricks DEA Cert</td><td><span class="badge todo">⏳ Not Started</span></td><td>~Aug 2026</td></tr>
+  <tr><td>Databricks Academy (ongoing)</td><td><span class="badge todo">⏳ Not Started</span></td><td>Ongoing</td></tr>
+  <tr><td>dbt</td><td><span class="badge todo">⏳ Not Started</span></td><td>Ongoing</td></tr>
+  <tr><td>Interview Prep (SQL + NeetCode Python)</td><td><span class="badge wip">🟡 In Progress</span></td><td>Ongoing</td></tr>
+</table>
+
+<!-- WEEKLY SCHEDULE -->
+<h2>Weekly Schedule</h2>
+<table class="schedule-table">
+  <tr><th>Day</th><th>Focus</th></tr>
+  <tr><td>Monday</td><td>Stage 2B — PySpark / Spark / Databricks (1 hr)</td></tr>
+  <tr><td>Tuesday</td><td>AWS / DEA (1 hr) + DataLemur (~20 min)</td></tr>
+  <tr><td>Wednesday</td><td>Stage 2B — PySpark / Spark / Databricks (1 hr)</td></tr>
+  <tr><td>Thursday</td><td>AWS / DEA (1 hr) + DDIA reading (~30–45 min)</td></tr>
+  <tr><td>Friday</td><td>Stage 2B (1 hr) + light SD sketch (~30 min, from Jun 14)</td></tr>
+  <tr><td>Saturday</td><td>Opportunistic only — no commitment</td></tr>
+  <tr><td>Sunday</td><td>Rest</td></tr>
+</table>
+
+<!-- STAGE 1 -->
+<h2>Stage 1 — Kaggle Python</h2>
+<div class="stage">
+  <div class="stage-header"><span class="stage-title">Kaggle Python Course</span><span class="badge done">✅ Complete</span><span class="stage-target">Target: May 21, 2026 (finished early)</span></div>
+  <ul>
+    <li class="item-done">Lesson 1 — Variables, Data Types, Print</li>
+    <li class="item-done">Lesson 2 — Functions and Getting Help</li>
+    <li class="item-done">Lesson 3 — Booleans and Conditionals</li>
+    <li class="item-done">Lesson 4 — Lists</li>
+    <li class="item-done">Lesson 5 — Loops and List Comprehensions</li>
+    <li class="item-done">Lesson 6 — Strings and Dictionaries</li>
+    <li class="item-done">Lesson 7 — Working with External Libraries</li>
+  </ul>
+</div>
+
+<!-- STAGE 2 -->
+<h2>Stage 2 — Kaggle Pandas</h2>
+<div class="stage">
+  <div class="stage-header"><span class="stage-title">Kaggle Pandas Course</span><span class="badge done">✅ Complete</span><span class="stage-target">Target: Jun 4, 2026 (finished May 26 — 9 days early)</span></div>
+  <ul>
+    <li class="item-done">Lesson 1 — Creating, Reading and Writing (2026-05-18)</li>
+    <li class="item-done">Lesson 2 — Indexing, Selecting & Assigning (2026-05-20) — 5/5 from-blank</li>
+    <li class="item-done">Lesson 3 — Summary Functions and Maps (2026-05-25) — 8/8 from-blank</li>
+    <li class="item-done">Lesson 4 — Grouping and Sorting (2026-05-25) — 9/9 from-blank</li>
+    <li class="item-done">Lesson 5 — Data Types and Missing Values (2026-05-26) — 13/13 from-blank</li>
+    <li class="item-done">Lesson 6 — Renaming and Combining (2026-05-26) — 8/8 from-blank</li>
+  </ul>
+  <div class="note">All lessons taught in-chat using FinFlow data, not Kaggle's official notebooks. Practice files in <code>finflow/practice_pandas_lesson*.py</code>.</div>
+</div>
+
+<!-- STAGE 2B -->
+<h2>Stage 2B — PySpark + Spark Internals + Data Modeling + Databricks Boosters</h2>
+<div class="stage">
+  <div class="stage-header"><span class="stage-title">PySpark + Databricks</span><span class="badge wip">🟡 In Progress</span><span class="stage-target">Target: Jun 4–18, 2026</span></div>
+  <ul>
+    <li class="item-done">Spark architecture deep-dive (2026-05-28) — Driver/Executors, DAG, narrow vs wide, broadcast joins. Doc: <code>Spark_Architecture_Walkthrough.html</code></li>
+    <li class="item-done">DataFrame API Lessons 1 & 2 (2026-05-29) — 12/12 from-blank. Spark UI live at localhost:4040.</li>
+    <li class="item-done">PySpark SQL — Lesson 3 (2026-06-02) — SQL + DF API side-by-side, Catalyst plan confirmed identical. <code>practice_pyspark_lesson3.py</code></li>
+    <li class="item-wip">Spark on Databricks — CE workspace
+      <ul>
+        <li class="item-done">Lakeflow Designer intro (2026-05-21, Andreas Kretz)</li>
+        <li class="item-done">First live CE session (2026-06-03) — serverless compute, Unity Catalog volume, display() vs show()</li>
+      </ul>
+    </li>
+    <li class="item-todo">FinFlow integration — process JSONL with Spark instead of Pandas</li>
+    <li class="item-todo">Spark internals — AQE, skew, caching, partitioning deep-dive</li>
+    <li class="item-todo">Data modeling — star/snowflake, SCDs Type 1/2/3, grain definition</li>
+    <li class="item-todo">⭐ Delta Lake mechanics — time travel, MERGE, OPTIMIZE+Z-ORDER, VACUUM, transaction log</li>
+    <li class="item-todo">⭐ Structured Streaming — watermarks, exactly-once, checkpoints, trigger modes</li>
+    <li class="item-todo">⭐ Delta Live Tables (DLT) — declarative pipelines, expectations</li>
+    <li class="item-todo">⭐ Unity Catalog basics — three-level namespace, metastore, lineage, grants</li>
+    <li class="item-todo">Skew + AQE deep-dive — diagnose with Spark UI, salting</li>
+    <li class="item-todo">Open Lakehouse Formats — Delta vs Iceberg vs Hudi (~30 min)</li>
+  </ul>
+  <div class="note">⚠️ Local env: Python 3.14 + PySpark 3.5.8 — <code>createDataFrame([list])</code> broken. Use <code>spark.read.json()</code> from files instead.</div>
+</div>
+
+<!-- AWS -->
+<h2>AWS Cloud Practitioner (CLF-C02)</h2>
+<div class="stage">
+  <div class="stage-header"><span class="stage-title">Maarek (Udemy) + Tutorials Dojo</span><span class="badge wip">🟡 In Progress</span><span class="stage-target">Target: Mid-late Jun 2026</span></div>
+  <ul>
+    <li class="item-done">Skilljar Modules 1–5 (complete)</li>
+    <li class="item-skip">Skilljar Module 6+ — SKIPPED, replaced by Maarek</li>
+    <li class="item-wip">Maarek "Ultimate AWS CCP CLF-C02" — through IAM (incl. policies hands-on) as of 2026-05-29</li>
+    <li class="item-todo">Tutorials Dojo Round 1 — full timed exam, review wrong answers (~3 hrs)</li>
+    <li class="item-todo">Patch weak topics from TD gaps (~2 hrs)</li>
+    <li class="item-todo">Tutorials Dojo Round 2 — score 80%+ → book real exam (~3 hrs)</li>
+  </ul>
+</div>
+
+<!-- STAGE 3 -->
+<h2>Stage 3 — Redis + Kafka Practicals</h2>
+<div class="stage">
+  <div class="stage-header"><span class="stage-title">Redis + Kafka</span><span class="badge todo">⏳ Not Started</span><span class="stage-target">Target: Jun 18 – Jul 2, 2026</span></div>
+  <ul>
+    <li class="item-todo">Redis commands + Python redis library</li>
+    <li class="item-todo">Kafka topics, producers, consumers + Python kafka-python</li>
+    <li class="item-todo">⭐ Real-Time Fraud Detection Pipeline (capstone) — Kafka → IsolationForest scoring → Delta Lake → Airflow. Data: PaySim synthetic transactions.</li>
+  </ul>
+</div>
+
+<!-- STAGE 4 -->
+<h2>Stage 4 — Airflow</h2>
+<div class="stage">
+  <div class="stage-header"><span class="stage-title">Apache Airflow</span><span class="badge todo">⏳ Not Started</span><span class="stage-target">Target: Jul 2–16, 2026</span></div>
+  <ul><li class="item-todo">DAGs, operators, scheduling, local install</li></ul>
+</div>
+
+<!-- STAGE 5 -->
+<h2>Stage 5 — GraphQL</h2>
+<div class="stage">
+  <div class="stage-header"><span class="stage-title">GraphQL</span><span class="badge todo">⏳ Not Started</span><span class="stage-target">Target: Jul 16–23, 2026</span></div>
+  <ul><li class="item-todo">Queries, mutations, schema, playground practice</li></ul>
+</div>
+
+<!-- STAGE 6 -->
+<h2>Stage 6 — DeepLearning.AI LLM Foundations</h2>
+<div class="stage">
+  <div class="stage-header"><span class="stage-title">LLM + LangChain + Responsible AI</span><span class="badge todo">⏳ Not Started</span><span class="stage-target">Target: Jul 23 – Aug 6, 2026</span></div>
+  <ul>
+    <li class="item-todo">LangChain for LLM Application Development</li>
+    <li class="item-todo">AI Agents in LangGraph</li>
+    <li class="item-todo">ChatGPT Prompt Engineering for Developers</li>
+    <li class="item-todo">Building Systems with ChatGPT API</li>
+    <li class="item-todo">Vertex AI Gemini API basics</li>
+    <li class="item-todo">Responsible / Ethical AI Practices (~2 hrs)</li>
+  </ul>
+</div>
+
+<!-- STAGE 6.5 -->
+<h2>Stage 6.5 — System Design (FAANG-grade, 4 phases)</h2>
+<div class="stage">
+  <div class="stage-header"><span class="stage-title">Phase A — DDIA Reading</span><span class="badge wip">🟡 In Progress</span><span class="stage-target">Now → Jun 14, 2026</span></div>
+  <ul>
+    <li class="item-done">DDIA Ch 1 (done by 2026-05-29)</li>
+    <li class="item-done">DDIA Ch 2 — Data Models and Query Languages (done by 2026-05-29)</li>
+    <li class="item-done">DDIA Ch 3 — Storage and Retrieval (done 2026-06-01, via YouTube)</li>
+    <li class="item-todo">DDIA Ch 4 — Encoding and Evolution (Jun 13–14 weekend)</li>
+  </ul>
+  <h3>Bonus Case Studies (done early)</h3>
+  <ul>
+    <li class="item-done">2026-06-01 — Prepaid Credits system (Chargebee-style). Steps 1–5 full. Doc: <code>SystemDesign_Prepaid_Credits_Walkthrough.html</code></li>
+    <li class="item-done">2026-06-03 — Design LeetCode (NeetCode SD). All 7 SLA points covered. Notes: <code>interview_prep/sd_qa_log.md</code></li>
+  </ul>
+</div>
+<div class="stage">
+  <div class="stage-header"><span class="stage-title">Phase B — DDIA + Structured Case Studies</span><span class="badge todo">⏳ Not Started</span><span class="stage-target">Jun 14 → Aug 31, 2026</span></div>
+  <p>1 DDIA chapter + 1 case study per weekend. 6-step framework: requirements → estimation → API → schema → HLD → deep-dive.</p>
+  <ul>
+    <li class="item-todo">60% DE-flavored: streaming pipeline, lakehouse/medallion, CDC, schema evolution</li>
+    <li class="item-todo">30% classic product: Meta feed, URL shortener, chat</li>
+    <li class="item-todo">10% ML/AI: feature store, RAG, recommender</li>
+    <li class="item-todo">⭐ 3 Databricks-flavored: Delta Lake protocol, Unity Catalog, feature store on Databricks</li>
+  </ul>
+</div>
+<div class="stage">
+  <div class="stage-header"><span class="stage-title">Phase C — Out-loud Mocks + Behavioral</span><span class="badge todo">⏳ Not Started</span><span class="stage-target">Sep 1 → Oct 15, 2026</span></div>
+  <p>2 mocks/week. Excalidraw + verbal walkthrough, recorded. Build behavioral story bank in parallel.</p>
+</div>
+<div class="stage">
+  <div class="stage-header"><span class="stage-title">Phase D — Portfolio + Apply</span><span class="badge todo">⏳ Not Started</span><span class="stage-target">Oct 15 → Oct 31, 2026</span></div>
+  <p>Portfolio polish + start applying. Apply-ready by Oct 15.</p>
+</div>
+
+<!-- STAGE 7 -->
+<h2>Stage 7 — RAG Pipelines</h2>
+<div class="stage">
+  <div class="stage-header"><span class="stage-title">RAG + Vector DBs</span><span class="badge todo">⏳ Not Started</span><span class="stage-target">Target: Aug 6–20, 2026</span></div>
+  <ul>
+    <li class="item-todo">LangChain RAG, Chroma vector DB, Resume Q&A Bot project</li>
+    <li class="item-todo">Vertex AI Vector Search — GCP-native, compare with Chroma</li>
+  </ul>
+</div>
+
+<!-- STAGE 8 -->
+<h2>Stage 8 — Agentic Workflows</h2>
+<div class="stage">
+  <div class="stage-header"><span class="stage-title">LangGraph + CrewAI + Databricks Capstone</span><span class="badge todo">⏳ Not Started</span><span class="stage-target">Target: Aug 20 – Sep 3, 2026</span></div>
+  <ul>
+    <li class="item-todo">LangGraph, CrewAI — AI Job Application Agent project</li>
+    <li class="item-todo">Vertex AI Agent Builder</li>
+    <li class="item-todo">⭐ Databricks Lakehouse + AI Data Quality Monitor (capstone) — Bronze→Silver→Gold medallion, Delta Lake, Unity Catalog, Claude API anomaly detection agent, Airflow DAG. Blueprint: <code>Project_Databricks_Lakehouse_Blueprint.html</code></li>
+  </ul>
+</div>
+
+<!-- STAGE 9 -->
+<h2>Stage 9 — Portfolio Polish</h2>
+<div class="stage">
+  <div class="stage-header"><span class="stage-title">GitHub Portfolio</span><span class="badge todo">⏳ Not Started</span><span class="stage-target">Target: Oct 15–31, 2026</span></div>
+  <ul>
+    <li class="item-todo">4 projects: FinFlow, Fraud Detection Pipeline, Databricks Lakehouse + AI Monitor, AI Job Agent</li>
+    <li class="item-todo">READMEs, architecture diagrams, deploy/run instructions, screenshots</li>
+  </ul>
+</div>
+
+<!-- PARALLEL TRACKS -->
+<h2>Parallel / Ongoing Tracks</h2>
+<div class="stage">
+  <div class="stage-header"><span class="stage-title">GCP / Vertex AI</span><span class="badge todo">⏳ Not Started</span><span class="stage-target">Parallel with Stages 6–8</span></div>
+  <ul>
+    <li class="item-todo">Vertex AI Workbench, Model Garden, Vector Search, Agent Builder</li>
+  </ul>
+</div>
+<div class="stage">
+  <div class="stage-header"><span class="stage-title">Databricks DEA Cert</span><span class="badge todo">⏳ Not Started</span><span class="stage-target">~Aug 2026</span></div>
+  <ul>
+    <li class="item-todo">Databricks Academy — "Data Engineering with Databricks" path</li>
+    <li class="item-todo">Derar Alhussein Udemy course (~6 hrs)</li>
+    <li class="item-todo">Practice exams — official + Skillcertpro</li>
+  </ul>
+</div>
+<div class="stage">
+  <div class="stage-header"><span class="stage-title">Databricks Academy (ongoing)</span><span class="badge todo">⏳ Not Started</span></div>
+  <ul><li class="item-todo">Generative AI Fundamentals, Apache Spark Programming</li></ul>
+</div>
+<div class="stage">
+  <div class="stage-header"><span class="stage-title">dbt (ongoing)</span><span class="badge todo">⏳ Not Started</span></div>
+  <ul><li class="item-todo">dbt Fundamentals, dbt + Snowflake ELT Patterns</li></ul>
+</div>
+
+<!-- INTERVIEW PREP -->
+<h2>Interview Prep (Parallel Ongoing)</h2>
+<div class="stage">
+  <div class="stage-header"><span class="stage-title">NeetCode Python + SQL + System Design</span><span class="badge wip">🟡 In Progress</span></div>
+  <h3>NeetCode 150 — 3 patterns only</h3>
+  <ul>
+    <li class="item-done">Two Sum (Arrays & Hashing) — 2026-06-03, solved with hints. Log: <code>interview_prep/python_log.md</code></li>
+    <li class="item-todo">Contains Duplicate</li>
+    <li class="item-todo">Valid Anagram, Group Anagrams, Top K Frequent</li>
+    <li class="item-todo">Two Pointers: Valid Palindrome, 3Sum</li>
+    <li class="item-todo">Sliding Window: Best Time to Buy Stock, Longest Substring Without Repeating</li>
+  </ul>
+  <h3>SQL</h3>
+  <ul>
+    <li class="item-done">Window functions deep-dive — NTILE, PERCENT_RANK (2026-05-27, dailysql.com)</li>
+    <li class="item-todo">DataLemur — weekend sessions</li>
+  </ul>
+  <h3>System Design Case Studies</h3>
+  <ul>
+    <li class="item-done">Prepaid Credits (2026-06-01)</li>
+    <li class="item-done">Design LeetCode — SLA deep-dive (2026-06-03)</li>
+  </ul>
+</div>
+
+<div class="updated">Last updated: 2026-06-05 &nbsp;|&nbsp; Source of truth: Claude Code memory (project_learning_progress.md)</div>
+
+</body>
+</html>

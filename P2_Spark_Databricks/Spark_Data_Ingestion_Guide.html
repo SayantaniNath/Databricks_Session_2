@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Spark — How to Bring Data In</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; max-width: 900px; margin: 40px auto; padding: 0 24px; background: #f9f9f9; color: #1a1a1a; }
+  h1 { font-size: 1.8rem; border-bottom: 3px solid #2563eb; padding-bottom: 10px; }
+  h2 { font-size: 1.1rem; background: #2563eb; color: white; padding: 8px 14px; border-radius: 6px; margin-top: 32px; }
+  .block { background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 18px 22px; margin-bottom: 18px; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+  .block h3 { margin: 0 0 10px 0; color: #1e40af; font-size: 1rem; }
+  pre { background: #1e1e2e; color: #cdd6f4; padding: 14px; border-radius: 6px; font-size: 0.85rem; overflow-x: auto; line-height: 1.6; margin: 0; }
+  code { font-family: "JetBrains Mono", "Fira Code", monospace; }
+  p { line-height: 1.65; margin: 8px 0; font-size: 0.93rem; }
+  table { width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 0.9rem; }
+  th { background: #f1f5f9; padding: 8px 12px; text-align: left; border: 1px solid #e2e8f0; }
+  td { padding: 8px 12px; border: 1px solid #e2e8f0; }
+  .tip { background: #fffbeb; border-left: 4px solid #f59e0b; padding: 10px 14px; border-radius: 4px; margin-top: 14px; font-size: 0.88rem; }
+  .golden { background: #f0fdf4; border-left: 4px solid #16a34a; padding: 12px 16px; border-radius: 4px; margin-top: 20px; font-size: 0.93rem; }
+  .meta { color: #64748b; font-size: 0.85rem; margin-bottom: 30px; }
+</style>
+</head>
+<body>
+
+<h1>Spark — How to Bring Data In</h1>
+<p class="meta">Topic: Data Ingestion into Spark &nbsp;|&nbsp; Saved: 2026-06-05</p>
+
+<h2>1. From Files (Most Common)</h2>
+<div class="block">
+  <pre><code># CSV
+df = spark.read.csv("path/to/file.csv", header=True, inferSchema=True)
+
+# JSON / JSONL
+df = spark.read.json("path/to/file.jsonl")
+
+# Parquet (columnar, compressed — preferred for production)
+df = spark.read.parquet("path/to/folder/")
+
+# Delta Lake (Databricks standard)
+df = spark.read.format("delta").load("path/to/delta-table/")</code></pre>
+  <p><strong>Use when:</strong> data is already on disk or cloud storage (S3, ADLS, GCS).</p>
+</div>
+
+<h2>2. From a Database (JDBC)</h2>
+<div class="block">
+  <pre><code>df = spark.read.format("jdbc") \
+    .option("url", "jdbc:postgresql://host:5432/mydb") \
+    .option("dbtable", "orders") \
+    .option("user", "admin") \
+    .option("password", "secret") \
+    .load()</code></pre>
+  <p><strong>Use when:</strong> source is a relational database — PostgreSQL, MySQL, SQL Server, Oracle.</p>
+</div>
+
+<h2>3. From a Python List (Small Data / Testing Only)</h2>
+<div class="block">
+  <pre><code>data = [("BTC", 50000), ("ETH", 3000)]
+df = spark.createDataFrame(data, ["symbol", "price"])</code></pre>
+  <p><strong>Use when:</strong> quick tests or hardcoded small datasets. Not for production.</p>
+  <div class="tip">⚠️ Python 3.14 venv bug: <code>createDataFrame()</code> from a Python list throws a RecursionError. Workaround: write data to a file first and use <code>spark.read.json()</code> instead.</div>
+</div>
+
+<h2>4. From a Catalog Table (Databricks / Hive)</h2>
+<div class="block">
+  <pre><code># If table is registered in Unity Catalog or Hive metastore
+df = spark.table("catalog.schema.orders")
+
+# Or via SQL
+df = spark.sql("SELECT * FROM orders WHERE status = 'active'")</code></pre>
+  <p><strong>Use when:</strong> working inside Databricks or a Hive-based environment where tables are already registered.</p>
+</div>
+
+<h2>5. From a Streaming Source (Kafka / Kinesis)</h2>
+<div class="block">
+  <pre><code>df = spark.readStream \
+    .format("kafka") \
+    .option("kafka.bootstrap.servers", "localhost:9092") \
+    .option("subscribe", "transactions") \
+    .load()</code></pre>
+  <p><strong>Use when:</strong> processing real-time event streams — transactions, logs, IoT data. Returns a streaming DataFrame, not a static one.</p>
+</div>
+
+<h2>When to Use Which</h2>
+<div class="block">
+  <table>
+    <tr><th>Scenario</th><th>Method</th></tr>
+    <tr><td>Files on S3 / ADLS / GCS / local disk</td><td><code>spark.read.csv/json/parquet()</code></td></tr>
+    <tr><td>Production relational database</td><td>JDBC</td></tr>
+    <tr><td>Databricks registered table</td><td><code>spark.table()</code></td></tr>
+    <tr><td>Quick test with small hardcoded data</td><td><code>createDataFrame()</code></td></tr>
+    <tr><td>Real-time streaming (Kafka, Kinesis)</td><td><code>spark.readStream</code></td></tr>
+    <tr><td>Best format for large-scale production</td><td><strong>Parquet or Delta</strong> — columnar, compressed, fast</td></tr>
+  </table>
+</div>
+
+<div class="golden">
+  <strong>The Golden Rule:</strong><br>
+  Don't bring data to Spark that doesn't need to be there.<br>
+  If it fits in Pandas (&lt; ~1GB, single machine) — use Pandas.<br>
+  Use Spark when data is too large for one machine, or you need distributed processing.<br><br>
+  The sweet spot: <strong>files already on cloud storage (S3/ADLS) read as Parquet or Delta</strong> — that's where Spark is genuinely faster than any alternative.
+</div>
+
+</body>
+</html>

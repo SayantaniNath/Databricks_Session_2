@@ -1,9 +1,9 @@
-*.html
 *.pdf
 *.docx
 *.doc
 *.png
 *.jpg
 *.zip
-interview_prep/logs/
 .DS_Store
+.venv/
+__pycache__/

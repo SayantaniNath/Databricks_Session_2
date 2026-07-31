@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>SQL Advanced — Window Functions, Percentiles, and the Approach Framework</title>
+<style>
+  :root {
+    --bg: #ffffff;
+    --fg: #1f2328;
+    --muted: #57606a;
+    --accent: #0969da;
+    --border: #d0d7de;
+    --quote-bg: #f6f8fa;
+    --quote-border: #0969da;
+    --warn: #cf222e;
+    --highlight: #fff8c5;
+    --highlight-border: #d4a72c;
+    --code-bg: #f6f8fa;
+    --keyword: #cf222e;
+    --string: #0a3069;
+    --comment: #6e7781;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    color: var(--fg);
+    background: var(--bg);
+    max-width: 860px;
+    margin: 2rem auto;
+    padding: 0 1.5rem;
+    line-height: 1.6;
+    font-size: 16px;
+  }
+  h1 {
+    font-size: 1.9rem;
+    border-bottom: 2px solid var(--border);
+    padding-bottom: 0.5rem;
+    margin-top: 0;
+  }
+  h2 {
+    font-size: 1.4rem;
+    margin-top: 2.4rem;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 0.3rem;
+    color: var(--accent);
+  }
+  h3 {
+    font-size: 1.1rem;
+    margin-top: 1.6rem;
+    color: var(--fg);
+  }
+  h4 {
+    font-size: 1rem;
+    margin-top: 1.2rem;
+    color: var(--muted);
+  }
+  .meta {
+    background: var(--quote-bg);
+    padding: 0.75rem 1rem;
+    border-radius: 6px;
+    margin-bottom: 1rem;
+    font-size: 0.95rem;
+  }
+  .meta p { margin: 0.2rem 0; }
+  code {
+    background: var(--code-bg);
+    padding: 0.1rem 0.35rem;
+    border-radius: 4px;
+    font-size: 0.9em;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 0.9rem 1rem;
+    overflow-x: auto;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.88em;
+    line-height: 1.5;
+  }
+  pre code {
+    background: transparent;
+    padding: 0;
+    font-size: inherit;
+  }
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 1rem 0;
+    font-size: 0.92em;
+  }
+  th, td {
+    border: 1px solid var(--border);
+    padding: 0.4rem 0.7rem;
+    text-align: left;
+    vertical-align: top;
+  }
+  th {
+    background: var(--quote-bg);
+    font-weight: 600;
+  }
+  tr:nth-child(even) td { background: #fafbfc; }
+  hr {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 2rem 0;
+  }
+  ul, ol { padding-left: 1.5rem; }
+  li { margin: 0.35rem 0; }
+  .callout {
+    background: #ddf4ff;
+    border-left: 4px solid var(--accent);
+    padding: 0.75rem 1rem;
+    border-radius: 0 6px 6px 0;
+    margin: 1rem 0;
+  }
+  .highlight {
+    background: var(--highlight);
+    border-left: 4px solid var(--highlight-border);
+    padding: 0.75rem 1rem;
+    border-radius: 0 6px 6px 0;
+    margin: 1rem 0;
+  }
+  .warn {
+    background: #ffebe9;
+    border-left: 4px solid var(--warn);
+    padding: 0.75rem 1rem;
+    border-radius: 0 6px 6px 0;
+    margin: 1rem 0;
+  }
+  @media print {
+    body { max-width: 100%; margin: 0; padding: 1rem; font-size: 12pt; }
+    h2 { page-break-after: avoid; }
+    pre, table, .callout, .highlight { page-break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+
+<h1>SQL Advanced — Window Functions, Percentiles, and the Approach Framework</h1>
+
+<div class="meta">
+  <p><strong>Created:</strong> 2026-05-27</p>
+  <p><strong>Purpose:</strong> Reference for advanced SQL interview problems — built from working through the Razorpay "Churning High-Value Customers" problem and the follow-up discussion on NTILE / RANK / PERCENT_RANK / CUME_DIST / PERCENTILE_CONT.</p>
+  <p><strong>Use this when:</strong> Practicing DataLemur weekend slots; stuck on an advanced SQL problem and need to remember the framework; picking between NTILE, RANK, PERCENT_RANK, etc.</p>
+</div>
+
+<hr>
+
+<h2>Part 1 — The 5-step framework for advanced SQL</h2>
+
+<p>Apply this to every advanced problem. Once it's muscle memory, 15-min problems become mechanical.</p>
+
+<h3>Step 1. Identify the grain of the answer</h3>
+<p>Read the expected output. Each row represents what entity? That's your final grain.</p>
+<p>In the Razorpay problem: <strong>one row per at-risk high-value customer.</strong> Final grain = <code>customer_id</code>.</p>
+
+<h3>Step 2. Identify the grain of each intermediate fact</h3>
+<p>List the facts you need and what grain each lives at. Every grain change = a new CTE or a window function.</p>
+
+<table>
+<tr><th>Fact</th><th>Grain</th></tr>
+<tr><td>total_spend (lifetime)</td><td>per customer</td></tr>
+<tr><td>spend per month</td><td>per (customer, month)</td></tr>
+<tr><td>is top-25% spender?</td><td>per customer</td></tr>
+<tr><td>latest month vs prior months</td><td>per (customer, month) → then split</td></tr>
+<tr><td>avg of prior months</td><td>per customer (aggregated from monthly)</td></tr>
+</table>
+
+<h3>Step 3. Apply row filters as early as possible</h3>
+<p><code>status = 'success'</code> and similar belong in the <em>first</em> CTE so every downstream CTE inherits clean data.</p>
+
+<h3>Step 4. Decompose into CTEs — one logical concept per CTE</h3>
+<p>If you can't name the CTE in 2–3 words, you don't understand it yet. CTE names map to concepts.</p>
+
+<h3>Step 5. Compute derived columns LAST</h3>
+<p>Percentages, tiers, formatting belong in the <strong>final SELECT</strong>, not in a CTE. You can't filter on a window-computed column at the same query level anyway.</p>
+
+<hr>
+
+<h2>Part 2 — The 5 patterns that show up in 80% of advanced problems</h2>
+
+<table>
+<tr><th>Pattern</th><th>Trigger words</th><th>Tool</th></tr>
+<tr><td>Top X% / top N per group</td><td>"top 25%", "top 5 per category", quartile, decile</td><td>NTILE, ROW_NUMBER, RANK, PERCENTILE_CONT</td></tr>
+<tr><td>Most recent / previous</td><td>"latest", "prior", "last", "previous"</td><td>ROW_NUMBER ORDER BY date DESC, LAG</td></tr>
+<tr><td>Compare X to its own average</td><td>churn, anomaly, drop%, growth%</td><td>window AVG vs row, or split with conditional aggregation (CASE inside SUM/AVG)</td></tr>
+<tr><td>Bucket into tiers</td><td>risk, severity, segments, labels</td><td>CASE WHEN ... THEN</td></tr>
+<tr><td>Only successful / active rows</td><td>almost every real problem</td><td>Row filter in earliest CTE</td></tr>
+</table>
+
+<hr>
+
+<h2>Part 3 — The Razorpay problem (worked example)</h2>
+
+<h3>Problem summary</h3>
+<p>Identify high-value customers (top 25% spenders) who are at risk of churning (latest month's spend &lt; 50% of their average prior-month spend). Return drop% and a risk tier.</p>
+
+<h3>Grain analysis</h3>
+<ul>
+  <li><strong>Final grain:</strong> per customer</li>
+  <li><strong>Intermediate grains:</strong> per (customer, month) for monthly aggregation; per customer for total and percentile</li>
+</ul>
+
+<h3>CTE plan (4 CTEs because 4 grain changes)</h3>
+<ol>
+  <li><code>monthly_spend</code> — per (customer, month), success-only</li>
+  <li><code>high_value_customers</code> — per customer, total + NTILE(4) quartile</li>
+  <li><code>labeled_months</code> — per (customer, month), with ROW_NUMBER to tag "latest"</li>
+  <li><code>customer_summary</code> — back to per customer, split latest vs prior with conditional aggregation</li>
+</ol>
+
+<h3>Full query</h3>
+<pre><code>WITH monthly_spend AS (
+  SELECT
+    customer_id,
+    DATE_TRUNC('month', txn_date) AS month,
+    SUM(amount) AS month_total
+  FROM transactions
+  WHERE status = 'success'
+  GROUP BY customer_id, DATE_TRUNC('month', txn_date)
+),
+
+high_value_customers AS (
+  SELECT
+    customer_id,
+    SUM(month_total) AS total_spend,
+    NTILE(4) OVER (ORDER BY SUM(month_total) DESC) AS quartile
+  FROM monthly_spend
+  GROUP BY customer_id
+),
+
+labeled_months AS (
+  SELECT
+    customer_id,
+    month,
+    month_total,
+    ROW_NUMBER() OVER (PARTITION BY customer_id ORDER BY month DESC) AS rn
+  FROM monthly_spend
+),
+
+customer_summary AS (
+  SELECT
+    customer_id,
+    SUM(CASE WHEN rn = 1 THEN month_total END) AS latest_month_spend,
+    AVG(CASE WHEN rn &gt; 1 THEN month_total END) AS avg_monthly_spend
+  FROM labeled_months
+  GROUP BY customer_id
+)
+
+SELECT
+  cs.customer_id,
+  bc.customer_name,
+  hv.total_spend,
+  ROUND(cs.avg_monthly_spend, 2)         AS avg_monthly_spend,
+  cs.latest_month_spend,
+  ROUND((1 - cs.latest_month_spend / cs.avg_monthly_spend) * 100, 1) AS spend_drop_pct,
+  CASE
+    WHEN (1 - cs.latest_month_spend / cs.avg_monthly_spend) * 100 &gt; 75 THEN 'Critical'
+    WHEN (1 - cs.latest_month_spend / cs.avg_monthly_spend) * 100 BETWEEN 50 AND 75 THEN 'High'
+  END AS risk_tier
+FROM customer_summary cs
+JOIN high_value_customers hv ON hv.customer_id = cs.customer_id
+JOIN bank_customers bc       ON bc.customer_id = cs.customer_id
+WHERE hv.quartile = 1                                       -- top 25% (DESC order)
+  AND cs.latest_month_spend &lt; 0.5 * cs.avg_monthly_spend    -- at-risk
+ORDER BY spend_drop_pct DESC;</code></pre>
+
+<h3>avg_monthly_spend = all months EXCEPT latest</h3>
+<p>The problem explicitly excludes the latest month from the average. Otherwise the baseline would be diluted by the very month you're trying to flag.</p>
+
+<p>The split happens in <code>customer_summary</code>:</p>
+<pre><code>SUM(CASE WHEN rn = 1 THEN month_total END) AS latest_month_spend,   -- rn=1: latest
+AVG(CASE WHEN rn &gt; 1 THEN month_total END) AS avg_monthly_spend     -- rn&gt;1: priors</code></pre>
+
+<p><code>rn</code> was assigned by ROW_NUMBER in the previous CTE — <code>ORDER BY month DESC</code> so the most recent month gets rn=1.</p>
+
+<hr>
+
+<h2>Part 4 — Understanding the drop% formula</h2>
+
+<pre><code>ROUND((1 - latest_month_spend / avg_monthly_spend) * 100, 1)</code></pre>
+
+<p><strong>Plain English:</strong> "What percentage of normal spend has disappeared this month."</p>
+
+<h3>Step-by-step (Priya: latest=5000, avg=30000)</h3>
+
+<table>
+<tr><th>Step</th><th>Calculation</th><th>Result</th><th>Meaning</th></tr>
+<tr><td>1</td><td>5000 / 30000</td><td>0.1667</td><td>Fraction of normal she's still spending (17%)</td></tr>
+<tr><td>2</td><td>1 - 0.1667</td><td>0.8333</td><td>Fraction NOT spending anymore (83%)</td></tr>
+<tr><td>3</td><td>× 100</td><td>83.33</td><td>Convert decimal to percentage</td></tr>
+<tr><td>4</td><td>ROUND(_, 1)</td><td>83.3</td><td>Final answer, 1 decimal place</td></tr>
+</table>
+
+<h3>Equivalent forms (algebraically identical)</h3>
+<pre><code>(1 - latest/avg) * 100        ← the form in the problem
+(avg - latest) / avg * 100    ← "missing amount as % of normal"
+((avg - latest) * 100) / avg  ← same, parenthesized differently</code></pre>
+
+<h3>Edge-case sanity check</h3>
+<table>
+<tr><th>latest</th><th>avg</th><th>drop%</th><th>Reading</th></tr>
+<tr><td>0</td><td>30000</td><td>100.0</td><td>Spent nothing → 100% drop</td></tr>
+<tr><td>15000</td><td>30000</td><td>50.0</td><td>Spent half → 50% drop</td></tr>
+<tr><td>30000</td><td>30000</td><td>0.0</td><td>Spent normal → 0% drop</td></tr>
+<tr><td>45000</td><td>30000</td><td>-50.0</td><td>Spent 50% more → negative drop (growth)</td></tr>
+<tr><td>5000</td><td>30000</td><td>83.3</td><td>Priya's row</td></tr>
+</table>
+
+<div class="callout">
+<strong>Trick to validate any percentage formula:</strong> plug in <code>0</code>, <code>half</code>, <code>equal</code>, <code>double</code>. If all four read correctly, the formula is right.
+</div>
+
+<h3>Same shape used in many other problems</h3>
+<ul>
+  <li><strong>Churn / drop:</strong> <code>1 - new/old</code></li>
+  <li><strong>Growth:</strong> <code>new/old - 1</code></li>
+  <li><strong>% of total:</strong> <code>part/whole * 100</code></li>
+  <li><strong>Conversion rate:</strong> <code>success / attempts * 100</code></li>
+  <li><strong>Discount applied:</strong> <code>1 - sale_price/list_price</code></li>
+</ul>
+
+<hr>
+
+<h2>Part 5 — Why ROW_NUMBER, not LAG?</h2>
+
+<p>The problem hint mentions LAG, but LAG fits <strong>pairwise</strong> comparisons (this row vs. the row right before it). Razorpay needs <strong>this row vs. an aggregate of many other rows</strong> — that's not pairwise.</p>
+
+<table>
+<tr><th>Question shape</th><th>Right tool</th></tr>
+<tr><td>"Latest vs. the one before it"</td><td><code>LAG()</code></td></tr>
+<tr><td>"Latest vs. average of all priors"</td><td><code>ROW_NUMBER</code> to tag the latest, then conditional aggregation</td></tr>
+<tr><td>"Each row vs. running average"</td><td>window <code>AVG() OVER (ORDER BY date)</code></td></tr>
+</table>
+
+<p><strong>LAG-flavored alternative (only useful if the problem was about month-over-month):</strong></p>
+<pre><code>SELECT
+  customer_id,
+  month,
+  month_total AS current_spend,
+  LAG(month_total) OVER (PARTITION BY customer_id ORDER BY month) AS prev_spend
+FROM monthly_spend;</code></pre>
+
+<p>This gives current + previous side-by-side. But to compare against an <strong>average</strong> of all priors, you'd need to combine with a window AVG anyway — at which point ROW_NUMBER + conditional aggregation is cleaner.</p>
+
+<hr>
+
+<h2>Part 6 — Ranking &amp; bucketing functions compared</h2>
+
+<p>For data <code>[80, 90, 90, 100]</code> ordered ASC:</p>
+
+<table>
+<tr><th>Function</th><th>Output</th><th>Use when</th></tr>
+<tr><td><code>ROW_NUMBER()</code></td><td>1, 2, 3, 4</td><td>Sequential position; ties broken arbitrarily</td></tr>
+<tr><td><code>RANK()</code></td><td>1, 2, 2, 4</td><td>Position; ties same rank; gaps after ties</td></tr>
+<tr><td><code>DENSE_RANK()</code></td><td>1, 2, 2, 3</td><td>Position; ties same rank; no gaps</td></tr>
+<tr><td><code>NTILE(2)</code></td><td>1, 1, 2, 2</td><td>Bucket number (here: top half vs bottom half)</td></tr>
+<tr><td><code>PERCENT_RANK()</code></td><td>0.00, 0.33, 0.33, 1.00</td><td>Relative position 0–1</td></tr>
+<tr><td><code>CUME_DIST()</code></td><td>0.25, 0.75, 0.75, 1.00</td><td>Fraction at-or-below</td></tr>
+</table>
+
+<h3>Key distinction — PERCENT_RANK vs CUME_DIST</h3>
+<ul>
+  <li><code>PERCENT_RANK</code> = <code>(rank - 1) / (n - 1)</code> → "fraction strictly ranked below me"</li>
+  <li><code>CUME_DIST</code> = <code>rank / n</code> → "fraction at-or-below me" (inclusive)</li>
+</ul>
+<p>PERCENT_RANK anchors the smallest at 0; CUME_DIST never gives 0 (smallest gets 1/n).</p>
+
+<hr>
+
+<h2>Part 7 — Decision table</h2>
+
+<table>
+<tr><th>Question</th><th>Tool</th></tr>
+<tr><td>Top X% with evenly-sized buckets, interview-clean code</td><td><code>NTILE(100/X)</code></td></tr>
+<tr><td>Top X% with exact threshold</td><td><code>PERCENT_RANK</code> (ASC, <code>&gt;= 1 - X/100</code>)</td></tr>
+<tr><td>"Better than X% of others"</td><td><code>PERCENT_RANK</code> directly</td></tr>
+<tr><td>"In the bottom X% cumulative"</td><td><code>CUME_DIST</code></td></tr>
+<tr><td>Top N rows (not percent)</td><td><code>ROW_NUMBER</code> or <code>RANK</code></td></tr>
+<tr><td>Exact percentile value (the threshold itself, not row filter)</td><td><code>PERCENTILE_CONT(0.X) WITHIN GROUP (ORDER BY col)</code></td></tr>
+</table>
+
+<hr>
+
+<h2>Part 8 — Worked queries for each row of the decision table</h2>
+
+<p>Consistent example dataset for all six so you can compare mentally:</p>
+<pre><code>-- customer_spend(customer_id, customer_name, total_spend)
+-- 10 customers with spends: 1000, 2000, 3000, ... up to 10000</code></pre>
+
+<h3>8.1 — <code>NTILE(100/X)</code> for top X%</h3>
+<p><strong>Question:</strong> "Give me the top 25% of customers by spend."</p>
+<pre><code>WITH ranked AS (
+  SELECT
+    customer_id,
+    customer_name,
+    total_spend,
+    NTILE(4) OVER (ORDER BY total_spend DESC) AS quartile
+  FROM customer_spend
+)
+SELECT customer_id, customer_name, total_spend
+FROM ranked
+WHERE quartile = 1;</code></pre>
+<p>Bucket 1 (DESC order) = top 25%. For top 10% → <code>NTILE(10) = 1</code>. For top 5% → <code>NTILE(20) = 1</code>.</p>
+
+<h3>8.2 — <code>PERCENT_RANK</code> for exact threshold</h3>
+<p><strong>Question:</strong> "Give me the top 25% — exactly 25%, not the approximate bucketing NTILE gives."</p>
+<pre><code>WITH ranked AS (
+  SELECT
+    customer_id,
+    customer_name,
+    total_spend,
+    PERCENT_RANK() OVER (ORDER BY total_spend) AS pr
+  FROM customer_spend
+)
+SELECT customer_id, customer_name, total_spend
+FROM ranked
+WHERE pr &gt;= 0.75;   -- top 25%</code></pre>
+<p><code>pr &gt;= 0.75</code> = "above the 75th percentile" → top 25%. For top 10% → <code>pr &gt;= 0.90</code>.</p>
+
+<h3>8.3 — <code>PERCENT_RANK</code> directly for "better than X% of others"</h3>
+<p><strong>Question:</strong> "For each customer, what percentage of others did they outspend? For UI copy."</p>
+<pre><code>SELECT
+  customer_id,
+  customer_name,
+  total_spend,
+  ROUND(PERCENT_RANK() OVER (ORDER BY total_spend) * 100, 0) AS beat_pct_of_customers
+FROM customer_spend
+ORDER BY total_spend DESC;</code></pre>
+
+<p><strong>How the calculation works</strong> (Priya, spend = 9000, rank 9 of 10 ASC):</p>
+<table>
+<tr><th>Step</th><th>Calc</th><th>Result</th></tr>
+<tr><td>1. PERCENT_RANK</td><td>(9-1) / (10-1) = 8/9</td><td>0.8889</td></tr>
+<tr><td>2. × 100</td><td>convert to percent</td><td>88.89</td></tr>
+<tr><td>3. ROUND(_, 0)</td><td>round to whole number</td><td><strong>89</strong></td></tr>
+</table>
+<p>Reading: "Priya outspent 89% of other customers." Drop the number into copy: <em>"You spent more than 89% of our customers this year."</em></p>
+<p>Edge cases:</p>
+<ul>
+  <li>Lowest customer (rank 1) → (1-1)/9 = 0 → <strong>0</strong> (beat nobody)</li>
+  <li>Highest customer (rank 10) → (10-1)/9 = 1.0 → <strong>100</strong> (beat everyone)</li>
+</ul>
+
+<h4>How rank is assigned inside PERCENT_RANK</h4>
+<p>PERCENT_RANK uses the same logic as <code>RANK()</code>. With <code>ORDER BY total_spend ASC</code> on our 10 customers:</p>
+<table>
+<tr><th>total_spend</th><th>rank</th><th>PERCENT_RANK</th><th>× 100</th></tr>
+<tr><td>1000</td><td>1</td><td>0/9 = 0.000</td><td>0</td></tr>
+<tr><td>2000</td><td>2</td><td>1/9 = 0.111</td><td>11</td></tr>
+<tr><td>3000</td><td>3</td><td>2/9 = 0.222</td><td>22</td></tr>
+<tr><td>4000</td><td>4</td><td>3/9 = 0.333</td><td>33</td></tr>
+<tr><td>5000</td><td>5</td><td>4/9 = 0.444</td><td>44</td></tr>
+<tr><td>6000</td><td>6</td><td>5/9 = 0.556</td><td>56</td></tr>
+<tr><td>7000</td><td>7</td><td>6/9 = 0.667</td><td>67</td></tr>
+<tr><td>8000</td><td>8</td><td>7/9 = 0.778</td><td>78</td></tr>
+<tr><td>9000 ← Priya</td><td>9</td><td>8/9 = 0.889</td><td><strong>89</strong></td></tr>
+<tr><td>10000</td><td>10</td><td>9/9 = 1.000</td><td>100</td></tr>
+</table>
+
+<div class="warn">
+<strong>Direction trap:</strong> <code>ORDER BY ASC</code> → smallest = rank 1, largest gets PERCENT_RANK = 1. <code>ORDER BY DESC</code> flips both. Always read the direction before reading the value.
+</div>
+
+<h4>Ties behave like RANK (gap after)</h4>
+<p>For <code>[1000, 2000, 2000, 3000]</code> ordered ASC:</p>
+<table>
+<tr><th>value</th><th>rank</th><th>PERCENT_RANK</th></tr>
+<tr><td>1000</td><td>1</td><td>0/3 = 0.00</td></tr>
+<tr><td>2000</td><td>2</td><td>1/3 = 0.33</td></tr>
+<tr><td>2000</td><td>2</td><td>1/3 = 0.33 (tied — same value)</td></tr>
+<tr><td>3000</td><td><strong>4</strong> (rank jumps past 3)</td><td>3/3 = 1.00</td></tr>
+</table>
+
+<h3>8.4 — <code>CUME_DIST</code> for "bottom X% cumulative"</h3>
+<p><strong>Question:</strong> "Give me the bottom 25% — those whose spend is at-or-below the 25th percentile."</p>
+<pre><code>WITH ranked AS (
+  SELECT
+    customer_id,
+    customer_name,
+    total_spend,
+    CUME_DIST() OVER (ORDER BY total_spend) AS cd
+  FROM customer_spend
+)
+SELECT customer_id, customer_name, total_spend
+FROM ranked
+WHERE cd &lt;= 0.25;   -- bottom 25%</code></pre>
+<p>CUME_DIST is <strong>inclusive</strong> (counts the row itself). For "bottom 10% — likely first to churn" → <code>WHERE cd &lt;= 0.10</code>.</p>
+
+<h3>8.5 — <code>ROW_NUMBER</code> or <code>RANK</code> for top N rows</h3>
+
+<h4>A. Exactly 5 rows, ties broken arbitrarily</h4>
+<pre><code>WITH ranked AS (
+  SELECT
+    customer_id,
+    customer_name,
+    total_spend,
+    ROW_NUMBER() OVER (ORDER BY total_spend DESC) AS rn
+  FROM customer_spend
+)
+SELECT customer_id, customer_name, total_spend
+FROM ranked
+WHERE rn &lt;= 5;</code></pre>
+
+<h4>B. Top 5 <em>positions</em>, include all ties</h4>
+<pre><code>WITH ranked AS (
+  SELECT
+    customer_id,
+    customer_name,
+    total_spend,
+    RANK() OVER (ORDER BY total_spend DESC) AS rk
+  FROM customer_spend
+)
+SELECT customer_id, customer_name, total_spend
+FROM ranked
+WHERE rk &lt;= 5;</code></pre>
+
+<h4>C. Top N per group — top 3 per segment (very common pattern)</h4>
+<pre><code>WITH ranked AS (
+  SELECT
+    bc.segment,
+    cs.customer_id,
+    cs.customer_name,
+    cs.total_spend,
+    ROW_NUMBER() OVER (PARTITION BY bc.segment ORDER BY cs.total_spend DESC) AS rn
+  FROM customer_spend cs
+  JOIN bank_customers bc USING (customer_id)
+)
+SELECT segment, customer_id, customer_name, total_spend
+FROM ranked
+WHERE rn &lt;= 3;</code></pre>
+<p><code>PARTITION BY segment</code> resets the counter within each group. This is <em>the</em> "top N per group" pattern.</p>
+
+<h3>8.6 — <code>PERCENTILE_CONT</code> for the threshold <em>value</em></h3>
+<p><strong>Question:</strong> "What's the spend amount at the 75th percentile? The dollar value of the cutoff, not which customers."</p>
+<pre><code>SELECT
+  PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY total_spend) AS p75_threshold
+FROM customer_spend;</code></pre>
+<p>Returns a single number, e.g. <code>7750.00</code>.</p>
+
+<p><strong>Common combo — use it inside a filter for "top X%" with exact semantics:</strong></p>
+<pre><code>SELECT customer_id, customer_name, total_spend
+FROM customer_spend
+WHERE total_spend &gt;= (
+  SELECT PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY total_spend)
+  FROM customer_spend
+);</code></pre>
+
+<p><strong>Variant:</strong> <code>PERCENTILE_DISC(0.75)</code> returns an actual value that exists in the data (no interpolation). Use <code>_DISC</code> when you need a real row's value (e.g., median order amount in an even-count table).</p>
+
+<hr>
+
+<h2>Part 9 — Side-by-side comparison on same data</h2>
+
+<p>For 10 customers spending <code>[1000, 2000, ..., 10000]</code>, here's what each tool returns for "top 25%":</p>
+
+<table>
+<tr><th>Method</th><th>Filter</th><th>Rows returned</th><th>Why</th></tr>
+<tr><td>NTILE(4)</td><td><code>quartile = 1</code> (DESC)</td><td>3 rows (10000, 9000, 8000)</td><td>NTILE distributes 10 rows as 3,3,2,2 — top bucket has 3</td></tr>
+<tr><td>PERCENT_RANK</td><td><code>pr &gt;= 0.75</code></td><td>3 rows (10000, 9000, 8000)</td><td>pr=0.778, 0.889, 1.000 qualify</td></tr>
+<tr><td>PERCENTILE_CONT</td><td><code>&gt;= P75</code> (where P75=7750)</td><td>3 rows (10000, 9000, 8000)</td><td>Three customers exceed threshold</td></tr>
+<tr><td>ROW_NUMBER ≤ 2</td><td>top 2 hard cap</td><td>2 rows (10000, 9000)</td><td>No percent involved</td></tr>
+</table>
+
+<div class="callout">
+<strong>On evenly-divisible data they line up. On uneven row counts and ties, they diverge — that's where picking the right tool matters.</strong>
+</div>
+
+<hr>
+
+<h2>Part 10 — Practice protocol</h2>
+
+<div class="highlight">
+<ol>
+  <li>Read the problem <strong>once</strong>, then close the tab.</li>
+  <li>Sketch grain on paper — final grain + intermediate grains.</li>
+  <li><strong>Name your CTEs before writing them.</strong> If you can't name it, you don't understand it.</li>
+  <li>Write each CTE in isolation. Mentally test on the sample data before composing.</li>
+  <li>Compose the final query.</li>
+  <li><strong>Time-box advanced problems at 20 min.</strong> If stuck, peek at the hint, close it, try again. Read the official solution only after a real attempt.</li>
+</ol>
+</div>
+
+<hr>
+
+<h2>Related references</h2>
+<ul>
+  <li><code>~/Downloads/Databricks_DEA_Learning_Resources.html</code> — Databricks-specific resources</li>
+  <li><code>~/Downloads/Recruiter_Call_Prep_Databricks_SDE_20260527.html</code> — Recruiter call prep</li>
+  <li>DataLemur — <code>datalemur.com</code> — weekend SQL slot in your learning plan</li>
+</ul>
+
+</body>
+</html>

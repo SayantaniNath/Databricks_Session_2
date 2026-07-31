@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Databricks Lakehouse + AI Data Quality Monitor — Blueprint</title>
+<style>
+  body { font-family: Arial, sans-serif; font-size: 13px; line-height: 1.7; color: #1a1a1a; max-width: 860px; margin: 40px auto; padding: 0 32px 80px; }
+  h1 { font-size: 22px; border-bottom: 3px solid #1a1a2e; padding-bottom: 10px; margin-bottom: 4px; }
+  .subtitle { color: #555; font-size: 13px; margin-bottom: 36px; }
+  .status-banner { background: #fff8e1; border: 1px solid #f59e0b; border-radius: 8px; padding: 14px 18px; margin-bottom: 28px; font-weight: bold; color: #92400e; }
+  h2 { font-size: 15px; background: #1a1a2e; color: white; padding: 10px 16px; border-radius: 6px; margin: 28px 0 14px; }
+  h3 { font-size: 13px; font-weight: bold; color: #1a1a2e; border-left: 4px solid #6366f1; padding-left: 10px; margin: 20px 0 8px; }
+  .pipeline { background: #f0f0ff; border: 1px solid #c7c7f0; border-radius: 8px; padding: 14px 18px; font-family: monospace; font-size: 12px; margin: 12px 0; color: #2d2d6e; white-space: pre-wrap; }
+  .qa-block { background: #f9f9f9; border: 1px solid #e0e0e0; border-radius: 8px; padding: 16px 20px; margin: 14px 0; }
+  .q { font-weight: bold; color: #1a1a2e; margin-bottom: 8px; }
+  .a { color: #333; }
+  .build-step { background: #e8f5e9; border-left: 4px solid #10b981; padding: 10px 14px; border-radius: 4px; margin: 10px 0; }
+  .concept { background: #f0f0ff; border-left: 4px solid #6366f1; padding: 10px 14px; border-radius: 4px; margin: 10px 0; }
+  .ai-angle { background: #fdf4ff; border-left: 4px solid #a855f7; padding: 10px 14px; border-radius: 4px; margin: 10px 0; }
+  code { background: #eef; padding: 1px 6px; border-radius: 4px; font-size: 12px; font-family: monospace; }
+  ul, ol { margin: 6px 0; padding-left: 20px; }
+  li { margin-bottom: 4px; }
+  hr { border: none; border-top: 1px solid #ddd; margin: 28px 0; }
+  table { border-collapse: collapse; width: 100%; margin: 12px 0; font-size: 12px; }
+  th { background: #1a1a2e; color: white; padding: 8px 12px; text-align: left; }
+  td { border: 1px solid #ddd; padding: 8px 12px; vertical-align: top; }
+  tr:nth-child(even) { background: #f9f9f9; }
+  .layer-bronze { background: #fff3e0; border: 1px solid #fb8c00; border-radius: 6px; padding: 12px 16px; margin: 8px 0; }
+  .layer-silver { background: #e3f2fd; border: 1px solid #1e88e5; border-radius: 6px; padding: 12px 16px; margin: 8px 0; }
+  .layer-gold { background: #fff8e1; border: 1px solid #f9a825; border-radius: 6px; padding: 12px 16px; margin: 8px 0; }
+  .layer-label { font-weight: bold; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
+</style>
+</head>
+<body>
+
+<h1>Databricks Lakehouse + AI Data Quality Monitor</h1>
+<div class="subtitle">Sayantani Nath &nbsp;·&nbsp; Stage 8 Capstone &nbsp;·&nbsp; Target: Aug–Sep 2026</div>
+
+<div class="status-banner">
+  ⚠️ NOT STARTED — Build blueprint + interview prep. Update as you build each layer.<br>
+  Add to resume only after Bronze → Silver → Gold + AI monitor are all working.
+</div>
+
+<h2>One-Liner</h2>
+<p>A full medallion lakehouse on Databricks using FinFlow financial data — Bronze raw ingestion → Silver cleaned and enriched → Gold analytical mart — with a Claude AI agent that monitors data quality metrics daily and generates plain-English anomaly reports when it detects volume drops, schema drift, or null spikes.</p>
+
+<h2>Why This Project (The Interview Story)</h2>
+<p>
+Most portfolio projects either demonstrate data engineering (pipelines, transformations) OR AI (LLM calls, agents) — not both together. This project combines a production-grade lakehouse architecture with an AI layer that adds real business value: instead of a data engineer manually checking dashboards every morning, the AI agent proactively surfaces issues in plain English. That's the direction the industry is moving — AI-augmented data operations — and this project demonstrates I can build both sides.
+</p>
+<p>
+I chose Databricks because it's the dominant lakehouse platform in enterprise — Unity Catalog, Delta Lake, and Photon are all things interviewers at Databricks, Google, Stripe, and Snowflake ask about directly. Using my existing FinFlow data as the source means I'm not building with toy data — it's real cryptocurrency and stock market data I've been ingesting since May 2026.
+</p>
+
+<h2>Full Architecture — End to End</h2>
+<div class="pipeline">FinFlow JSONL files (existing, partitioned by date)
+  data/raw/crypto/YYYY-MM-DD.jsonl
+  data/raw/stocks/YYYY-MM-DD.jsonl
+  ↓
+Airflow DAG: finflow_lakehouse_dag.py
+  ↓ Task 1: ingest_to_bronze
+  ↓ Task 2: bronze_to_silver
+  ↓ Task 3: silver_to_gold
+  ↓ Task 4: run_dbt_models
+  ↓ Task 5: ai_quality_monitor
+  ↓
+BRONZE LAYER (Delta Lake — raw, append-only)
+  catalog.finflow.bronze_crypto_prices
+  catalog.finflow.bronze_stock_prices
+  Schema: raw JSON fields + ingestion_ts + source_file
+  ↓
+SILVER LAYER (Delta Lake — cleaned, typed, deduplicated)
+  catalog.finflow.silver_crypto_prices
+  catalog.finflow.silver_stock_prices
+  Transformations: cast types, standardize column names,
+  deduplicate by (coin_id, fetched_at), filter nulls,
+  add derived: price_change_pct, hour_of_day, day_of_week
+  ↓
+GOLD LAYER (Delta Lake — aggregated, analytics-ready)
+  catalog.finflow.gold_daily_summary
+  catalog.finflow.gold_coin_volatility
+  catalog.finflow.gold_cross_asset_correlation
+  Grain: coin_id + date
+  ↓
+dbt models (on Gold layer)
+  mart_daily_market_report.sql
+  mart_volatility_ranking.sql
+  ↓
+Claude AI Data Quality Monitor (Python + Claude API)
+  Reads Gold metrics: row counts, null rates, volume vs 7-day avg
+  Detects: volume drops >30%, null spike >5%, schema drift, new coins
+  Calls Claude API to generate plain-English report
+  Output: daily_quality_report_YYYY-MM-DD.md
+  Example: "Bitcoin volume dropped 42% vs 7-day average on 2026-08-15.
+  Ethereum null rate in market_cap_usd rose from 0.2% to 8.1% —
+  likely CoinGecko API issue. Recommend checking source connection."</div>
+
+<h2>Medallion Architecture — Layer by Layer</h2>
+
+<div class="layer-bronze">
+  <div class="layer-label" style="color:#e65100;">🥉 Bronze — Raw Ingestion Layer</div>
+  <ul>
+    <li><strong>What:</strong> Exact copy of source data, no transformations. Append-only. Never deleted</li>
+    <li><strong>Why:</strong> If a bug in Silver/Gold corrupts data, you can always reprocess from Bronze. It's your source of truth</li>
+    <li><strong>Schema:</strong> Raw JSON fields + <code>ingestion_ts</code> (when it landed) + <code>source_file</code> (which JSONL file it came from)</li>
+    <li><strong>Delta feature used:</strong> <code>COPY INTO</code> or <code>autoloader</code> for incremental ingestion from JSONL files</li>
+    <li><strong>Unity Catalog:</strong> Registered in <code>finflow</code> catalog under <code>bronze</code> schema</li>
+  </ul>
+</div>
+
+<div class="layer-silver">
+  <div class="layer-label" style="color:#1565c0;">🥈 Silver — Cleaned and Enriched Layer</div>
+  <ul>
+    <li><strong>What:</strong> Typed, deduplicated, standardized data. The trusted version</li>
+    <li><strong>Transformations in PySpark:</strong>
+      <ul>
+        <li>Cast <code>price_usd</code> to DoubleType, <code>fetched_at</code> to TimestampType</li>
+        <li>Deduplicate: <code>dropDuplicates(["coin_id", "fetched_at"])</code></li>
+        <li>Filter: remove rows where <code>price_usd IS NULL OR price_usd &lt;= 0</code></li>
+        <li>Derive: <code>hour_of_day</code>, <code>day_of_week</code>, <code>is_weekend</code></li>
+        <li>MERGE into Silver table (upsert) — handle late arrivals cleanly</li>
+      </ul>
+    </li>
+    <li><strong>Delta feature used:</strong> <code>MERGE INTO</code> for upserts, <code>OPTIMIZE</code> + <code>ZORDER BY (coin_id, fetched_at)</code> for query speed</li>
+  </ul>
+</div>
+
+<div class="layer-gold">
+  <div class="layer-label" style="color:#f57f17;">🥇 Gold — Analytical Mart Layer</div>
+  <ul>
+    <li><strong>What:</strong> Aggregated, business-ready. Grain: coin_id + date</li>
+    <li><strong>Aggregations:</strong> avg_price, max_price, min_price, total_volume, record_count, avg_change_24h, volatility (stddev of price)</li>
+    <li><strong>Cross-asset:</strong> Correlation between Bitcoin price and Ethereum price by day</li>
+    <li><strong>dbt models on Gold:</strong> mart_daily_market_report, mart_volatility_ranking</li>
+    <li><strong>Delta feature used:</strong> Time travel — <code>SELECT * FROM gold_daily_summary VERSION AS OF 5</code> to query historical snapshots</li>
+  </ul>
+</div>
+
+<h2>The AI Layer — Claude Data Quality Monitor</h2>
+
+<div class="ai-angle">
+  <strong>What it does:</strong> Reads Gold layer metrics, computes anomaly signals, calls Claude API with the metrics + anomaly findings, receives a plain-English report, saves it as a markdown file. Runs as an Airflow task after the Gold layer builds.
+</div>
+
+<h3>How It Works (Step by Step)</h3>
+<ol>
+  <li><strong>Compute metrics:</strong> Query Gold table — today's row count vs 7-day average, null rate per column, new coin_ids not seen before, price range sanity checks</li>
+  <li><strong>Detect anomalies:</strong> Flag if volume drops >30%, null rate increases >5%, record count drops >20%, new unexpected coin appears</li>
+  <li><strong>Build prompt:</strong> Summarize the metrics and anomalies in structured text, ask Claude to write a plain-English daily data quality report with recommendations</li>
+  <li><strong>Call Claude API:</strong> <code>client.messages.create(model="claude-opus-4-7", messages=[...])</code></li>
+  <li><strong>Save report:</strong> Write Claude's response to <code>reports/quality_YYYY-MM-DD.md</code></li>
+</ol>
+
+<h3>Example Claude Prompt Structure</h3>
+<div class="pipeline">You are a data quality analyst reviewing a financial data lakehouse.
+
+Today's metrics for the FinFlow crypto pipeline:
+- Total records ingested: 8,234 (7-day avg: 14,102) — DROP OF 42%
+- Null rate in market_cap_usd: 8.1% (yesterday: 0.3%) — SPIKE
+- New coin_ids not seen before: none
+- Price range: Bitcoin $67,200–$68,100 (within normal range)
+
+Anomalies detected:
+1. Record volume dropped 42% vs 7-day average
+2. market_cap_usd null rate spiked from 0.3% to 8.1%
+
+Write a concise data quality report explaining what likely happened,
+what the business impact is, and what the data engineer should check first.</div>
+
+<h2>Technology Choices — Why Each One</h2>
+<table>
+  <tr><th>Component</th><th>Choice</th><th>Why</th></tr>
+  <tr><td>Lakehouse platform</td><td>Databricks</td><td>Delta Lake, Unity Catalog, PySpark, and Photon all in one platform. Matches enterprise direction. DEA exam tests this directly</td></tr>
+  <tr><td>Storage format</td><td>Delta Lake</td><td>ACID transactions, time travel, MERGE, OPTIMIZE + Z-ORDER. The lakehouse standard — replaces Parquet alone</td></tr>
+  <tr><td>Catalog</td><td>Unity Catalog</td><td>Three-level namespace (catalog.schema.table), lineage tracking, column-level security, data sharing. Most important Databricks governance feature</td></tr>
+  <tr><td>Processing</td><td>PySpark</td><td>Native to Databricks. Handles large-scale transformations across partitions. DataFrame API mirrors Pandas</td></tr>
+  <tr><td>Transformation</td><td>dbt on Gold</td><td>Adds SQL-based transformation discipline, documentation, and tests on top of the Gold layer. dbt + Databricks is a common production pattern</td></tr>
+  <tr><td>Orchestration</td><td>Airflow</td><td>Schedules the full Bronze→Silver→Gold→AI flow. Retries on failure. Observable</td></tr>
+  <tr><td>AI layer</td><td>Claude API</td><td>Best reasoning quality for structured data analysis. Prompt caching reduces cost on repeated metric summaries. You're already familiar with the Anthropic SDK</td></tr>
+  <tr><td>Source data</td><td>FinFlow JSONL</td><td>Real financial data you've been building since May 2026. Not a toy dataset</td></tr>
+</table>
+
+<h2>Key Concepts to Understand Before Building</h2>
+
+<div class="concept"><strong>Delta Lake transaction log:</strong> Every write to a Delta table creates a JSON entry in the <code>_delta_log/</code> folder. This is how time travel works — Delta replays the log to reconstruct the table at any version. OPTIMIZE compacts small files; VACUUM removes old files beyond the retention period.</div>
+
+<div class="concept"><strong>Unity Catalog three-level namespace:</strong> <code>catalog.schema.table</code> — e.g. <code>finflow.bronze.crypto_prices</code>. The metastore sits above catalogs. Lineage is tracked automatically — Unity Catalog knows that gold_daily_summary was derived from silver_crypto_prices.</div>
+
+<div class="concept"><strong>MERGE INTO (upsert):</strong> <code>MERGE INTO silver USING updates ON silver.coin_id = updates.coin_id AND silver.fetched_at = updates.fetched_at WHEN MATCHED THEN UPDATE SET ... WHEN NOT MATCHED THEN INSERT ...</code> — handles late-arriving records without duplicates.</div>
+
+<div class="concept"><strong>OPTIMIZE + ZORDER:</strong> OPTIMIZE compacts many small files into fewer large files (fixes the "small file problem" in streaming). ZORDER BY (coin_id, fetched_at) co-locates related data on disk so queries filtering by coin_id skip irrelevant files entirely.</div>
+
+<div class="concept"><strong>Autoloader (cloudFiles):</strong> Databricks feature that incrementally ingests new files from a directory — only processes new files since last run. Better than a full directory scan for Bronze ingestion.</div>
+
+<h2>Build Order (Follow This Sequence)</h2>
+<ol>
+  <li class="build-step"><strong>Step 1:</strong> Set up Databricks Community Edition. Create catalog <code>finflow</code>. Upload a sample FinFlow JSONL file manually</li>
+  <li class="build-step"><strong>Step 2:</strong> Write Bronze ingestion notebook — read JSONL into DataFrame, add ingestion_ts + source_file columns, write to Delta table <code>finflow.bronze.crypto_prices</code></li>
+  <li class="build-step"><strong>Step 3:</strong> Write Silver transformation notebook — type casts, deduplication, null filter, derived columns. Write with MERGE INTO</li>
+  <li class="build-step"><strong>Step 4:</strong> Write Gold aggregation notebook — groupby coin_id + date, compute all aggregates. Write to Gold Delta table</li>
+  <li class="build-step"><strong>Step 5:</strong> Run OPTIMIZE + ZORDER on Silver and Gold. Query with time travel. Verify lineage in Unity Catalog UI</li>
+  <li class="build-step"><strong>Step 6:</strong> Add dbt models pointing at Gold layer. Run dbt test</li>
+  <li class="build-step"><strong>Step 7:</strong> Write the Claude API quality monitor script. Test with one day's metrics manually</li>
+  <li class="build-step"><strong>Step 8:</strong> Wire everything into an Airflow DAG. Test full end-to-end run</li>
+  <li class="build-step"><strong>Step 9:</strong> Update this document with what you actually built. Add to resume and portfolio</li>
+</ol>
+
+<h2>Interview Q&amp;A</h2>
+
+<div class="qa-block">
+  <div class="q">Q: Walk me through this project end to end.</div>
+  <div class="a">[Fill in after building. Use the pipeline diagram as your guide. Start with the data source, walk through each layer, explain what transforms at each step, and end with what the AI monitor adds on top.]</div>
+</div>
+
+<div class="qa-block">
+  <div class="q">Q: Why a three-layer medallion architecture instead of just loading data directly to analytics?</div>
+  <div class="a">Each layer has a distinct contract. Bronze is immutable raw data — if anything goes wrong in Silver or Gold, I can always reprocess from Bronze without re-ingesting from the source. Silver is the trusted layer — typed, deduplicated, cleaned. Gold is optimized for analytics — aggregated to the grain that consumers need. Keeping these separate means a bug in one layer doesn't corrupt the others, and each layer can be owned and tested independently.</div>
+</div>
+
+<div class="qa-block">
+  <div class="q">Q: What does Unity Catalog give you that a plain Hive metastore doesn't?</div>
+  <div class="a">Three things. Automatic lineage — Unity Catalog tracks that gold_daily_summary was derived from silver_crypto_prices, without any manual annotation. Column-level security — I can grant access to specific columns, not just tables. And cross-workspace data sharing — the same catalog is accessible across multiple Databricks workspaces. Hive metastore is workspace-scoped; Unity Catalog is account-scoped.</div>
+</div>
+
+<div class="qa-block">
+  <div class="q">Q: Why use an LLM for data quality monitoring — couldn't you just write alert rules?</div>
+  <div class="a">Rule-based alerts are good at catching known issues — "volume dropped more than 30%". But they can't explain WHY, suggest what to check first, or connect multiple signals into a coherent narrative. An LLM looks at all the metrics together — volume drop + null spike in the same column — and can reason that these are probably the same root cause (API outage for that field) rather than two separate issues. It also writes in plain English, which means non-engineers on the team can read the daily report without needing to understand the metrics themselves.</div>
+</div>
+
+<div class="qa-block">
+  <div class="q">Q: What's Delta Lake time travel and when would you use it?</div>
+  <div class="a">Every write to a Delta table is logged in the transaction log. You can query any previous version: SELECT * FROM gold_daily_summary VERSION AS OF 5, or SELECT * FROM gold_daily_summary TIMESTAMP AS OF '2026-08-01'. I'd use it for three things: debugging — if the AI monitor flags an anomaly today, I can query yesterday's snapshot to compare. Auditing — regulators can ask "what did your data show on this date?" and I can reproduce it exactly. And recovery — if a bad write corrupts Gold, I can restore from the last known good version with RESTORE TABLE.</div>
+</div>
+
+<div class="qa-block">
+  <div class="q">Q: What is OPTIMIZE + ZORDER and why does it matter?</div>
+  <div class="a">Streaming writes create many small files — one per micro-batch — which kills read performance because Spark opens thousands of file handles per query. OPTIMIZE compacts those small files into fewer large files. ZORDER BY (coin_id, fetched_at) then physically co-locates related data — all Bitcoin records are close together on disk. When I query WHERE coin_id = 'bitcoin', Spark can skip irrelevant files entirely using the statistics in the transaction log. Together they can reduce scan time by 10x on large tables.</div>
+</div>
+
+<div class="qa-block">
+  <div class="q">Q: How would you handle schema evolution — what if CoinGecko adds a new field?</div>
+  <div class="a">Delta Lake supports schema evolution with mergeSchema option. When Bronze ingests the new field, it automatically adds the column to the Delta table schema. Silver picks it up on the next run. I'd add a check in the AI monitor that alerts when new columns appear — that's what the "schema drift" detection covers — so the data engineer knows to review whether the new field should propagate to Silver and Gold and update the dbt models accordingly.</div>
+</div>
+
+<hr>
+<p style="color:#888;font-size:11px;">Last updated: May 2026. Target build: Aug–Sep 2026 (Stage 8). Update after each step. Do not put on resume until Step 8 is complete.</p>
+
+</body>
+</html>

@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Databricks / DEA + AWS CCP Learning Resources</title>
+<style>
+  :root {
+    --bg: #ffffff;
+    --fg: #1f2328;
+    --muted: #57606a;
+    --accent: #0969da;
+    --border: #d0d7de;
+    --quote-bg: #f6f8fa;
+    --quote-border: #0969da;
+    --warn: #cf222e;
+    --highlight: #fff8c5;
+    --highlight-border: #d4a72c;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    color: var(--fg);
+    background: var(--bg);
+    max-width: 820px;
+    margin: 2rem auto;
+    padding: 0 1.5rem;
+    line-height: 1.6;
+    font-size: 16px;
+  }
+  h1 {
+    font-size: 1.9rem;
+    border-bottom: 2px solid var(--border);
+    padding-bottom: 0.5rem;
+    margin-top: 0;
+  }
+  h2 {
+    font-size: 1.4rem;
+    margin-top: 2.2rem;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 0.3rem;
+    color: var(--accent);
+  }
+  h3 {
+    font-size: 1.1rem;
+    margin-top: 1.5rem;
+    color: var(--fg);
+  }
+  .meta {
+    background: var(--quote-bg);
+    padding: 0.75rem 1rem;
+    border-radius: 6px;
+    margin-bottom: 1rem;
+    font-size: 0.95rem;
+  }
+  .meta p { margin: 0.2rem 0; }
+  code {
+    background: var(--quote-bg);
+    padding: 0.1rem 0.35rem;
+    border-radius: 4px;
+    font-size: 0.9em;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  ul, ol { padding-left: 1.5rem; }
+  li { margin: 0.35rem 0; }
+  hr {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 2rem 0;
+  }
+  .callout {
+    background: #ddf4ff;
+    border-left: 4px solid var(--accent);
+    padding: 0.75rem 1rem;
+    border-radius: 0 6px 6px 0;
+    margin: 1rem 0;
+  }
+  .highlight {
+    background: var(--highlight);
+    border-left: 4px solid var(--highlight-border);
+    padding: 0.75rem 1rem;
+    border-radius: 0 6px 6px 0;
+    margin: 1rem 0;
+  }
+  .channel {
+    margin: 0.5rem 0;
+  }
+  .channel strong { color: var(--accent); }
+  .star { color: #d4a72c; font-weight: 600; }
+  @media print {
+    body { max-width: 100%; margin: 0; padding: 1rem; }
+    h2 { page-break-after: avoid; }
+    .callout, .highlight { page-break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+
+<h1>Databricks / DEA + AWS CCP Learning Resources</h1>
+
+<div class="meta">
+  <p><strong>Purpose:</strong> Depth resources for Stage 2B + Databricks DEA cert + AWS CCP cert + production job readiness. Not surface skim — pick what you need by topic.</p>
+  <p><strong>How to use:</strong> This is a menu, not a syllabus. Pin two things at a time. Anchor <em>Learning Spark 2e</em> as your core Databricks reading. For AWS CCP, anchor Stephane Maarek's course + Tutorials Dojo practice exams.</p>
+</div>
+
+<hr>
+
+<h2>Foundational — start here</h2>
+
+<h3>Free books</h3>
+<ul>
+  <li><strong>Learning Spark, 2nd Edition</strong> — Jules Damji, Brooke Wenig, Tathagata Das, Denny Lee. Databricks gives the PDF away free — search <em>"Learning Spark 2nd edition free pdf databricks"</em>. ~400 pages. Covers DataFrames, Spark SQL, Structured Streaming, Delta Lake. <strong>This + practice ≈ 70% of DEA content.</strong> Read Ch 1–4 first.</li>
+  <li><strong>Spark: The Definitive Guide</strong> — Bill Chambers &amp; Matei Zaharia. Deeper, longer. Use as reference, not cover-to-cover.</li>
+  <li><strong>Delta Lake: The Definitive Guide</strong> (O'Reilly, 2024) — Denny Lee et al. Early-release PDF was on databricks.com.</li>
+</ul>
+
+<h3>Free official course</h3>
+<ul>
+  <li><strong>Databricks Academy → "Data Engineering with Databricks"</strong> learning path. DEA-aligned, free, hands-on notebooks. Sign up at <code>customer-academy.databricks.com</code>.</li>
+</ul>
+
+<hr>
+
+<h2>YouTube — channels worth subscribing to</h2>
+<p>Rank-ordered by relevance:</p>
+
+<div class="channel">
+  <strong>1. Advancing Analytics</strong> — <code>youtube.com/@AdvancingAnalytics</code> (Simon Whiteley). Best Databricks technical channel. Deep playlists on Delta Lake, Unity Catalog, Photon, perf tuning. <strong>Watch Delta Lake series end-to-end.</strong>
+</div>
+
+<div class="channel">
+  <strong>2. Databricks (official)</strong> — <code>youtube.com/@Databricks</code>. Data + AI Summit talks (Delta, UC, Photon, DLT). Also "Databricks Demo Hub".
+</div>
+
+<div class="channel">
+  <strong>3. Bryan Cafferky</strong> — <code>youtube.com/@BryanCafferky</code>. "Master Databricks and Apache Spark" playlist. Beginner-friendly pace.
+</div>
+
+<div class="channel">
+  <strong>4. Derar Alhussein</strong> — <code>youtube.com/@DerarAlhussein</code>. Free <strong>DEA crash course</strong> playlist alongside the paid Udemy course. Final-week cert review.
+</div>
+
+<div class="channel">
+  <strong>5. Ease With Data</strong> — <code>youtube.com/@easewithdata</code>. DEA practice question explanations.
+</div>
+
+<div class="channel">
+  <strong>6. Andreas Kretz</strong> — already in flight via his Databricks repo. His YouTube ("Learn Data Engineering") pairs with the repo.
+</div>
+
+<hr>
+
+<h2>Topic-by-topic depth</h2>
+
+<h3>Delta Lake (heaviest JD + heaviest DEA topic)</h3>
+<ul>
+  <li><strong>Docs:</strong> <code>docs.databricks.com</code> → "Delta Lake on Databricks". Order: <em>What is Delta → Tutorial → MERGE → Optimize → Z-Ordering → Vacuum → Time travel → Transaction log internals.</em></li>
+  <li><strong>Project site:</strong> <code>delta.io/learn</code> (vendor-neutral).</li>
+  <li><strong>Blog (deep):</strong> Databricks Engineering — <em>"Diving into Delta Lake: Unpacking the Transaction Log"</em> (3-part series). Foundational.</li>
+  <li><strong>Watch:</strong> Advancing Analytics — Delta Lake playlist (~10 videos).</li>
+  <li><strong>Book:</strong> <em>Delta Lake: The Definitive Guide</em> (O'Reilly).</li>
+</ul>
+
+<h3>Unity Catalog</h3>
+<ul>
+  <li><strong>Docs:</strong> <code>docs.databricks.com</code> → "Data governance" → "Unity Catalog". Order: <em>What is UC → three-level namespace → managed vs external tables → grants/privileges → lineage → metastore setup.</em></li>
+  <li><strong>Watch:</strong> Advancing Analytics — Unity Catalog series. Databricks official "Unity Catalog Demo".</li>
+  <li><strong>Blog:</strong> Databricks blog <code>/blog/category/platform/unity-catalog/</code> — architecture overview + governance posts.</li>
+</ul>
+
+<h3>Spark optimization + Photon</h3>
+<ul>
+  <li><strong>Docs:</strong> <code>docs.databricks.com</code> → "Compute" → "Photon"; also "Query optimization" + "Adaptive Query Execution (AQE)".</li>
+  <li><strong>Book:</strong> <em>Learning Spark 2e</em>, Ch 7 — "Optimizing and Tuning Spark Applications".</li>
+  <li><strong><span class="star">⭐ Must-watch:</span></strong> <strong>Daniel Tomes — <em>"Apache Spark Core — Deep Dive — Proper Optimization"</em></strong> (Spark+AI Summit, on YouTube). ~1 hour. Single best Spark perf talk that exists. Watch twice across your prep arc.</li>
+  <li><strong>Watch:</strong> Advancing Analytics — Photon + AQE deep-dives.</li>
+</ul>
+
+<h3>Structured Streaming</h3>
+<ul>
+  <li><strong>Book:</strong> <em>Learning Spark 2e</em>, Ch 8.</li>
+  <li><strong>Docs:</strong> <code>docs.databricks.com</code> → "Structured Streaming". Focus: watermarks, output modes, checkpointing, trigger types.</li>
+  <li><strong>Blog series:</strong> Databricks — <em>"A Deep Dive into Stateful Stream Processing in Structured Streaming"</em> (4-part).</li>
+</ul>
+
+<h3>Delta Live Tables (DLT)</h3>
+<ul>
+  <li><strong>Docs:</strong> <code>docs.databricks.com</code> → "Delta Live Tables". Read: <em>What is DLT → declarative pipelines → expectations → CDC with DLT.</em></li>
+  <li><strong>Watch:</strong> Advancing Analytics DLT playlist. Databricks official DLT demos.</li>
+</ul>
+
+<h3>Databricks Workflows / Jobs</h3>
+<ul>
+  <li><strong>Docs:</strong> <code>docs.databricks.com</code> → "Jobs". Read: <em>Create a job → task types → multi-task workflows → triggers → retries → notifications.</em></li>
+  <li><strong>Watch:</strong> Databricks official Workflows demo. Bryan Cafferky walkthrough.</li>
+</ul>
+
+<h3>CI/CD — Databricks Asset Bundles (DABs)</h3>
+<ul>
+  <li><strong>Docs:</strong> <code>docs.databricks.com</code> → "Databricks Asset Bundles". Modern, Databricks-recommended path. Read in full.</li>
+  <li><strong>Blog:</strong> Search "Databricks Asset Bundles" announcement post.</li>
+  <li><strong>Watch:</strong> Databricks official DABs intro. Advancing Analytics CI/CD content.</li>
+</ul>
+
+<h3>AWS integration (S3, IAM, Secrets)</h3>
+<ul>
+  <li><strong>Docs:</strong> <code>docs.databricks.com</code> → "Connect to data sources" → "Amazon S3"; "Manage credentials"; "Secret management".</li>
+  <li>Concepts: instance profiles for S3, secret scopes for credentials, mount points (legacy) vs UC external locations (current).</li>
+</ul>
+
+<hr>
+
+<h2>AWS Cloud Practitioner (CCP) — fast path</h2>
+
+<div class="callout">
+<strong>Honest read on the Skilljar course:</strong> Fine for general audience, but slow for your profile. You've done production cloud-warehouse work — you don't need a primer on what storage or networking is. The Udemy courses below assume that and move ~2× faster.
+</div>
+
+<h3>Course — pick one</h3>
+
+<ol>
+  <li><strong>Stephane Maarek — <em>"Ultimate AWS Certified Cloud Practitioner CLF-C02"</em> (Udemy)</strong> — ~14–15 hrs. Most popular CCP course by far, exam-focused. Watch at 1.5–1.75×. ~$15 on Udemy sale (almost always running).</li>
+  <li><strong>Andrew Brown / ExamPro — free on YouTube / freeCodeCamp</strong> — full ~15 hr CCP course, no cost. Search YouTube for <em>"AWS Certified Cloud Practitioner Andrew Brown freeCodeCamp"</em>. Pick this for the zero-spend route. Slightly less polished than Maarek but same ground covered.</li>
+</ol>
+
+<h3>Practice exams (the actual unlock — not optional)</h3>
+
+<ul>
+  <li><strong>Tutorials Dojo (Jon Bonso) — CLF-C02 practice tests</strong> on <code>tutorialsdojo.com</code> (~$15). The single most important resource. Most CCP passers say <em>"Maarek for content, Bonso for the actual exam."</em> Their questions are harder than the real exam, by design — if you can score 75%+ on TD, you'll comfortably pass.</li>
+</ul>
+
+<h3>Concrete plan to pass by ~mid-to-late June</h3>
+<table>
+<tr><th>Phase</th><th>Time</th><th>Action</th></tr>
+<tr><td>1 — Finish Skilljar Module 6</td><td>~1 hr</td><td>Wrap Storage so you're not abandoning mid-module</td></tr>
+<tr><td>2 — Maarek course</td><td>~10 hrs at 1.5×</td><td>Watch on AWS slots (Tue/Thu) + 1 weekend session. ~2 weeks</td></tr>
+<tr><td>3 — Tutorials Dojo (round 1)</td><td>~3 hrs</td><td>One full timed exam. Review every wrong answer.</td></tr>
+<tr><td>4 — Patch weak topics</td><td>~2 hrs</td><td>Re-watch Maarek sections where TD exposed gaps</td></tr>
+<tr><td>5 — Tutorials Dojo (round 2)</td><td>~3 hrs</td><td>Score consistently 80%+ → book the exam</td></tr>
+</table>
+
+<p>Total: ~18 hrs from tomorrow. At Tue/Thu pace + one weekend hour, that's <strong>mid-to-late June for exam-ready</strong>. Original Jun 11 target slips ~1–2 weeks — fine. Better to pass once than rush and re-sit.</p>
+
+<h3>What to skip</h3>
+<ul>
+  <li><strong>AWS Cloud Quest</strong> / gamified learning paths — fun, slow, not exam-prep.</li>
+  <li><strong>Cloud Academy / A Cloud Guru CCP course</strong> — fine, not differentiated. If you don't already have access, Maarek is better value.</li>
+  <li><strong>Multiple practice test packs</strong> — Tutorials Dojo alone is enough.</li>
+</ul>
+
+<h3>Free-only alternative</h3>
+<p>Andrew Brown (free YouTube) + AWS Skill Builder's free official practice exam + 1 paid Tutorials Dojo set ($15). Tutorials Dojo is the only thing I'd not skip — the question style is what trains you for the real exam.</p>
+
+<hr>
+
+<h2>DEA cert-specific (when you push for cert, ~Jul–Aug 2026)</h2>
+<ol>
+  <li><strong>Official exam guide</strong> — <code>databricks.com/learn/certification/data-engineer-associate</code>. Read the outline — percentages tell you where to spend time.</li>
+  <li><strong>Databricks Academy "Data Engineering with Databricks"</strong> — already in your plan. End-to-end.</li>
+  <li><strong>Derar Alhussein's Udemy course</strong> — already in your plan. ~6 hrs condensed.</li>
+  <li><strong>Practice exams:</strong>
+    <ul>
+      <li>Official Databricks practice exam (1 free).</li>
+      <li>Skillcertpro DEA practice tests (paid, high-quality questions).</li>
+    </ul>
+  </li>
+  <li><strong>Final-week review:</strong> Derar's free YouTube DEA crash course + re-read weak-topic docs.</li>
+</ol>
+
+<hr>
+
+<h2>Suggested sequencing (don't try to consume all of this)</h2>
+
+<div class="highlight">
+<p><strong>Next 2 weeks of Stage 2B slots (Mon/Wed/Fri):</strong></p>
+<ol>
+  <li>Download <em>Learning Spark 2e</em> — read Ch 1–4 to anchor concepts.</li>
+  <li>Subscribe to <strong>Advancing Analytics</strong> → pick <strong>Delta Lake playlist</strong> → one video per slot, paired with <code>docs.databricks.com</code> skim of the same topic.</li>
+</ol>
+<p>Everything else here is the menu. You don't eat the whole menu.</p>
+</div>
+
+</body>
+</html>

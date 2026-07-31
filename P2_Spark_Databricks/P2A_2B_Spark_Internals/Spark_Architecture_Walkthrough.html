@@ -1,0 +1,1532 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Spark Architecture — Walkthrough</title>
+<style>
+  :root {
+    --bg: #ffffff;
+    --fg: #1a1a1a;
+    --muted: #555;
+    --accent: #0b6e4f;
+    --accent-light: #e6f4ef;
+    --code-bg: #f4f4f6;
+    --code-fg: #1a1a1a;
+    --border: #e2e2e6;
+    --warn-bg: #fff7e6;
+    --warn-border: #f5b942;
+    --tip-bg: #eef6ff;
+    --tip-border: #3b82f6;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #16181d;
+      --fg: #e6e6e6;
+      --muted: #a1a1aa;
+      --accent: #34d399;
+      --accent-light: #1c2a25;
+      --code-bg: #1f232a;
+      --code-fg: #e6e6e6;
+      --border: #2c3038;
+      --warn-bg: #2a2418;
+      --warn-border: #d4a23a;
+      --tip-bg: #182335;
+      --tip-border: #5fa8ff;
+    }
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    padding: 1.25rem;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, sans-serif;
+    font-size: 17px;
+    line-height: 1.6;
+    color: var(--fg);
+    background: var(--bg);
+    max-width: 760px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+  h1 {
+    font-size: 1.75rem;
+    margin-top: 0;
+    border-bottom: 3px solid var(--accent);
+    padding-bottom: 0.4rem;
+  }
+  h2 {
+    font-size: 1.35rem;
+    margin-top: 2.2rem;
+    color: var(--accent);
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 0.25rem;
+  }
+  h3 {
+    font-size: 1.1rem;
+    margin-top: 1.4rem;
+  }
+  p, ul, ol { margin: 0.6rem 0; }
+  ul, ol { padding-left: 1.4rem; }
+  li { margin: 0.25rem 0; }
+  code {
+    font-family: ui-monospace, "SF Mono", Menlo, Monaco, Consolas, monospace;
+    font-size: 0.92em;
+    background: var(--code-bg);
+    color: var(--code-fg);
+    padding: 0.1em 0.35em;
+    border-radius: 4px;
+  }
+  pre {
+    background: var(--code-bg);
+    color: var(--code-fg);
+    padding: 0.9rem;
+    border-radius: 6px;
+    overflow-x: auto;
+    font-size: 0.85rem;
+    line-height: 1.45;
+  }
+  pre code {
+    background: none;
+    padding: 0;
+    font-size: inherit;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 0.8rem 0;
+    font-size: 0.95rem;
+  }
+  th, td {
+    border: 1px solid var(--border);
+    padding: 0.5rem 0.6rem;
+    text-align: left;
+    vertical-align: top;
+  }
+  th { background: var(--accent-light); }
+  .callout {
+    margin: 1rem 0;
+    padding: 0.8rem 1rem;
+    border-left: 4px solid var(--accent);
+    background: var(--accent-light);
+    border-radius: 4px;
+  }
+  .warn {
+    background: var(--warn-bg);
+    border-left-color: var(--warn-border);
+  }
+  .tip {
+    background: var(--tip-bg);
+    border-left-color: var(--tip-border);
+  }
+  .muted { color: var(--muted); }
+  hr { border: none; border-top: 1px solid var(--border); margin: 2rem 0; }
+  blockquote {
+    margin: 0.8rem 0;
+    padding: 0.4rem 0.9rem;
+    border-left: 4px solid var(--accent);
+    background: var(--accent-light);
+    border-radius: 4px;
+    font-style: italic;
+  }
+  .stage-diagram {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 0.82rem;
+    background: var(--code-bg);
+    padding: 1rem;
+    border-radius: 6px;
+    white-space: pre;
+    overflow-x: auto;
+    line-height: 1.5;
+  }
+  .toc {
+    background: var(--accent-light);
+    padding: 0.8rem 1rem;
+    border-radius: 6px;
+    margin-bottom: 2rem;
+  }
+  .toc ol { margin: 0.4rem 0 0 0; padding-left: 1.4rem; }
+  .toc a { color: var(--accent); text-decoration: none; }
+  .toc a:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+
+<h1>Spark Architecture — Walkthrough</h1>
+<p class="muted">Personal study notes — taught in-chat session, 2026-05-28.</p>
+
+<div class="toc">
+<strong>Contents</strong>
+<ol>
+  <li><a href="#why">Why Spark exists</a></li>
+  <li><a href="#model">The mental model</a></li>
+  <li><a href="#cluster">The cluster — Driver, Executors, Cluster Manager</a></li>
+  <li><a href="#partitions">Partitions</a></li>
+  <li><a href="#lazy">Transformations vs Actions (lazy evaluation)</a></li>
+  <li><a href="#narrowwide">Narrow vs Wide (shuffles)</a></li>
+  <li><a href="#jobs">Jobs, Stages, Tasks &amp; the DAG</a></li>
+  <li><a href="#count">The <code>count</code> ambiguity</a></li>
+  <li><a href="#broadcast">Broadcast joins — Scenarios A, B, C</a></li>
+  <li><a href="#recipe">Stage-counting recipe</a></li>
+  <li><a href="#exercises">From-blank exercises</a></li>
+  <li><a href="#bytes">Sidebar: byte calculations in Spark configs</a></li>
+  <li><a href="#takeaways">Interview takeaways</a></li>
+</ol>
+</div>
+
+<h2 id="why">1. Why Spark exists</h2>
+<p>Imagine you have <strong>1 TB of CSV files</strong> in S3 and a laptop with 16 GB RAM. Pandas can't load it — your process dies. Two options:</p>
+<ul>
+  <li><strong>Scale up</strong> — buy a bigger machine. Works up to ~1 TB. Expensive, single point of failure.</li>
+  <li><strong>Scale out</strong> — split the data across 50 cheaper machines, work in parallel. This is Spark.</li>
+</ul>
+<p>Spark = "Pandas, but the data and the compute live across many machines." Everything else is a consequence of that idea.</p>
+
+<h2 id="model">2. The mental model</h2>
+<p>Two shifts from Pandas:</p>
+<ul>
+  <li><strong>Distributed.</strong> Your DataFrame lives as chunks called <em>partitions</em> spread across many workers.</li>
+  <li><strong>Lazy.</strong> Writing <code>df.filter(...)</code> doesn't execute. Spark just records the instruction. Computation only starts on an <em>action</em>.</li>
+</ul>
+<blockquote>Pandas = one machine, eager. Spark = many machines, lazy.</blockquote>
+
+<h2 id="cluster">3. The cluster — Driver, Executors, Cluster Manager</h2>
+<table>
+  <tr><th>Role</th><th>What it does</th><th>Where</th></tr>
+  <tr><td><strong>Driver</strong></td><td>Runs your Python code, builds the plan, sends work, collects results.</td><td>One machine (or the notebook).</td></tr>
+  <tr><td><strong>Executors</strong></td><td>Worker processes. Each holds partitions in memory and runs computations.</td><td>Many machines, usually one per worker node.</td></tr>
+  <tr><td><strong>Cluster manager</strong></td><td>Provisions executors, allocates CPU/memory.</td><td>YARN / Kubernetes / Databricks-managed.</td></tr>
+</table>
+
+<p>Entry point — every Spark program starts with a <code>SparkSession</code>:</p>
+<pre><code>from pyspark.sql import SparkSession
+spark = SparkSession.builder.appName("finflow").getOrCreate()</code></pre>
+<p><code>spark</code> is your handle to the cluster. In Databricks, it's created for you.</p>
+
+<h2 id="partitions">4. Partitions — the unit of parallelism</h2>
+<p>A Spark DataFrame is a collection of <strong>partitions</strong> — chunks of rows. Each partition lives on one executor; each is processed by one CPU core at a time as a <strong>task</strong>.</p>
+<p>Example: reading 200 JSONL files may give 200 partitions. A 50-core cluster runs 50 tasks at a time, finishing in ~4 waves.</p>
+<ul>
+  <li>Too few partitions → executors idle.</li>
+  <li>Too many tiny partitions → scheduling overhead.</li>
+  <li>Sweet spot: 2–4× total core count.</li>
+</ul>
+<pre><code>df.rdd.getNumPartitions()                     # current count
+spark.conf.get("spark.sql.shuffle.partitions")     # default for post-shuffle
+spark.conf.set("spark.sql.shuffle.partitions", "50")</code></pre>
+
+<h2 id="lazy">5. Transformations vs Actions (lazy evaluation)</h2>
+<table>
+  <tr><th>Category</th><th>Behavior</th><th>Examples</th></tr>
+  <tr><td><strong>Transformations</strong></td><td>Lazy — just record intent</td><td><code>select</code>, <code>filter</code>, <code>withColumn</code>, <code>groupBy</code>, <code>join</code>, <code>orderBy</code></td></tr>
+  <tr><td><strong>Actions</strong></td><td>Eager — trigger execution</td><td><code>show</code>, <code>count</code>, <code>collect</code>, <code>take</code>, <code>write.parquet</code></td></tr>
+</table>
+<p>You can chain 50 transformations and Spark does nothing until the action. Then it optimizes the whole chain together via Catalyst (the optimizer).</p>
+
+<h2 id="narrowwide">6. Narrow vs Wide (the shuffle thing)</h2>
+<table>
+  <tr><th></th><th>Narrow</th><th>Wide</th></tr>
+  <tr><td>Dependency</td><td>Each output partition ← 1 input partition</td><td>Each output partition ← many input partitions</td></tr>
+  <tr><td>Network</td><td>No data movement</td><td>Data crosses the network (<strong>shuffle</strong>)</td></tr>
+  <tr><td>Cost</td><td>Cheap</td><td>10–100× more expensive</td></tr>
+  <tr><td>Examples</td><td><code>filter</code>, <code>select</code>, <code>withColumn</code>, <code>map</code></td><td><code>groupBy</code>, <code>join</code>, <code>orderBy</code>, <code>distinct</code>, <code>repartition</code></td></tr>
+</table>
+<div class="callout"><strong>Performance game:</strong> minimize shuffles. Every Spark interview eventually circles to this.</div>
+
+<h2 id="jobs">7. Jobs, Stages, Tasks &amp; the DAG</h2>
+<p>When you call an action, Spark builds an execution plan:</p>
+<pre><code>Action  →  1 Job
+Job     →  N Stages     (split at every shuffle boundary)
+Stage   →  M Tasks      (one task per partition, all parallel)</code></pre>
+<ul>
+  <li><strong>Job</strong> = everything triggered by one action.</li>
+  <li><strong>Stage</strong> = a run of narrow ops with no shuffles in between.</li>
+  <li><strong>Task</strong> = smallest unit; one task processes one partition.</li>
+</ul>
+<p>The graph of stages = the <strong>DAG</strong> (Directed Acyclic Graph). Each shuffle is a stage boundary. <strong>Spark UI</strong> visualizes all of this — the #1 tool for debugging slow jobs.</p>
+
+<h2 id="count">8. The <code>count</code> ambiguity</h2>
+<p>Three different <code>count</code>s exist in Spark — memorize this:</p>
+<table>
+  <tr><th>Expression</th><th>Type</th><th>Lazy or Action?</th><th>Returns</th></tr>
+  <tr><td><code>df.count()</code></td><td>DataFrame method</td><td><strong>Action</strong> — triggers a Job</td><td>Python int</td></tr>
+  <tr><td><code>count("*")</code> from <code>pyspark.sql.functions</code></td><td>Column function</td><td><strong>Lazy</strong> — column expression</td><td>Column object</td></tr>
+  <tr><td><code>df.groupBy("k").count()</code></td><td>Method on GroupedData</td><td><strong>Lazy</strong> — returns DataFrame</td><td>DataFrame</td></tr>
+</table>
+<div class="tip callout">
+<strong>Interview classic:</strong> "Does <code>df.groupBy('x').count().show()</code> trigger one Job or two?"<br>
+<strong>Answer:</strong> one. The <code>.count()</code> here is the grouped-count shorthand (lazy). The action is <code>.show()</code>.
+</div>
+
+<h2 id="broadcast">9. Broadcast joins — Scenarios A, B, C</h2>
+
+<h3>Scenario A — small dim, no hint</h3>
+<pre><code>transactions  # 500 GB, ~5000 partitions
+users         # 3 MB
+
+transactions.join(users, on="user_id", how="inner") \
+            .filter(col("country") == "US") \
+            .count()</code></pre>
+<p>Spark <strong>auto-broadcasts</strong> users (3 MB &lt; default 10 MB threshold). Strategy = <code>BroadcastHashJoin</code>. No shuffle of the big side.</p>
+
+<div class="stage-diagram">Stage 0 — Broadcast prep (1 task)
+  read users.parquet → collect → ship to every executor
+
+Stage 1 — Main work (~5000 tasks)
+  read transactions partition → join inline with broadcasted users
+  → filter(country == "US") → partial count
+
+Stage 2 — Final aggregation (1 task)
+  combine partial counts → single integer</div>
+
+<h3>Scenario B — explicit <code>broadcast()</code> hint</h3>
+<pre><code>from pyspark.sql.functions import broadcast
+transactions.join(broadcast(users), on="user_id", how="inner") \
+            .filter(col("country") == "US") \
+            .count()</code></pre>
+<p>Same execution plan as A, but <strong>guaranteed</strong>. Why force it even when auto-broadcast would work?</p>
+<ol>
+  <li><strong>Stale statistics</strong> — Spark may think users is 500 MB if old stats say so.</li>
+  <li><strong>No statistics at all</strong> — views, CTEs, fresh tables → Spark has no size estimate and defaults to SortMergeJoin.</li>
+  <li><strong>Compression mismatch</strong> — on-disk Parquet is small; in-memory is 5–10× larger.</li>
+  <li><strong>Push beyond threshold</strong> — 50 MB is still safe to broadcast on a beefy cluster; default 10 MB is conservative.</li>
+  <li><strong>Self-documenting code</strong> — reader sees the strategy without checking Spark UI.</li>
+</ol>
+
+<h3>Scenario C — 50 MB dim, no hint</h3>
+<pre><code>users_50mb  # 50 MB (above 10 MB threshold)
+transactions.join(users_50mb, on="user_id", how="inner").count()</code></pre>
+<p>Spark <strong>will NOT auto-broadcast</strong> (50 MB &gt; 10 MB). Falls back to <code>SortMergeJoin</code>, which shuffles 500 GB of transactions plus 50 MB of users. Wasteful — 50 MB easily fits in every executor's memory.</p>
+
+<div class="warn callout">
+<strong>Fix:</strong> force <code>broadcast(users_50mb)</strong> — affects only this query, self-documenting.<br>
+Alternative: <code>spark.conf.set("spark.sql.autoBroadcastJoinThreshold", 100 * 1024 * 1024)</code> but this changes every join in the session.
+</div>
+
+<h2 id="recipe">10. Stage-counting recipe</h2>
+<blockquote>A stage is a chunk of work that can run end-to-end without data moving between machines. Every shuffle = stage boundary.</blockquote>
+
+<h3>Step-by-step</h3>
+<ol>
+  <li><strong>Find every wide op</strong> in your code (groupBy, join-SMJ, orderBy, distinct, repartition, window-with-partitionBy).</li>
+  <li><strong>Each wide op = one stage boundary.</strong></li>
+  <li><strong>SortMergeJoin:</strong> each input side = its own pre-shuffle stage (because both sides must shuffle-write).</li>
+  <li><strong>BroadcastHashJoin:</strong> small side adds a tiny broadcast stage (1 task). Big side does NOT add a boundary.</li>
+  <li><strong>Aggregating actions</strong> (<code>count</code>, <code>sum</code>, <code>collect</code>) add a tiny final "combine" stage.</li>
+</ol>
+
+<h3>Worked example — broadcast join</h3>
+<pre><code>transactions.join(users_small, on="user_id").filter(...).count()
+# Stages: broadcast prep (1) + main (~5000) + final combine (1) = 3</code></pre>
+
+<h3>Worked example — SortMergeJoin</h3>
+<pre><code>transactions.join(users_big, on="user_id").filter(...).count()
+# Stages: read transactions+shuffle (1) + read users+shuffle (1)
+#       + join+filter+partial count (1) + final combine (1) = 4</code></pre>
+
+<h3>Mental shortcut</h3>
+<p>Walk the code top-to-bottom. For each op, ask: <em>does this need to move data?</em></p>
+<ul>
+  <li><strong>No</strong> → stay in current stage.</li>
+  <li><strong>Yes (wide)</strong> → close stage, start a new one.</li>
+  <li><strong>Join</strong> → SMJ adds 2 pre-shuffle stages; BHJ adds 1 tiny broadcast prep.</li>
+  <li><strong>Aggregating action</strong> at the end → +1 tiny final stage.</li>
+</ul>
+
+<h2 id="exercises">11. From-blank exercises (with answers)</h2>
+
+<h3>Exercise 1 — groupBy + orderBy + write</h3>
+<pre><code>df = spark.read.json("~/Downloads/finflow/crypto/*.jsonl")
+result = (df.filter(col("symbol").isin(["BTC", "ETH"]))
+            .withColumn("price_usd_k", col("price") / 1000)
+            .groupBy("symbol")
+            .agg(avg("price_usd_k").alias("avg_price_k"),
+                 count("*").alias("tick_count"))
+            .orderBy("symbol"))
+result.write.parquet("~/Downloads/finflow/output/")</code></pre>
+
+<p><strong>Answer:</strong></p>
+<div class="stage-diagram">Stage 1: read JSONL → filter → withColumn → groupBy partial agg → SHUFFLE
+Stage 2: post-shuffle agg → orderBy partial → SHUFFLE
+Stage 3: post-shuffle sort → write parquet</div>
+<ul>
+  <li><strong>1 Job</strong> (triggered by <code>write.parquet</code>; <code>read.json</code> may add a tiny schema-inference job).</li>
+  <li><strong>3 stages</strong>, 2 shuffles.</li>
+  <li><code>count("*")</code> inside <code>agg</code> is the lazy aggregate function — NOT the action.</li>
+  <li><code>orderBy</code> is a shuffle. People forget this.</li>
+</ul>
+
+<h3>Exercise 2 — with a join</h3>
+<pre><code>crypto = spark.read.json("~/Downloads/finflow/crypto/*.jsonl")
+coin_meta = spark.read.csv("~/Downloads/finflow/coin_metadata.csv", header=True)
+
+result = (crypto.join(coin_meta, on="symbol", how="inner")
+                .filter(col("market_cap_tier") == "large")
+                .withColumn("price_usd_k", col("price") / 1000)
+                .groupBy("symbol")
+                .agg(avg("price_usd_k").alias("avg_price_k"),
+                     count("*").alias("tick_count")))
+total = result.count()</code></pre>
+
+<p><strong>Answer (SortMergeJoin case):</strong></p>
+<div class="stage-diagram">Stage 0: read crypto.jsonl + shuffle-write for join                (~200 tasks)
+Stage 1: read coin_meta.csv + shuffle-write for join              (1 task, parallel w/ 0)
+Stage 2: join + filter + withColumn + groupBy partial + shuffle   (200 tasks)
+Stage 3: final agg + count action                                  (1 task)</div>
+<ul>
+  <li><strong>1 Job</strong> (the action is <code>result.count()</code>).</li>
+  <li><strong>4 stages</strong> if SortMergeJoin; ~2–3 if Spark auto-broadcasts coin_meta (likely, since it's tiny).</li>
+  <li>Partitions are <strong>per-stage</strong>, not summed across stages.</li>
+</ul>
+
+<h3>Self-check</h3>
+<pre><code>df.filter(...).groupBy("a").count().orderBy("a").show()</code></pre>
+<p><strong>3 stages.</strong> Walkthrough:</p>
+<div class="stage-diagram">Stage 0: read df → filter → groupBy partial agg → SHUFFLE
+Stage 1: post-shuffle final agg (count) → orderBy partial → SHUFFLE
+Stage 2: post-shuffle sort → show</div>
+<p>The <code>.count()</code> on GroupedData is lazy (shorthand for <code>agg(count(*))</code>). The action is <code>.show()</code>, which doesn't add a final combine stage.</p>
+
+<h2 id="bytes">12. Sidebar — byte calculations in Spark configs</h2>
+<pre><code>1 KB = 1024 bytes
+1 MB = 1024 × 1024 bytes = 1,048,576 bytes
+100 MB = 100 × 1024 × 1024 = 104,857,600 bytes
+
+spark.conf.set("spark.sql.autoBroadcastJoinThreshold", 100 * 1024 * 1024)</code></pre>
+<p>Spark also accepts string forms with units (cleaner):</p>
+<pre><code>spark.conf.set("spark.sql.autoBroadcastJoinThreshold", "100m")
+spark.conf.set("spark.executor.memory", "4g")
+spark.conf.set("spark.sql.files.maxPartitionBytes", "128m")</code></pre>
+
+<h2 id="takeaways">13. Interview takeaways</h2>
+<ol>
+  <li><strong>Minimize shuffles</strong> — the whole game.</li>
+  <li><strong>Broadcast small joins</strong> — default threshold 10 MB is conservative. Force <code>broadcast()</code> when in doubt.</li>
+  <li><strong>Know the <code>count</code> trap</strong> — three different <code>count</code>s; only <code>df.count()</code> is an action.</li>
+  <li><strong>Stage boundary = shuffle.</strong> SMJ adds 2 pre-shuffle stages; BHJ adds 1 tiny broadcast prep.</li>
+  <li><strong>Partitions are per-stage</strong>, not summed.</li>
+  <li><strong>Spark UI is your debugger.</strong> First place to look when a job is slow.</li>
+  <li><strong>Default <code>spark.sql.shuffle.partitions</code> = 200</strong> — almost always wrong. Tune per workload (or rely on AQE in Spark 3+).</li>
+</ol>
+
+<hr>
+
+<h2 id="partitions">14. Partitions — how many, how they're set, how to change them</h2>
+
+<p>A <strong>partition</strong> is the unit of parallelism in Spark. Each task processes exactly one partition. More partitions = more tasks = more parallelism (up to the number of cores available).</p>
+
+<h3>How partition count is decided at read time</h3>
+<p>When you call <code>spark.read.json("file.jsonl")</code>, Spark decides partitions based on:</p>
+<ul>
+  <li><strong>Number of input files</strong> — each file gets at least 1 partition.</li>
+  <li><strong><code>spark.sql.files.maxPartitionBytes</code></strong> — default <code>128 MB</code>. Files larger than this get split into multiple partitions.</li>
+  <li><strong><code>spark.sql.files.openCostInBytes</code></strong> — a small-file coalescing hint (default 4 MB). Spark merges tiny files into the same partition up to this cost.</li>
+</ul>
+<p>Practical result: a small local JSONL (a few KB) → <strong>1 partition</strong>.</p>
+
+<h3>Checking partition count</h3>
+<pre><code>df = spark.read.json("data/sample.jsonl")
+print(df.rdd.getNumPartitions())   # prints 1 for a small file</code></pre>
+<div class="warn">
+  <strong>Caution:</strong> <code>df.rdd</code> forces Spark to convert the DataFrame to a low-level RDD, bypassing Catalyst/Tungsten optimizations. Fine for learning and small files. Avoid in production hot paths on large DataFrames — the conversion adds overhead.
+</div>
+
+<h3>Changing partition count</h3>
+<pre><code># repartition — full shuffle, can increase OR decrease, hits exactly N partitions
+df_repartitioned = df.repartition(8)
+
+# coalesce — no shuffle, can only DECREASE, merges existing partitions locally
+df_smaller = df.coalesce(1)   # common before writing to avoid 200-file output
+
+# Check after
+print(df_repartitioned.rdd.getNumPartitions())  # 8
+print(df_smaller.rdd.getNumPartitions())         # 1</code></pre>
+
+<table>
+  <thead><tr><th>Method</th><th>Shuffle?</th><th>Can increase?</th><th>When to use</th></tr></thead>
+  <tbody>
+    <tr><td><code>repartition(n)</code></td><td>Yes</td><td>Yes</td><td>Need exactly N partitions; rebalancing skewed data</td></tr>
+    <tr><td><code>coalesce(n)</code></td><td>No</td><td>No</td><td>Reducing before a write to avoid tiny output files</td></tr>
+  </tbody>
+</table>
+
+<h3>Shuffle partitions vs input partitions</h3>
+<p>These are two separate settings:</p>
+<ul>
+  <li><strong>Input partitions</strong> — set at read time by file size / <code>maxPartitionBytes</code>.</li>
+  <li><strong>Shuffle partitions</strong> — how many partitions result from a <code>groupBy</code>, <code>join</code>, or any wide transformation. Controlled by <code>spark.sql.shuffle.partitions</code>, default <strong>200</strong>. Almost always wrong — 200 shuffle partitions on a 10 MB dataset creates 200 tiny tasks; 200 on a 10 TB dataset creates 200 massive ones. AQE (Spark 3+) adjusts this automatically at runtime.</li>
+</ul>
+
+<hr>
+
+<h2 id="catalyst-tungsten">15. Catalyst optimizer + Tungsten execution engine</h2>
+
+<p>When you write a DataFrame query or Spark SQL, two engines run before a single byte of your data is touched.</p>
+
+<h3>Catalyst — the query optimizer (logical layer)</h3>
+<p>Catalyst transforms your query through four phases:</p>
+<ol>
+  <li><strong>Parse</strong> — your DataFrame operations or SQL string → an unresolved logical plan (AST).</li>
+  <li><strong>Analyze</strong> — resolve column names + types against the catalog → resolved logical plan.</li>
+  <li><strong>Optimize</strong> — apply rule-based rewrites to the logical plan:
+    <ul>
+      <li><strong>Predicate pushdown</strong> — <code>df.filter(col &gt; 5).join(other)</code> → filter runs <em>before</em> the join, so fewer rows join.</li>
+      <li><strong>Column pruning</strong> — <code>select("a","b")</code> → Spark never reads column <code>c</code> off disk at all.</li>
+      <li><strong>Constant folding</strong> — <code>1 + 1</code> in a query becomes <code>2</code> at plan time, not per-row.</li>
+    </ul>
+  </li>
+  <li><strong>Physical planning</strong> — generate multiple physical plans (e.g. BroadcastHashJoin vs SortMergeJoin), pick cheapest via cost model → physical plan.</li>
+</ol>
+<p>This is why <code>df.explain(True)</code> shows four plans: <em>Parsed → Analyzed → Optimized → Physical</em>.</p>
+
+<h3>Tungsten — the execution engine (physical layer)</h3>
+<p>Tungsten takes the physical plan from Catalyst and executes it with three key techniques:</p>
+<ul>
+  <li><strong>Off-heap memory management</strong> — Spark stores data as raw bytes directly in native memory, bypassing the JVM heap and its garbage collector. No GC pauses on large datasets.</li>
+  <li><strong>Cache-aware computation</strong> — data is stored in columnar binary format, which fits CPU L1/L2 cache lines. Sequential memory access is orders of magnitude faster than random pointer chasing through Java objects.</li>
+  <li><strong>Whole-stage code generation (WSCG)</strong> — instead of interpreting each operator (filter → project → aggregate) one row at a time, Tungsten compiles the <em>entire pipeline</em> into a single tight Java bytecode loop. One loop, no virtual method dispatch, no per-operator overhead. You can see this in <code>explain()</code> output as <code>*(1) Project</code> — the <code>*</code> means that stage was whole-stage codegen'd.</li>
+</ul>
+
+<h3>Why this matters for you</h3>
+<div class="tip">
+  <strong>Interview one-liner:</strong> Catalyst = smart query planner (rewrites your query before it runs). Tungsten = efficient executor (runs it fast with off-heap memory + compiled bytecode). Together they're why DataFrame/SQL is dramatically faster than raw RDD code — Catalyst optimizes the plan, Tungsten executes without JVM overhead.
+</div>
+<p>Raw RDD code skips Catalyst entirely. Spark can't push predicates or prune columns through arbitrary Python/Scala lambdas. Always prefer DataFrame API or Spark SQL over RDDs unless you have a very specific reason.</p>
+
+<hr>
+
+<h2 id="shuffles">16. Shuffles — what actually happens</h2>
+
+<p>A <strong>shuffle</strong> happens whenever Spark needs to regroup data across partitions — after a <code>groupBy</code>, <code>join</code>, <code>orderBy</code>, or <code>distinct</code>. It is the most expensive operation in Spark.</p>
+
+<h3>Why shuffles are needed</h3>
+<p>Imagine you have transactions spread across 4 executors, and you want <code>groupBy("symbol").sum("amount")</code>. All BTC rows are on different executors — you can't sum them without first pulling them together onto one machine.</p>
+
+<h3>What happens step by step</h3>
+<ol>
+  <li><strong>Map side (shuffle write)</strong> — each task hashes its rows by the group/join key and writes them to local disk, sorted by target partition. This is the <em>shuffle write</em>.</li>
+  <li><strong>Network transfer</strong> — each executor pulls the partitions it's responsible for from other executors' local disks. This is the <em>shuffle read</em>.</li>
+  <li><strong>Reduce side</strong> — each task now has all rows for its keys co-located, so it can compute the final result (sum, sort, join, etc.).</li>
+</ol>
+
+<pre><code>Before shuffle — groupBy("symbol"):
+  Executor 1: BTC $50k, ETH $3k
+  Executor 2: BTC $51k, SOL $100
+
+After shuffle:
+  Executor 1: ALL BTC rows → sum = $101k
+  Executor 2: ALL ETH rows → sum = $3k
+  Executor 3: ALL SOL rows → sum = $100</code></pre>
+
+<h3>Why shuffles are expensive</h3>
+<ul>
+  <li><strong>Disk I/O</strong> — shuffle writes go to local disk first</li>
+  <li><strong>Network I/O</strong> — data moves between executors over the network</li>
+  <li><strong>Stage barrier</strong> — the next stage cannot start until ALL shuffle writes from the current stage are complete</li>
+</ul>
+
+<h3>How to reduce shuffle cost</h3>
+<table>
+  <thead><tr><th>Problem</th><th>Solution</th></tr></thead>
+  <tbody>
+    <tr><td>Joining a small table with a large one</td><td>Broadcast join — send small table to every executor, no shuffle needed</td></tr>
+    <tr><td>Too many tiny partitions post-shuffle</td><td>AQE coalesces them automatically (Spark 3+)</td></tr>
+    <tr><td>One partition is huge (skew)</td><td>AQE skew join handling, or manual salting</td></tr>
+    <tr><td>groupBy key already partitioned</td><td>Pre-partition by key with <code>repartition(n, col)</code> — removes the shuffle entirely</td></tr>
+  </tbody>
+</table>
+
+<div class="tip">
+  <strong>Interview answer to "why is my Spark job slow?"</strong><br>
+  Open Spark UI → check shuffle read/write bytes. If they're large relative to input size, you have a shuffle-heavy plan. Fix: broadcast joins for small tables, pre-partition by join key, or let AQE handle it.
+</div>
+
+<hr>
+<hr>
+
+<h2 id="join-strategies">17. Join strategies — BHJ vs SMJ vs SHJ</h2>
+
+<p>Spark picks a join strategy automatically based on table sizes. Knowing when each fires is a Databricks interview staple.</p>
+
+<h3>Broadcast Hash Join (BHJ)</h3>
+<p><strong>When:</strong> one table is small enough to fit in memory — default threshold <strong>10MB</strong> (<code>spark.sql.autoBroadcastJoinThreshold</code>).</p>
+<p><strong>What happens:</strong> the small table is copied in full to every executor. Each executor joins locally — no data moves across the network.</p>
+<pre><code># Spark picks BHJ automatically if exchange_rates &lt; 10MB
+df_transactions.join(df_exchange_rates, "currency")
+
+# Force it:
+from pyspark.sql import functions as F
+df_transactions.join(F.broadcast(df_exchange_rates), "currency")
+
+# Raise the threshold:
+spark.conf.set("spark.sql.autoBroadcastJoinThreshold", 50 * 1024 * 1024)  # 50MB</code></pre>
+<p><strong>Stage count:</strong> 1 — no shuffle needed.</p>
+<p><strong>Why no shuffle:</strong> normally a shuffle exists because matching keys are on different machines. BHJ eliminates the problem by putting the entire small table on every machine — matches are always local.</p>
+
+<h3>Sort-Merge Join (SMJ)</h3>
+<p><strong>When:</strong> both tables are large (above broadcast threshold).</p>
+<p><strong>What happens:</strong> both sides are shuffled on the join key, sorted within each partition, then merged row by row.</p>
+<pre><code>Stage 1: shuffle + sort left side by join key
+Stage 2: shuffle + sort right side by join key
+Stage 3: merge join — now co-located and sorted</code></pre>
+<p><strong>Stage count:</strong> 3+ — two pre-shuffle stages (one per side) + merge stage. Most expensive join.</p>
+
+<h3>Shuffle Hash Join (SHJ)</h3>
+<p><strong>When:</strong> one side is bigger than broadcast threshold but small enough to build a hash table in memory.</p>
+<p>Smaller side is shuffled and built into a hash map; larger side streams through. Less common — Spark prefers SMJ for large data because SMJ handles disk spill better.</p>
+
+<h3>Side by side</h3>
+<table>
+  <thead><tr><th></th><th>BHJ</th><th>SMJ</th><th>SHJ</th></tr></thead>
+  <tbody>
+    <tr><td>When</td><td>One side &lt; 10MB</td><td>Both large</td><td>Medium + large</td></tr>
+    <tr><td>Shuffle?</td><td>❌ None</td><td>✅ Both sides</td><td>✅ One side</td></tr>
+    <tr><td>Stages</td><td>1</td><td>3+</td><td>2</td></tr>
+    <tr><td>Speed</td><td>Fastest</td><td>Slowest</td><td>Middle</td></tr>
+  </tbody>
+</table>
+
+<div class="tip"><strong>Interview answer:</strong> "How do you speed up a slow join?" — Check if one side is small. If yes, force <code>broadcast()</code>. Eliminates the shuffle entirely and drops from 3 stages to 1.</div>
+
+<hr>
+
+<h2 id="aqe">18. AQE — Adaptive Query Execution</h2>
+
+<p>Before AQE, Spark made all decisions at <strong>plan time</strong> — before seeing real data. Estimates were often wrong. AQE (Spark 3.0+, on by default) re-optimizes <strong>at runtime</strong>, after each shuffle stage completes, using real partition statistics.</p>
+
+<h3>Thing 1 — Coalescing small shuffle partitions</h3>
+<pre><code>spark.sql.shuffle.partitions = 200 (default)
+Data after shuffle = 50MB total
+→ 200 × 0.25MB partitions = massive task overhead
+
+AQE fix: merges small partitions automatically
+→ 5 × 10MB partitions instead</code></pre>
+
+<h3>Thing 2 — Switching join strategy at runtime</h3>
+<pre><code>Plan time: table B has no stats → Spark assumes large → plans SMJ
+Runtime:   after shuffle, table B = 5MB → AQE switches to BHJ mid-execution</code></pre>
+<p>No resubmission needed. Happens transparently.</p>
+
+<h3>Thing 3 — Skew join handling</h3>
+<pre><code>Partition 0–2: 100MB each   ← normal
+Partition 3:   10GB          ← one key dominates (e.g. all "USD" rows)
+→ Task 3 takes 100× longer; all other tasks wait
+
+AQE fix: detects skewed partition → splits into sub-tasks → runs in parallel</code></pre>
+
+<h3>Summary table</h3>
+<table>
+  <thead><tr><th>Problem</th><th>AQE fix</th></tr></thead>
+  <tbody>
+    <tr><td>Too many tiny partitions post-shuffle</td><td>Merges them automatically</td></tr>
+    <tr><td>Wrong join strategy at plan time</td><td>Switches to better strategy at runtime</td></tr>
+    <tr><td>One partition has way more data (skew)</td><td>Splits the fat partition, runs sub-tasks in parallel</td></tr>
+  </tbody>
+</table>
+
+<pre><code>spark.conf.get("spark.sql.adaptive.enabled")   # "true" in Spark 3+</code></pre>
+
+<div class="tip"><strong>Interview one-liner:</strong> AQE re-plans after each shuffle using real data stats instead of estimates — fixes tiny partitions, wrong join type, and data skew automatically. On by default in Spark 3+.</div>
+
+<hr>
+
+<h2 id="caching">19. Caching</h2>
+
+<p>By default Spark recomputes a DataFrame from scratch every time you run an action on it. Caching stores the result so subsequent actions read from memory instead.</p>
+
+<pre><code>df.cache()         # shorthand for MEMORY_AND_DISK
+df.persist()       # same thing
+
+df.count()         # first action — data is cached HERE, not at cache()
+df.show()          # reads from cache ✅
+df.filter(...)     # reads from cache ✅
+
+df.unpersist()     # always free memory when done</code></pre>
+
+<div class="warn"><strong>Key gotcha:</strong> <code>cache()</code> is lazy — nothing is stored until the first action hits it. <code>df.cache()</code> alone does nothing.</div>
+
+<h3>Storage levels</h3>
+<table>
+  <thead><tr><th>Level</th><th>Where</th><th>Speed</th><th>Safe if RAM full?</th></tr></thead>
+  <tbody>
+    <tr><td>MEMORY_ONLY</td><td>RAM only</td><td>Fastest</td><td>❌ Evicted</td></tr>
+    <tr><td>MEMORY_AND_DISK</td><td>RAM, spills to disk</td><td>Fast</td><td>✅ Spills</td></tr>
+    <tr><td>DISK_ONLY</td><td>Disk only</td><td>Slow</td><td>✅ Always there</td></tr>
+    <tr><td>MEMORY_ONLY_SER</td><td>RAM, serialized</td><td>Medium</td><td>❌ Evicted</td></tr>
+  </tbody>
+</table>
+
+<h3>When to cache vs not</h3>
+<table>
+  <thead><tr><th>Cache ✅</th><th>Don't cache ❌</th></tr></thead>
+  <tbody>
+    <tr><td>Same DataFrame used in multiple actions</td><td>DataFrame used only once</td></tr>
+    <tr><td>Iterative ML training loops</td><td>DataFrame larger than executor RAM</td></tr>
+    <tr><td>Interactive exploration with many filters</td><td>Streaming DataFrames</td></tr>
+  </tbody>
+</table>
+
+<div class="tip"><strong>Interview one-liner:</strong> Cache when the same DataFrame is reused in multiple actions — avoids recomputing from scratch. Always unpersist when done. Remember: cache() is lazy.</div>
+
+<hr>
+
+<h2 id="salting">20. Salting — manual skew fix</h2>
+
+<h3>The problem</h3>
+<pre><code>orders join customers on customer_id
+customer_id = 'AMAZON' has 24M rows — 80% of all data
+
+Executor 1: AMAZON → 10M rows  ← HOT PARTITION
+Executor 2: others → 50K rows
+Executor 3: others → 30K rows
+→ job crawls waiting for Executor 1 (straggler problem)</code></pre>
+<p>AQE handles this automatically in Spark 3+. But if AQE is off, or you want manual control, <strong>salting</strong> is the fix.</p>
+
+<h3>Case 1 — Join salting (large table + small table)</h3>
+<p>Two steps: salt the large table, explode the small table to match.</p>
+<pre><code>SALT_BUCKETS = 10
+
+# Step 1 — salt the LARGE (skewed) table
+orders_salted = orders_df \
+    .withColumn("salt", (F.rand() * SALT_BUCKETS).cast("int")) \
+    .withColumn("salted_key", F.concat(F.col("customer_id"), F.lit("_"), F.col("salt")))
+# AMAZON → AMAZON_3, AMAZON_7, etc. — randomly spread across 10 partitions
+
+# Step 2 — explode the SMALL (lookup) table to match ALL salt values
+customers_salted = customers_df \
+    .withColumn("salt_array", F.array([F.lit(i) for i in range(SALT_BUCKETS)])) \
+    .withColumn("salt", F.explode("salt_array")) \
+    .withColumn("salted_key", F.concat(F.col("customer_id"), F.lit("_"), F.col("salt")))
+# AMAZON (1 row) → AMAZON_0, AMAZON_1, ... AMAZON_9 (10 rows)
+
+# Step 3 — join on salted key
+result = orders_salted.join(customers_salted, on="salted_key", how="inner") \
+                      .drop("salt", "salt_array", "salted_key")</code></pre>
+
+<p><strong>Why explode the small table?</strong> Orders now have AMAZON_3, AMAZON_7 etc. Customers still only has AMAZON. Without exploding, there's no matching row — join produces nulls. You replicate the small table so every salted key has a match.</p>
+
+<pre><code>BEFORE explode:           AFTER explode:
+─────────────────         ─────────────────────
+AMAZON | [0,1..9]   →    AMAZON_0
+                          AMAZON_1
+                          ...
+                          AMAZON_9</code></pre>
+
+<h3>Case 2 — groupBy salting (aggregation only)</h3>
+<pre><code># Step 1 — salted groupBy
+df_salted = df.withColumn("salt", (F.rand() * 10).cast("int")) \
+              .withColumn("salted_key", F.concat(F.col("country"), F.lit("_"), F.col("salt")))
+partial = df_salted.groupBy("salted_key").agg(F.sum("amount").alias("partial_sum"))
+
+# Step 2 — strip salt, re-aggregate to get final result
+final = partial.withColumn("country", F.split(F.col("salted_key"), "_")[0]) \
+               .groupBy("country").agg(F.sum("partial_sum").alias("total"))</code></pre>
+
+<h3>How to detect skew — Spark UI</h3>
+<p>Spark UI → Stages → click slow stage → Summary Metrics:</p>
+<pre><code>Shuffle Read Size:
+  Min:    80 MB
+  Median: 100 MB   ← normal partition
+  Max:    2.1 GB   ← hot partition
+  P75:    110 MB
+
+Skew ratio = Max / Median = 2100 / 100 = 21x → apply salting</code></pre>
+<p>Also check programmatically:</p>
+<pre><code>orders_df.groupBy(F.spark_partition_id()).count().orderBy(F.desc("count")).show(10)</code></pre>
+
+<h3>How to size salt buckets</h3>
+<table>
+  <thead><tr><th>Signal</th><th>Formula</th></tr></thead>
+  <tbody>
+    <tr><td>Skew ratio from Spark UI</td><td>SALT = Max / Median = 2100MB / 100MB = 21</td></tr>
+    <tr><td>Target partition size (~200MB)</td><td>SALT = Max / 200MB = 2100 / 200 = 10</td></tr>
+    <tr><td>Small table memory budget</td><td>If small_table × SALT > executor RAM → reduce SALT</td></tr>
+  </tbody>
+</table>
+<p><strong>Rule:</strong> start conservative (SALT=10), check Spark UI, tune up if skew persists. Use Median to detect skew, 200MB target to size the fix.</p>
+
+<h3>Salting vs AQE skew handling</h3>
+<table>
+  <thead><tr><th></th><th>Salting</th><th>AQE skew join</th></tr></thead>
+  <tbody>
+    <tr><td>Manual or automatic</td><td>Manual</td><td>Automatic</td></tr>
+    <tr><td>Spark version</td><td>Any</td><td>Spark 3+ only</td></tr>
+    <tr><td>Small table explode needed (join)</td><td>✅ Yes</td><td>❌ No</td></tr>
+    <tr><td>Use when</td><td>AQE off, or fine-grained control</td><td>AQE on (default)</td></tr>
+  </tbody>
+</table>
+
+<div class="tip">
+  <strong>FAANG interview answer:</strong> "Spark UI showed one task taking 48 min with shuffle read of 2GB vs median 100MB — skew ratio ~20x. Hot key was a mega-merchant. Applied join salting with 20 buckets on the fact table, exploded the dimension table. Job time dropped from 50 min to 6 min."<br><br>
+  Observation → evidence → decision → result. That's the chain they want.
+</div>
+
+<hr>
+
+<h2 id="salting-handson">21. Salting — Hands-On Lab (2026-06-08)</h2>
+
+<p>Full end-to-end exercise: generate skewed data, observe skew in Spark UI, fix with salting, observe improvement.</p>
+
+<h3>Setup — configs and why</h3>
+<pre><code>spark = SparkSession.builder \
+    .config("spark.sql.shuffle.partitions", "10")      # low → skew is obvious (not buried across 200 partitions)
+    .config("spark.sql.adaptive.enabled", "false")     # AQE OFF → Spark can't auto-fix skew; we must fix it manually
+    .config("spark.sql.autoBroadcastJoinThreshold", "-1")  # force SMJ → merchants (5 rows) would normally be
+    .getOrCreate()                                         # auto-broadcast (BHJ), masking skew via partial agg;
+                                                           # -1 forces shuffle join so all rows move on merchant_id</code></pre>
+
+<div class="warn">
+  <strong>BHJ masks skew.</strong> With default settings, Spark broadcasts the 5-row merchants table — each executor gets a full copy and filters locally. No shuffle happens. Skew is invisible in the UI because there are no straggler shuffle tasks. You must disable broadcast to see the problem.<br><br>
+  <code>autoBroadcastJoinThreshold=-1</code> forces Sort-Merge Join: both tables shuffle on <code>merchant_id</code>. MEGACORP's 40K rows all land in one partition → straggler visible.
+</div>
+
+<h3>Dataset</h3>
+<pre><code># transactions_skewed.jsonl — 50,000 rows
+weights = [0.80, 0.05, 0.07, 0.05, 0.03]   # MEGACORP gets 80%
+merchant = random.choices(merchant_ids, weights=weights, k=1)[0]
+
+# merchants.jsonl — 5 rows (small lookup table)
+# MEGACORP, SMALLBIZ, TECHCO, FASTFOOD, LUXESHOP</code></pre>
+
+<h3>Part A — Skewed job (no fix)</h3>
+<pre><code>skewed_result = (
+    txns.join(merchants, on="merchant_id", how="inner")
+        .groupBy("merchant_id", "category")
+        .agg(F.count("*"), F.sum("amount"), F.avg("amount"))
+        .orderBy(F.desc("txn_count"))
+)</code></pre>
+
+<p><strong>Spark UI — Summary Metrics for the shuffle stage:</strong></p>
+<table>
+  <thead><tr><th>Metric</th><th>Min</th><th>Median</th><th>Max</th></tr></thead>
+  <tbody>
+    <tr><td>Shuffle Read Size / Records</td><td>~0 B / 0</td><td>~0 B / 0</td><td><strong>355 KiB / 41,468</strong></td></tr>
+  </tbody>
+</table>
+<p>5 out of 10 partitions got zero rows. One partition received 41,468 rows (all MEGACORP). That task ran alone while 9 other tasks were idle.</p>
+
+<h3>Detecting skew programmatically</h3>
+<pre><code># Ex 1 — show row count per partition after repartition on merchant_id
+spark_partition_counts = (
+    txns.repartition(10, "merchant_id")
+        .withColumn("partition_id", F.spark_partition_id())
+        .groupBy("partition_id")
+        .count()
+        .orderBy(F.desc("count"))
+)
+# Result: one partition ~40,000 rows, others ~2,500 or less</code></pre>
+
+<h3>Part B — Salted join (fix)</h3>
+<pre><code>SALT_BUCKETS = 10
+
+# Step 1 — salt the large (skewed) table
+txns_salted = (
+    txns
+    .withColumn("salt", (F.rand() * SALT_BUCKETS).cast("int"))
+    .withColumn("salted_key", F.concat_ws("_", F.col("merchant_id"), F.col("salt")))
+)
+# MEGACORP → MEGACORP_0, MEGACORP_3, MEGACORP_7 ... spread randomly
+
+# Step 2 — explode the small (lookup) table to match all salt values
+merchants_salted = (
+    merchants
+    .withColumn("salt_array", F.array([F.lit(i) for i in range(SALT_BUCKETS)]))
+    .withColumn("salted_key", F.explode(F.col("salt_array")))
+    .withColumn("salted_key", F.concat_ws("_", F.col("merchant_id"), F.col("salted_key")))
+)
+# MEGACORP (1 row) → MEGACORP_0, MEGACORP_1, ..., MEGACORP_9 (10 rows)
+# merchants_salted.count() = 50 (5 merchants × 10 buckets)
+
+# Step 3 — join, dropping duplicate merchant_id from small table
+salted_result = (
+    txns_salted
+    .join(merchants_salted.drop("merchant_id"), on="salted_key", how="inner")
+    .groupBy("merchant_id", "category")
+    .agg(F.count("*").alias("txn_count"), F.sum("amount").alias("total_amount"), F.avg("amount").alias("avg_amount"))
+    .orderBy(F.desc("txn_count"))
+    .show()
+)</code></pre>
+
+<h3>Part B — Spark UI metrics (shuffle stage)</h3>
+<table>
+  <thead><tr><th>Metric</th><th>Min</th><th>Median</th><th>Max</th></tr></thead>
+  <tbody>
+    <tr><td>Part A (no salt)</td><td>~0 B / 0</td><td>~0 B / 0</td><td><strong>355 KiB / 41,468</strong></td></tr>
+    <tr><td>Part B (salted)</td><td>6.1 KiB / 579</td><td>50.2 KiB / 4,890</td><td><strong>148.8 KiB / 12,632</strong></td></tr>
+  </tbody>
+</table>
+<p>Max dropped from 41,468 rows to 12,632 — ~3.3x improvement. All partitions now have data (min 579 rows vs 0).</p>
+
+<h3>Why max wasn't perfectly even (~4K expected, 12K actual)</h3>
+<pre><code># With 10 salt buckets and 10 Spark partitions:
+# Spark hashes each salted_key to a partition using murmur3
+# "MEGACORP_0" ... "MEGACORP_9" are 10 keys → don't hash to 10 different partitions
+# Some partitions receive 2-3 MEGACORP keys by hash collision
+# 3 MEGACORP keys × ~4,000 rows each = ~12,000 rows → matches observed max
+
+# Fix: use more buckets than partitions
+SALT_BUCKETS = 20  # or 30
+# Now 20 MEGACORP keys across 10 partitions → ~2 keys/partition on average
+# Variance drops significantly, max closer to ~8K</code></pre>
+
+<div class="tip"><strong>Rule:</strong> use 2–3× more salt buckets than shuffle partitions to reduce hash collision probability.</div>
+
+<h3>Bugs found during the exercise</h3>
+<table>
+  <thead><tr><th>Bug</th><th>Wrong</th><th>Correct</th><th>Why</th></tr></thead>
+  <tbody>
+    <tr>
+      <td>cast type</td>
+      <td><code>.cast(int)</code></td>
+      <td><code>.cast("int")</code></td>
+      <td>Python's <code>int</code> type is not a Spark type string. Spark expects <code>"int"</code> or <code>IntegerType()</code>.</td>
+    </tr>
+    <tr>
+      <td>F.array misuse</td>
+      <td><code>F.array(F.lit([0,1,...9]))</code></td>
+      <td><code>F.array([F.lit(i) for i in range(N)])</code></td>
+      <td>First form passes a Python list as a single literal — creates one ArrayType column containing one element (a list). Second form passes N separate Column objects — creates an ArrayType column with N elements.</td>
+    </tr>
+    <tr>
+      <td>Missing parenthesis</td>
+      <td><code>merchants.withColumn("x", F.array([...]).withColumn(...))</code></td>
+      <td><code>merchants.withColumn("x", F.array([...]))<br>.withColumn(...)</code></td>
+      <td>Without closing the first <code>withColumn</code>, Python calls <code>.withColumn()</code> on the Column returned by <code>F.array()</code> — Column has no such method → AttributeError at runtime.</td>
+    </tr>
+    <tr>
+      <td>Ambiguous column after join</td>
+      <td><code>txns_salted.join(merchants_salted, ...)</code><br>then <code>groupBy("merchant_id")</code></td>
+      <td><code>merchants_salted.drop("merchant_id")</code> before join</td>
+      <td>Both tables have <code>merchant_id</code>. After the join, Spark sees two columns with the same name → <code>AMBIGUOUS_REFERENCE</code>. Drop the duplicate from the smaller table before joining.</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3>Key concepts recap</h3>
+<ul>
+  <li><strong>F.rand()</strong> — returns a random decimal 0.0–1.0 per row; multiply by N then cast to int gives 0 to N-1</li>
+  <li><strong>F.lit(x)</strong> — wraps a Python scalar as a Spark Column (needed inside <code>F.array()</code>)</li>
+  <li><strong>F.array([F.lit(i) for i in range(N)])</strong> — creates an ArrayType column with N integer elements per row</li>
+  <li><strong>F.explode()</strong> — turns one row with an array of N elements into N rows</li>
+  <li><strong>F.concat_ws("_", col1, col2)</strong> — concatenates columns with separator; handles int columns without manual cast</li>
+  <li><strong>random.choices(population, weights, k)</strong> — weighted sampling with replacement; <code>k=1</code> returns a list, <code>[0]</code> unpacks it</li>
+  <li><strong>json.dumps(dict)</strong> — converts Python dict to JSON text string for writing to file (JSONL format)</li>
+</ul>
+
+<hr>
+
+<h2 id="photon">22. Photon — Databricks Vectorized Execution Engine</h2>
+
+<h3>Why Photon exists — JVM limitations</h3>
+<table>
+  <thead><tr><th>JVM problem</th><th>Impact</th></tr></thead>
+  <tbody>
+    <tr><td>GC pauses</td><td>Stop-the-world collection interrupts execution</td></tr>
+    <tr><td>Object overhead</td><td>Every Java object has a 16-byte header; 1M integers wastes significant RAM</td></tr>
+    <tr><td>JIT warmup</td><td>Bytecode compiled to native at runtime; cold starts are slow</td></tr>
+  </tbody>
+</table>
+<p>Tungsten + WSCG already improves on the JVM baseline (generates bytecode instead of interpreting row-by-row), but it's still JVM.</p>
+
+<h3>What Photon is</h3>
+<p>Photon is a <strong>C++ vectorized execution engine</strong> built by Databricks. It replaces JVM execution for compatible operations:</p>
+<ul>
+  <li>Same DataFrame / SQL API — <strong>zero code changes</strong></li>
+  <li>Enabled at cluster level (checkbox in Databricks cluster config)</li>
+  <li>Available on Databricks Runtime 9.1+</li>
+</ul>
+
+<h3>Vectorized execution — the core idea</h3>
+<pre><code># Row-at-a-time (Spark / Tungsten)
+process row 1 → process row 2 → process row 3 ...
+# one function call per row — overhead adds up at 1M+ rows
+
+# Vectorized (Photon)
+load 1,024 values of column "amount" into CPU registers
+apply operation to ALL 1,024 in ONE CPU instruction (SIMD)
+move to next batch of 1,024</code></pre>
+
+<p><strong>SIMD</strong> (Single Instruction Multiple Data): modern CPUs can add 4–8 floats in a single CPU cycle. Photon exploits this; JVM cannot.</p>
+<p><strong>Key distinction:</strong> columnar storage is the <em>format</em> that enables vectorized execution (same-type data packed together loads cleanly into CPU registers). Vectorized is the <em>execution model</em> — processing a batch at once with SIMD. The two go together.</p>
+
+<h3>What Photon accelerates vs skips</h3>
+<table>
+  <thead><tr><th>Operation</th><th>Photon?</th></tr></thead>
+  <tbody>
+    <tr><td>Parquet / Delta scans</td><td>✅</td></tr>
+    <tr><td>Hash joins</td><td>✅</td></tr>
+    <tr><td>Aggregations (sum, count, avg)</td><td>✅</td></tr>
+    <tr><td>Sorts, shuffle</td><td>✅</td></tr>
+    <tr><td>Python UDFs</td><td>❌ — drops back to JVM (Photon fallback)</td></tr>
+    <tr><td>Pandas UDFs (Arrow)</td><td>❌</td></tr>
+    <tr><td>Some complex window functions</td><td>❌</td></tr>
+  </tbody>
+</table>
+
+<div class="warn"><strong>Photon fallback:</strong> if a step in your query hits a Python UDF, execution exits Photon for that step and re-enters JVM. The rest of the plan may resume Photon after. Minimize Python UDFs on hot paths to stay in Photon.</div>
+
+<h3>When Photon helps vs when it doesn't</h3>
+<table>
+  <thead><tr><th>Helps</th><th>Doesn't help</th></tr></thead>
+  <tbody>
+    <tr><td>CPU-bound: wide aggregations, large hash joins, heavy sorts</td><td>I/O-bound: bottleneck is slow disk or network — C++ can't make S3 faster</td></tr>
+    <tr><td>Long-running batch queries over large Delta tables</td><td>Queries dominated by Python UDFs</td></tr>
+  </tbody>
+</table>
+
+<h3>Photon vs Tungsten / WSCG</h3>
+<table>
+  <thead><tr><th></th><th>Tungsten + WSCG</th><th>Photon</th></tr></thead>
+  <tbody>
+    <tr><td>Language</td><td>JVM bytecode (generated)</td><td>C++ native</td></tr>
+    <tr><td>Execution model</td><td>Row-at-a-time (fused)</td><td>Vectorized batches (SIMD)</td></tr>
+    <tr><td>GC exposure</td><td>Yes (JVM)</td><td>No</td></tr>
+    <tr><td>Available on</td><td>Open-source Spark</td><td>Databricks Runtime only</td></tr>
+    <tr><td>Code changes needed</td><td>None</td><td>None</td></tr>
+  </tbody>
+</table>
+
+<div class="tip">
+  <strong>Interview one-liner:</strong> "Photon is Databricks' C++ vectorized execution engine. It replaces JVM/Tungsten for compatible operations, processing columnar batches with SIMD instead of row-at-a-time. No code changes — same API. 2–10x speedup on CPU-bound queries. Falls back to JVM for Python UDFs."
+</div>
+
+<hr>
+
+<h2 id="delta-log">23. Delta Lake — the transaction log (_delta_log)</h2>
+<p><em>Stage 2C, Session 1 — 2026-06-12. The single most-asked Databricks DE topic.</em></p>
+
+<h3>What a Delta table physically is</h3>
+<p>A Delta table is just <strong>two things in a folder</strong>:</p>
+<pre><code>my_table/
+├── _delta_log/                          ← the transaction log (the "brain")
+│   ├── 00000000000000000000.json        ← commit 0 (CREATE TABLE)
+│   ├── 00000000000000000001.json        ← commit 1 (first INSERT)
+│   ├── 00000000000000000002.json        ← commit 2 (UPDATE)
+│   ├── ...
+│   ├── 00000000000000000010.checkpoint.parquet  ← checkpoint at commit 10
+│   └── _last_checkpoint                 ← pointer to latest checkpoint
+├── part-00000-xxxx.parquet              ← data files (immutable!)
+├── part-00001-xxxx.parquet
+└── ...</code></pre>
+<p>The Parquet data files are <strong>immutable — never edited in place</strong>. An UPDATE doesn't modify a file; it writes a <em>new</em> file with the changed rows and records in the log "old file removed, new file added". This immutability is what makes time travel, ACID, and concurrent reads possible.</p>
+
+<h3>What's inside a commit JSON</h3>
+<p>Each numbered JSON file = one atomic commit = a list of <strong>actions</strong>:</p>
+<table>
+  <thead><tr><th>Action</th><th>Meaning</th></tr></thead>
+  <tbody>
+    <tr><td><code>add</code></td><td>"This Parquet file is now part of the table" — includes path, size, partition values, and <strong>min/max column stats</strong> (used for data skipping)</td></tr>
+    <tr><td><code>remove</code></td><td>"This file is no longer part of the table" — a <em>logical</em> delete; the physical file stays on disk until VACUUM</td></tr>
+    <tr><td><code>metaData</code></td><td>Schema, partition columns, table properties</td></tr>
+    <tr><td><code>protocol</code></td><td>Min reader/writer version required</td></tr>
+    <tr><td><code>commitInfo</code></td><td>Audit: operation type (WRITE/MERGE/DELETE), timestamp, user, engine</td></tr>
+  </tbody>
+</table>
+<p>Example — an UPDATE that touched one file:</p>
+<pre><code>{"commitInfo": {"operation": "UPDATE", "timestamp": 1718200000000}}
+{"remove": {"path": "part-00000-aaa.parquet", "deletionTimestamp": ...}}
+{"add": {"path": "part-00002-bbb.parquet", "size": 1048576,
+         "stats": "{\"minValues\":{\"amount\":10},\"maxValues\":{\"amount\":950}}"}}</code></pre>
+
+<h3>How a read works</h3>
+<ol>
+  <li>Open <code>_delta_log/</code>, read commits 0 → N in order</li>
+  <li>Play the actions forward: every <code>add</code> puts a file in the live set, every <code>remove</code> takes it out</li>
+  <li>The result — the set of files alive at version N — is the <strong>snapshot</strong></li>
+  <li>Read only those Parquet files (pruned further by min/max stats)</li>
+</ol>
+<div class="tip"><strong>Key mental model:</strong> the table's current state is not stored anywhere — it is <em>computed</em> by replaying the log. The log is the source of truth; Parquet files are just payload.</div>
+
+<h3>Checkpoints — why replay doesn't get slower forever</h3>
+<p>Replaying 100,000 JSON files would be brutal. So <strong>every 10th commit</strong> Delta writes a <code>.checkpoint.parquet</code> — the <em>entire table state</em> (all live files + metadata) collapsed into one Parquet file. A reader then does:</p>
+<ol>
+  <li>Read <code>_last_checkpoint</code> → "latest checkpoint is at version 30"</li>
+  <li>Load <code>00000...030.checkpoint.parquet</code> (one file = state at v30)</li>
+  <li>Replay only the JSON commits after 30 (31, 32, ... N)</li>
+</ol>
+<p>So a read is never more than ~10 JSON replays + 1 checkpoint load, no matter how old the table.</p>
+
+<h3>ACID via optimistic concurrency control (OCC)</h3>
+<p>Delta has <strong>no lock server</strong>. Writers don't coordinate up front — they assume conflicts are rare (hence "optimistic") and check at commit time:</p>
+<ol>
+  <li>Writer reads the latest snapshot, say version <strong>12</strong></li>
+  <li>Does all its work — writes new Parquet data files (invisible until committed)</li>
+  <li>Tries to commit by creating <code>00000...013.json</code> — using an atomic <strong>put-if-absent</strong> operation: it succeeds only if no file with that name exists yet</li>
+  <li>If another writer got 13 first: read commit 13, <strong>check for logical conflict</strong> with what it did, and if compatible, retry as commit 14. If truly conflicting → <code>ConcurrentModificationException</code></li>
+</ol>
+<p>Atomicity comes from the fact that <strong>a commit is one file creation</strong> — it either fully appears in the log or doesn't exist at all. Readers never see half a commit, and data files written by an uncommitted writer are invisible because no <code>add</code> action references them.</p>
+
+<h3>Which concurrent writes conflict?</h3>
+<table>
+  <thead><tr><th>Writer A / Writer B</th><th>Outcome</th></tr></thead>
+  <tbody>
+    <tr><td>Append + Append</td><td>✅ Both succeed — new files don't touch each other; loser just re-commits at the next version</td></tr>
+    <tr><td>Append + UPDATE/DELETE (different files)</td><td>✅ Usually fine after retry</td></tr>
+    <tr><td>UPDATE + UPDATE on the <strong>same files</strong></td><td>❌ Loser gets ConcurrentModificationException — it based its work on files the winner removed</td></tr>
+    <tr><td>Anything + schema change</td><td>❌ Conflict — snapshot's metaData changed underneath</td></tr>
+  </tbody>
+</table>
+<div class="warn"><strong>Contrast with a warehouse:</strong> Snowflake/Postgres use locks/MVCC managed by a server. Delta achieves ACID on dumb object storage (S3/ADLS) purely through the log protocol + atomic file creation. That difference — "how do you get ACID without a database server?" — is exactly what interviewers probe.</div>
+
+<h3>Interview one-liners</h3>
+<ul>
+  <li>"A Delta table is immutable Parquet files plus a transaction log. The log is the source of truth — current state is computed by replaying add/remove actions, accelerated by Parquet checkpoints every 10 commits."</li>
+  <li>"ACID comes from optimistic concurrency: writers prepare data invisibly, then commit by atomically creating the next numbered log file. Two appends both succeed; two updates to the same files — the loser detects the conflict on retry and throws."</li>
+  <li>"DELETE/UPDATE never modify Parquet in place — they write new files and logically remove old ones, which is also why time travel works."</li>
+</ul>
+
+<h3>Hands-on lab (Databricks CE)</h3>
+<pre><code># 1. Create a small Delta table at a Volume path (so you can inspect the log)
+path = "/Volumes/&lt;catalog&gt;/&lt;schema&gt;/&lt;volume&gt;/delta_lab/tx"
+spark.range(0, 1000).withColumnRenamed("id", "tx_id").write.format("delta").save(path)
+
+# 2. Look at the folder — count data files vs log files
+display(dbutils.fs.ls(path))
+display(dbutils.fs.ls(path + "/_delta_log"))
+
+# 3. Read commit 0 raw — find the add / metaData / commitInfo actions
+print(dbutils.fs.head(path + "/_delta_log/00000000000000000000.json"))
+
+# 4. Make 11 more commits (append loop) → watch the checkpoint appear at v10
+for i in range(11):
+    spark.range(i*10, i*10+10).withColumnRenamed("id", "tx_id") \
+        .write.format("delta").mode("append").save(path)
+display(dbutils.fs.ls(path + "/_delta_log"))   # spot 00000...010.checkpoint.parquet
+
+# 5. Audit trail
+display(spark.sql(f"DESCRIBE HISTORY delta.`{path}`"))</code></pre>
+
+<h3>From-blank checks (answer before reading back)</h3>
+<ol>
+  <li>You run <code>DELETE FROM tx WHERE tx_id &lt; 100</code>. Describe exactly what appears in the next commit JSON, and what happens to the old Parquet file.</li>
+  <li>A reader starts at version 12 while a writer commits version 13 mid-read. What does the reader see and why?</li>
+  <li>Two jobs both MERGE into the same table at the same time. Walk through the OCC steps that decide who wins.</li>
+  <li>Why does Delta write checkpoints as Parquet instead of JSON?</li>
+</ol>
+
+<hr>
+
+<h2 id="time-travel">24. Delta Lake — time travel, RESTORE, schema enforcement &amp; evolution</h2>
+
+<h3>Time travel — how it actually works</h3>
+<p>Because data files are immutable and <code>remove</code> is only logical, <strong>every historical version still physically exists</strong> (until VACUUM). Reading version N = replaying the log only up to commit N:</p>
+<ol>
+  <li>Find the latest checkpoint ≤ N</li>
+  <li>Load it, replay JSON commits from there up to exactly N</li>
+  <li>Resulting file set = the table as it was at version N</li>
+</ol>
+<pre><code>SELECT * FROM tx VERSION AS OF 12;
+SELECT * FROM tx TIMESTAMP AS OF '2026-06-10';          -- resolves to last version committed ≤ that time
+
+df = spark.read.format("delta").option("versionAsOf", 12).load(path)   -- PySpark</code></pre>
+<p><strong>RESTORE</strong> rolls a table back — but it does NOT delete history. It makes a <em>new</em> commit whose actions re-add the old files and remove the current ones:</p>
+<pre><code>RESTORE TABLE tx TO VERSION AS OF 12;   -- creates version N+1 that "looks like" v12</code></pre>
+<div class="warn"><strong>Time travel limits:</strong> you can only travel to versions whose data files still exist (VACUUM deletes them past retention, default 7 days) and whose log entries exist (log JSON cleanup after <code>delta.logRetentionDuration</code>, default 30 days). "Why can't I time travel to last month?" → VACUUM ate the files.</div>
+<p><strong>Use cases:</strong> debugging ("what did this row look like before yesterday's job?"), audit/compliance, reproducing ML training data, rollback after a bad write, diffing two versions.</p>
+
+<h3>Schema enforcement (on write)</h3>
+<p>Delta validates every write against the table's <code>metaData</code> schema and <strong>rejects</strong> writes whose schema doesn't match — extra columns, missing required types, incompatible type changes → <code>AnalysisException</code>. This is the opposite of a plain data lake, where any job can dump any shape of file into a folder and silently poison downstream readers. Enforcement is what makes the lakehouse "schema-on-write" like a warehouse.</p>
+
+<h3>Schema evolution (deliberate change)</h3>
+<table>
+  <thead><tr><th>Mechanism</th><th>What it allows</th></tr></thead>
+  <tbody>
+    <tr><td><code>.option("mergeSchema", "true")</code></td><td>Per-write opt-in: <strong>add new columns</strong> (and upcast e.g. int→long). Existing rows get NULL for new columns. Commits a new <code>metaData</code> action.</td></tr>
+    <tr><td><code>spark.databricks.delta.schema.autoMerge.enabled</code></td><td>Session-wide auto-merge — needed for schema evolution inside <strong>MERGE INTO</strong> (mergeSchema option doesn't apply to MERGE)</td></tr>
+    <tr><td><code>.option("overwriteSchema", "true")</code> + mode("overwrite")</td><td>Nuclear: replace the schema entirely (drop/rename/retype columns). Rewrites the table.</td></tr>
+    <tr><td><code>ALTER TABLE ... ADD COLUMN</code></td><td>Metadata-only — instant, no data rewrite</td></tr>
+  </tbody>
+</table>
+<div class="tip"><strong>Interview one-liner:</strong> "Enforcement is the default — bad writes are rejected at commit time. Evolution is opt-in per write with mergeSchema, which only allows safe additive changes; destructive changes need overwriteSchema and a rewrite. Schema lives in the transaction log's metaData action, so a schema change is itself a versioned commit."</div>
+
+<h2 id="optimize">25. Delta Lake — OPTIMIZE, Z-ORDER, VACUUM &amp; the small files problem</h2>
+
+<h3>The small files problem — why it exists and what it costs</h3>
+<p>Every commit writes new files. A streaming job committing every 30s, or an over-partitioned write (200 shuffle partitions × tiny data), produces thousands of KB-sized files. Costs:</p>
+<ul>
+  <li><strong>API/IO overhead:</strong> reading 10 GB as 10,000 × 1 MB files = 10,000 S3 GET requests + 10,000 file-open overheads, vs ~80 × 128 MB files. Each open has fixed latency — it dominates at small sizes.</li>
+  <li><strong>Driver/planning overhead:</strong> the snapshot tracks every file; more files = bigger log, slower planning, more tasks scheduled.</li>
+  <li><strong>Poor compression &amp; stats:</strong> Parquet compresses and encodes per file/row-group; tiny files compress badly and min/max stats prune worse.</li>
+</ul>
+
+<h3>OPTIMIZE — bin-packing compaction</h3>
+<pre><code>OPTIMIZE tx;                          -- coalesce small files into ~1 GB files
+OPTIMIZE tx WHERE date = '2026-06-12' -- only a partition (cheaper)</code></pre>
+<p>Reads many small files, writes few big ones, commits <code>remove</code> (small) + <code>add</code> (big). <strong>Data content is identical</strong> — it's a pure file-layout transaction, marked <code>dataChange=false</code> so streaming readers don't reprocess it.</p>
+<p><strong>Auto variants (table properties):</strong> <code>delta.autoOptimize.optimizeWrite</code> (shuffle before write to emit fewer, bigger files) and <code>delta.autoOptimize.autoCompact</code> (post-write mini-OPTIMIZE if too many small files accumulated).</p>
+
+<h3>Z-ORDER — multi-dimensional clustering</h3>
+<pre><code>OPTIMIZE tx ZORDER BY (customer_id, event_date);</code></pre>
+<p>During compaction, rows are reordered along a <strong>space-filling curve (Z-curve)</strong> over the chosen columns, so rows with similar values in ALL those columns land in the same files. Result: each file's min/max range for those columns is <em>narrow</em> → data skipping prunes far more files for filters on any of them.</p>
+<table>
+  <thead><tr><th>Z-ORDER helps</th><th>Z-ORDER doesn't help</th></tr></thead>
+  <tbody>
+    <tr><td>High-cardinality columns you filter on (customer_id, device_id)</td><td>Low-cardinality columns (country with 5 values) — partition instead</td></tr>
+    <tr><td>2–4 columns max — effectiveness drops per added column</td><td>Columns never used in WHERE/JOIN predicates</td></tr>
+    <tr><td>Point lookups / selective range filters</td><td>Full-table scans — nothing to prune</td></tr>
+  </tbody>
+</table>
+<p><strong>vs partitioning:</strong> partitioning physically separates directories — perfect pruning but disastrous with high cardinality (one tiny dir per value). Z-ORDER clusters <em>within</em> files — works fine on high-cardinality columns. Rule: partition by low-cardinality (date), Z-ORDER by high-cardinality filter columns.</p>
+<div class="tip"><strong>Newer alternative — Liquid Clustering</strong> (<code>CLUSTER BY</code>): replaces both partitioning and Z-ORDER on recent DBR; incremental, no full rewrite, clustering keys changeable later. Worth name-dropping in interviews.</div>
+
+<h3>VACUUM — physical deletion</h3>
+<pre><code>VACUUM tx;                  -- delete unreferenced files older than 7 days (default)
+VACUUM tx RETAIN 168 HOURS; -- explicit
+VACUUM tx DRY RUN;          -- list what would be deleted</code></pre>
+<ul>
+  <li>Deletes files that are <strong>(a) no longer referenced</strong> by the current version <strong>and (b) older than the retention window</strong></li>
+  <li><strong>Time travel beyond the retention window dies</strong> — the files are physically gone</li>
+  <li>Setting retention &lt; 7 days requires disabling <code>spark.databricks.delta.retentionDurationCheck.enabled</code> — the guard exists because in-flight jobs reading an old snapshot would break if its files vanish</li>
+  <li>VACUUM does NOT shrink the log; log JSON cleanup is separate (<code>delta.logRetentionDuration</code>, 30 days)</li>
+</ul>
+
+<h3>Data skipping + dynamic file pruning (DFP)</h3>
+<p><strong>Static data skipping:</strong> every <code>add</code> action carries min/max stats for the first 32 columns (<code>delta.dataSkippingNumIndexedCols</code>). A query with <code>WHERE amount &gt; 900</code> skips any file whose max(amount) ≤ 900 — decided at planning time from the log alone, zero data IO.</p>
+<p><strong>Dynamic file pruning:</strong> same idea but the filter values aren't known until <em>runtime</em> — e.g. <code>fact JOIN dim ON fact.k = dim.k WHERE dim.region = 'EU'</code>. There's no literal predicate on fact, so static skipping can't fire. DFP runs the dim side first, collects the surviving join keys, and uses them to prune fact <em>files</em> before scanning (Databricks/Photon feature; pairs with dynamic partition pruning). Classic star-schema accelerator.</p>
+
+<h2 id="merge-cdf">26. Delta Lake — MERGE INTO mechanics &amp; Change Data Feed</h2>
+
+<h3>MERGE INTO — the upsert workhorse</h3>
+<pre><code>MERGE INTO target t
+USING updates s
+ON t.id = s.id
+WHEN MATCHED AND s.deleted = true THEN DELETE
+WHEN MATCHED THEN UPDATE SET t.amount = s.amount, t.updated_at = s.ts
+WHEN NOT MATCHED THEN INSERT (id, amount, updated_at) VALUES (s.id, s.amount, s.ts)
+WHEN NOT MATCHED BY SOURCE THEN DELETE   -- optional third direction (DBR 12.2+)</code></pre>
+<p><strong>Under the hood — two passes:</strong></p>
+<ol>
+  <li><strong>Find touched files:</strong> inner join source ↔ target to identify which target files contain matching rows (file-level, helped by data skipping on the ON keys)</li>
+  <li><strong>Rewrite:</strong> full outer join source ↔ <em>only those files</em>, apply matched/not-matched logic, write replacement files; commit <code>remove</code> (touched) + <code>add</code> (rewritten) atomically</li>
+</ol>
+<p>Consequences worth saying out loud in an interview: <strong>one matching row in a 1-GB file rewrites the whole file</strong> (write amplification — keep files right-sized); MERGE cost scales with files <em>touched</em>, so clustering/Z-ORDER on the merge keys directly speeds up MERGE; duplicate matches in the source ("multiple source rows matched the same target row") throw an error — dedupe the source first.</p>
+<p><strong>Isolation:</strong> Delta writes are <code>WriteSerializable</code> by default — concurrent MERGEs on the same files conflict via OCC (Section 23) and the loser retries or throws.</p>
+
+<h3>Change Data Feed (CDF)</h3>
+<p>Problem: a downstream job wants <em>only what changed</em> in a table, not a full re-read + diff. CDF makes Delta record row-level changes:</p>
+<pre><code>ALTER TABLE tx SET TBLPROPERTIES (delta.enableChangeDataFeed = true);
+
+SELECT * FROM table_changes('tx', 5, 9);            -- changes between versions 5 and 9
+SELECT * FROM table_changes('tx', '2026-06-10');     -- or by timestamp
+
+spark.readStream.format("delta")                     -- streaming consumption
+     .option("readChangeFeed", "true")
+     .option("startingVersion", 5).table("tx")</code></pre>
+<p>Each change row carries <code>_change_type</code>, <code>_commit_version</code>, <code>_commit_timestamp</code>. UPDATE produces <strong>two rows</strong>: <code>update_preimage</code> (before) and <code>update_postimage</code> (after); plus <code>insert</code> and <code>delete</code> types.</p>
+<ul>
+  <li>Stored in a <code>_change_data/</code> folder next to the data — only for UPDATE/DELETE/MERGE; pure inserts are derived from the add files directly (no extra storage)</li>
+  <li>Retention follows VACUUM like everything else</li>
+  <li><strong>Use cases:</strong> incremental downstream pipelines (gold tables reading only silver's changes), feeding SCD Type 2, audit, replicating to external systems</li>
+</ul>
+<div class="tip"><strong>One-liner:</strong> "CDF turns a Delta table into a CDC source: enable a table property and read row-level inserts, deletes, and pre/post-images of updates between any two versions, batch or streaming."</div>
+
+<h2 id="delta-ecosystem">27. Delta Sharing &amp; Delta vs Iceberg vs Hudi</h2>
+
+<h3>Delta Sharing</h3>
+<p><strong>Problem it solves:</strong> sharing live data across organizations historically meant copying (FTP/S3 dumps — stale immediately) or requiring the consumer to be on the same platform (Snowflake-to-Snowflake shares). Delta Sharing is an <strong>open REST protocol</strong>: the provider's sharing server authenticates the recipient and hands out short-lived pre-signed URLs to the underlying Parquet files; the recipient reads them directly with pandas, Spark, Power BI, etc. — <strong>no Databricks account needed, no data copied</strong>, always current, provider keeps governance/audit via Unity Catalog.</p>
+
+<h3>Delta vs Iceberg vs Hudi — transaction log architecture</h3>
+<table>
+  <thead><tr><th></th><th>Delta Lake</th><th>Apache Iceberg</th><th>Apache Hudi</th></tr></thead>
+  <tbody>
+    <tr><td>Metadata design</td><td><strong>Linear log</strong> of JSON commits + Parquet checkpoints; state = replay</td><td><strong>Snapshot tree:</strong> table metadata file → manifest lists → manifests → data files; each snapshot is a complete self-describing tree, commit = atomic pointer swap in the catalog</td><td><strong>Timeline</strong> of actions (commits, compactions, cleans) + record-level index; two table types</td></tr>
+    <tr><td>Concurrency</td><td>OCC via atomic creation of next log file</td><td>OCC via atomic catalog pointer swap (catalog is the arbiter)</td><td>OCC + MVCC on the timeline</td></tr>
+    <tr><td>Signature strengths</td><td>Simplicity, Photon/Databricks integration, CDF, liquid clustering</td><td><strong>Hidden partitioning</strong> (partition by <code>days(ts)</code> — queries on ts auto-prune, no partition column in queries) + <strong>partition evolution</strong> (change scheme without rewrite); strong engine neutrality</td><td><strong>Copy-on-Write vs Merge-on-Read</strong> choice: MOR writes row-based delta logs merged at read time → fastest upserts/lowest write latency; built for streaming CDC ingest</td></tr>
+    <tr><td>Weak spots</td><td>Historically Databricks-gravity (open-sourced, but best features land on DBR first)</td><td>More moving parts (catalog required); small-file pressure from frequent commits</td><td>Most operational complexity (compaction tuning); smaller mindshare outside CDC use cases</td></tr>
+    <tr><td>Ecosystem gravity</td><td>Databricks</td><td>Snowflake, AWS (Athena/Glue), Trino, BigQuery — the "neutral standard"</td><td>Uber-born; AWS EMR, streaming-CDC shops</td></tr>
+  </tbody>
+</table>
+<p><strong>The convergence story (good closing line):</strong> the formats are converging — Delta's UniForm writes Iceberg-readable metadata alongside Delta, Databricks acquired Tabular (Iceberg's creators) in 2024, and XTable translates between all three. The real moat is shifting from the format to the catalog/governance layer (Unity Catalog vs Polaris vs Glue).</p>
+
+<h3>From-blank checks — Sessions 2+ material</h3>
+<ol>
+  <li>VACUUM ran with default retention this morning. A teammate asks for the table as of 10 days ago. Possible? Why?</li>
+  <li>A MERGE updates 1 row that lives in a 1-GB file. How much data gets rewritten, and what two log actions appear?</li>
+  <li>You filter on <code>customer_id</code> (10M distinct values). Partition, Z-ORDER, or both? Justify.</li>
+  <li>Streaming job commits every 20 seconds. Name the problem that develops and two fixes.</li>
+  <li>Why does CDF store pre-images for UPDATE but nothing extra for INSERT?</li>
+  <li>Iceberg query: <code>WHERE event_ts &gt; '2026-06-01'</code> prunes partitions even though no partition column is referenced. What feature is this and how does Delta differ?</li>
+  <li>"Why did Databricks build Delta Sharing instead of just granting cross-account S3 read access?" — answer like an interview.</li>
+</ol>
+
+<hr>
+<p class="muted">Updated 2026-06-12 — Stage 2C complete coverage added: Section 23 (transaction log, OCC), 24 (time travel, RESTORE, schema enforcement/evolution), 25 (OPTIMIZE, Z-ORDER, liquid clustering, VACUUM, small files, data skipping + DFP), 26 (MERGE mechanics, CDF), 27 (Delta Sharing, Delta vs Iceberg vs Hudi). All 12 topics from the 2C plan covered.</p>
+
+<hr>
+<h2>Stage 2D — Structured Streaming</h2>
+<p class="muted">Session: 2026-07-03</p>
+
+<h3>§28 Checkpoint — What it stores and why it matters</h3>
+<p>A checkpoint is a <strong>directory on durable storage</strong> (S3, ADLS, DBFS) that Spark writes to at the end of every micro-batch so a crashed query can resume exactly where it left off.</p>
+
+<h4>Checkpoint directory structure</h4>
+<pre><code>checkpoint/
+  metadata      ← query ID + config (written once at startup)
+  offsets/      ← what was READ each batch (0, 1, 2, ...)
+  commits/      ← what was SUCCESSFULLY PROCESSED (0, 1, 2, ...)
+  state/        ← aggregation state, watermarks, dedup records</code></pre>
+
+<h4>How exactly-once works (two-phase commit via checkpoint)</h4>
+<p>Every micro-batch follows this sequence:</p>
+<ol>
+  <li>Write <code>offsets/N</code> — "I am about to read up to offset N"</li>
+  <li>Read source data and process</li>
+  <li>Write output to sink</li>
+  <li>Write <code>commits/N</code> — "batch N is done"</li>
+</ol>
+<p>If the job crashes between steps 1 and 4, on restart Spark sees <code>offsets/N</code> exists but <code>commits/N</code> doesn't → reruns batch N. The sink must be idempotent (Delta handles this automatically via transaction log).</p>
+
+<h4>Consequence of deleting the checkpoint</h4>
+<table>
+  <thead><tr><th>What's lost</th><th>Effect</th></tr></thead>
+  <tbody>
+    <tr><td><code>offsets/</code></td><td>Spark doesn't know where it read to — restarts from beginning or latest depending on source config</td></tr>
+    <tr><td><code>commits/</code></td><td>Can't distinguish completed vs in-progress batches → potential duplicates</td></tr>
+    <tr><td><code>state/</code></td><td>All aggregation state gone — running counts, window sums, dedup history reset to zero → <strong>wrong answers</strong></td></tr>
+  </tbody>
+</table>
+<p><strong>Rule:</strong> For stateless streams, deleting checkpoint means reprocessing. For stateful streams (aggregations, dedup), it means wrong answers.</p>
+
+<h3>§29 Writing Streaming Queries — Patterns</h3>
+
+<h4>Stateless filter + write (append mode)</h4>
+<pre><code>from pyspark.sql.functions import col
+
+spark.readStream \
+    .format("delta") \
+    .load("/data/events") \
+    .filter(col("event_type") == "purchase") \
+    .writeStream \
+    .format("delta") \
+    .option("checkpointLocation", "/checkpoints/purchases") \
+    .outputMode("append") \
+    .start("/data/purchases")</code></pre>
+<p><strong>Why append:</strong> simple filter, rows only ever added, never updated → append is the only valid output mode here.</p>
+
+<h4>Stateful windowed aggregation (update mode)</h4>
+<pre><code>from pyspark.sql.functions import window, col
+
+spark.readStream \
+    .format("kafka") \
+    .option("kafka.bootstrap.servers", "localhost:9092") \
+    .option("subscribe", "payments") \
+    .load() \
+    .groupBy(
+        window(col("timestamp"), "5 minutes"),
+        col("merchant_id")
+    ) \
+    .count() \
+    .writeStream \
+    .format("delta") \
+    .option("checkpointLocation", "/checkpoints/merchant_counts") \
+    .outputMode("update") \
+    .start("/data/merchant_counts")</code></pre>
+<p><strong>window(col("timestamp"), "5 minutes"):</strong> buckets rows into 5-minute time windows based on event time. Result has a <code>window</code> column with <code>{start, end}</code> struct. Late arrivals → watermarking (§30).</p>
+<p><strong>Why update:</strong> aggregation rows get updated each batch as new events arrive → use update, not append.</p>
+
+<h4>Output mode summary</h4>
+<table>
+  <thead><tr><th>Mode</th><th>What gets written each batch</th><th>When to use</th></tr></thead>
+  <tbody>
+    <tr><td><code>append</code></td><td>Only new rows</td><td>Stateless (filter, map) — rows never change</td></tr>
+    <tr><td><code>update</code></td><td>Only rows that changed this batch</td><td>Aggregations writing to Delta/Kafka</td></tr>
+    <tr><td><code>complete</code></td><td>Entire result rewritten every batch</td><td>Aggregations writing to memory/console only — expensive</td></tr>
+  </tbody>
+</table>
+
+<h4>Import styles — F.col vs col</h4>
+<p>Both identical, different import style:</p>
+<pre><code># Style 1 — module alias (preferred in production, explicit origin)
+import pyspark.sql.functions as F
+F.col("merchant_id"), F.window(...)
+
+# Style 2 — direct import (less typing, risk of name collision)
+from pyspark.sql.functions import col, window
+col("merchant_id"), window(...)</code></pre>
+
+<h3>§30 Watermarking — late-arriving data &amp; state eviction</h3>
+<p>The problem: in a windowed aggregation, Spark keeps per-window state (e.g. running counts) in memory/state store forever unless told otherwise — because an event with an old timestamp could theoretically still arrive and belong to an old window. Unbounded state growth = eventual OOM.</p>
+<p><strong>A watermark is a moving threshold</strong> that tells Spark: "I won't wait for events older than this anymore — it's safe to finalize and drop state for windows that have closed."</p>
+<pre><code>from pyspark.sql.functions import window, col
+
+spark.readStream \
+    .format("kafka") \
+    .option("subscribe", "payments") \
+    .load() \
+    .withWatermark("event_time", "10 minutes") \
+    .groupBy(
+        window(col("event_time"), "5 minutes"),
+        col("merchant_id")
+    ) \
+    .count() \
+    .writeStream \
+    .format("delta") \
+    .outputMode("update") \
+    .option("checkpointLocation", "/checkpoints/merchant_counts") \
+    .start("/data/merchant_counts")</code></pre>
+<p><strong>How the threshold moves:</strong> watermark = <code>max(event_time seen so far) − lag</code> (here, 10 minutes). It only moves forward, never backward, and updates after every micro-batch.</p>
+<p><strong>State eviction:</strong> once the watermark passes a window's <em>end</em> boundary, Spark considers that window closed — its state is dropped from the state store and it stops appearing in future updates.</p>
+<table>
+  <thead><tr><th>Event arrives...</th><th>Watermark says</th><th>Result</th></tr></thead>
+  <tbody>
+    <tr><td>Before window end + lag</td><td>Still within tolerance</td><td>Included in the aggregation, window state updated</td></tr>
+    <tr><td>After watermark has passed the window</td><td>Too late</td><td>Silently dropped — no error, no output</td></tr>
+  </tbody>
+</table>
+<p><strong>Trade-off:</strong> short watermark (e.g. 1 min) → state evicted fast, memory stays small, but real late data gets dropped → wrong aggregates. Long watermark (e.g. 24 hr) → correctness improves, but state store grows large → memory pressure. Tune to the source's realistic max lateness (e.g. mobile clients buffering offline for a few minutes).</p>
+<p><strong>Rule:</strong> watermark only applies to <em>stateful</em> operations (windowed aggregations, stream-stream joins, dedup). A stateless filter/map has no state to evict, so no watermark is needed.</p>
+
+<h3>§31 Exactly-once with Kafka — source vs. sink, the nuance interviewers probe</h3>
+<p>This is commonly answered wrong as "just turn on <code>enable.idempotence=true</code>." The real answer depends on which side of the pipeline Kafka sits on.</p>
+
+<h4>Kafka as a SOURCE (reading from Kafka)</h4>
+<p>Exactly-once here is handled entirely by Structured Streaming's checkpoint mechanism (§28) — Spark tracks the exact Kafka offsets consumed in <code>checkpoint/offsets/</code>, and on restart resumes from precisely those offsets. No Kafka-side config needed; this is Spark's job, not Kafka's.</p>
+
+<h4>Kafka as a SINK (writing to Kafka)</h4>
+<p>This is where it gets tricky. Structured Streaming's built-in Kafka sink is <strong>at-least-once by default</strong> — if a micro-batch is retried after a partial write, some messages can be re-published as duplicates. Why: unlike the Delta sink (§32), Spark's Kafka writer does <em>not</em> participate in Kafka's transactional API, so there's no atomic "commit this whole batch or nothing" guarantee on the write side.</p>
+<table>
+  <thead><tr><th>Mechanism</th><th>What it actually protects against</th><th>Does it give exactly-once in Spark→Kafka?</th></tr></thead>
+  <tbody>
+    <tr><td><code>enable.idempotence=true</code> (idempotent producer)</td><td>Duplicate messages from a single producer's network retries (broker dedups by producer ID + sequence number)</td><td>No — protects one write call, not a whole re-executed micro-batch</td></tr>
+    <tr><td>Kafka transactional API (<code>transactional.id</code>)</td><td>Atomic multi-partition/multi-topic writes — used by Kafka Streams for true Kafka→Kafka exactly-once</td><td>No — Spark Structured Streaming's Kafka sink doesn't hook into Kafka transactions</td></tr>
+  </tbody>
+</table>
+<p><strong>Practical pattern:</strong></p>
+<ul>
+  <li><strong>Kafka source → Delta sink:</strong> true exactly-once, for free — Delta's transaction log + checkpoint commits combine into one atomic unit (§32).</li>
+  <li><strong>Kafka source → Kafka sink:</strong> at-least-once. If you need exactly-once semantics downstream, make the consumer idempotent — write a unique message key/ID and let the downstream store dedup on upsert (same pattern as MERGE INTO dedup in §26).</li>
+</ul>
+
+<h3>§32 Atomic micro-batch commits to Delta — why Delta gets exactly-once and Kafka sink doesn't</h3>
+<p>Every Structured Streaming micro-batch that writes to Delta becomes exactly one entry in <code>_delta_log</code> (§23) — a single atomic transaction. Delta additionally stores the <strong>streaming batch ID</strong> it last committed as transaction metadata (<code>txnAppId</code> + <code>txnVersion</code>) tied to the query's checkpoint.</p>
+<p>Combine this with the checkpoint's offsets/commits protocol (§28):</p>
+<ol>
+  <li>Spark writes <code>offsets/N</code> before processing batch N</li>
+  <li>Spark processes and writes the Delta commit for batch N, tagging it with batch ID N</li>
+  <li>Spark writes <code>commits/N</code></li>
+</ol>
+<p>If the job crashes after step 2 but before step 3, on restart Spark reruns batch N — but when it tries to commit to Delta again, <strong>Delta checks the txnAppId/txnVersion it already has on file, sees batch N was already applied, and skips it</strong> instead of double-writing. This is what makes Kafka source → Delta sink genuinely exactly-once, not just at-least-once: the sink itself is idempotent per streaming batch, not just per message.</p>
+<p><strong>Interview framing:</strong> "Delta gets exactly-once because the sink is idempotent at the batch level via txn metadata in the log, combined with Spark's own offset tracking. Kafka sink can't do this because Kafka has no equivalent per-batch dedup mechanism exposed to Structured Streaming."</p>
+
+<h3>§33 Trigger modes — controlling when micro-batches run</h3>
+<table>
+  <thead><tr><th>Trigger</th><th>Behavior</th><th>Use case</th></tr></thead>
+  <tbody>
+    <tr><td>Default (none specified)</td><td>Runs the next micro-batch immediately after the previous one finishes — back-to-back, as fast as possible</td><td>Low-latency continuous ingestion</td></tr>
+    <tr><td><code>Trigger.ProcessingTime("10 seconds")</code></td><td>Fixed interval. If a batch finishes early, waits out the rest of the interval. If it overruns, starts the next batch immediately after</td><td>Predictable, throttled cadence — avoid hammering the source/sink</td></tr>
+    <tr><td><code>Trigger.Once()</code> <em>(deprecated)</em></td><td>Processes all currently available data as a single giant batch, then stops</td><td>Superseded by AvailableNow — kept for legacy jobs</td></tr>
+    <tr><td><code>Trigger.AvailableNow()</code></td><td>Processes all currently available data too, but splits it into multiple micro-batches (respects <code>maxOffsetsPerTrigger</code>) instead of one huge batch, then stops</td><td>Scheduled/batch-like runs (e.g. hourly job kicked off by Airflow) — safer than Once() on large backlogs, avoids one massive shuffle</td></tr>
+  </tbody>
+</table>
+<pre><code># Continuous, throttled
+.trigger(processingTime="10 seconds")
+
+# Scheduled batch-style run — process backlog, then exit
+.trigger(availableNow=True)</code></pre>
+<p><strong>Why AvailableNow over Once:</strong> Once() reads the whole backlog as one batch — if the backlog is large, that's one enormous shuffle/state update with no incremental checkpointing along the way, and a crash mid-batch means redoing all of it. AvailableNow() chunks the same backlog into normal-sized micro-batches, each checkpointed independently — a crash only loses the current chunk.</p>
+
+<h3>Recap questions for next 2D session</h3>
+<ol>
+  <li>Name the four folders inside a checkpoint directory and what each stores.</li>
+  <li>A streaming job has been running for 3 days with windowed aggregations. Someone deletes the checkpoint to "free space." What breaks and why?</li>
+  <li>You have a simple <code>filter → write to Delta</code> pipeline. Which output mode? What if you add a <code>groupBy().count()</code>?</li>
+  <li>Write from blank: Kafka source → filter event_type == "click" → write to Delta with append mode and checkpoint.</li>
+  <li>What does <code>window(col("ts"), "10 minutes")</code> produce in the output schema?</li>
+  <li>Why does a 5-minute watermark on a 5-minute window mean a window doesn't finalize until 10 minutes after it starts?</li>
+  <li>True or false: Kafka source → Kafka sink is exactly-once if you enable <code>enable.idempotence=true</code> on the producer. Explain.</li>
+  <li>Why does Kafka source → Delta sink get exactly-once "for free" but Kafka source → Kafka sink doesn't?</li>
+  <li>You have an hourly Airflow-triggered job processing a Kafka backlog. Trigger.Once(), Trigger.AvailableNow(), or default — which, and why?</li>
+</ol>
+
+<hr>
+<p class="muted">Updated 2026-07-03 — Stage 2D taught in full: §28 Checkpoint (structure, exactly-once two-phase commit, consequence of deletion), §29 Streaming query patterns (stateless append, stateful windowed aggregation with Kafka, output mode comparison, F.col vs col import styles), §30 Watermarking (threshold mechanics, state eviction, trade-offs), §31 Exactly-once with Kafka (source vs. sink nuance, idempotent producer vs. transactional API), §32 Atomic micro-batch commits to Delta (txnAppId/txnVersion idempotency), §33 Trigger modes (default, ProcessingTime, Once vs AvailableNow). Next: hands-on lab + from-blank exercises, then Stage 2E (Lakeflow/DLT).</p>
+
+<hr>
+<h2>Stage 2E — Lakeflow Declarative Pipelines (formerly DLT)</h2>
+<p class="muted">Session 1: 2026-07-06 (after the 2D Ex-5 checkpoint lab, same day)</p>
+
+<h3>§34 Declarative vs imperative — what problem Lakeflow solves</h3>
+<p><strong>Imperative</strong> (plain Structured Streaming, like the Ex-5 lab): you tell Spark <em>how</em> to run the pipeline — pick the checkpoint path, choose the trigger, call <code>awaitTermination()</code>, handle recovery yourself. Mishandle the checkpoint → silent duplicates (observed live in the lab).</p>
+<p><strong>Declarative</strong> (Lakeflow): you declare <em>what tables should exist</em> and how each is derived; the framework figures out the how:</p>
+<pre><code>import dlt
+
+@dlt.table
+def bronze_events():
+    return spark.readStream.format("cloudFiles").load("/Volumes/.../raw")
+
+@dlt.table
+def silver_events():
+    return dlt.read_stream("bronze_events").filter(col("amount") > 0)</code></pre>
+<p>What's <em>missing</em> is the point: no checkpoint path, no trigger, no <code>.start()</code>, no ordering logic. Lakeflow sees <code>silver_events</code> reads <code>bronze_events</code>, builds the dependency DAG itself, and manages checkpoints, retries, and scaling per table. The whole class of "checkpoint mishandled → silent duplicates" bugs is off your plate.</p>
+
+<h3>§35 Expectations — data quality rules on table declarations ⭐</h3>
+<pre><code>@dlt.table
+@dlt.expect("valid_amount", "amount > 0")                          # WARN
+@dlt.expect_or_drop("has_patient_id", "patient_id IS NOT NULL")    # DROP
+@dlt.expect_or_fail("valid_date", "event_date <= current_date()")  # FAIL
+def silver_events():
+    return dlt.read_stream("bronze_events")</code></pre>
+<table>
+  <thead><tr><th>Mode</th><th>Bad row's fate</th><th>Pipeline</th><th>Use when</th></tr></thead>
+  <tbody>
+    <tr><td><code>expect</code> (warn)</td><td>Kept, counted in metrics</td><td>Runs on</td><td>Monitoring quality, not enforcing yet</td></tr>
+    <tr><td><code>expect_or_drop</code></td><td>Dropped, count recorded</td><td>Runs on</td><td>Bad rows tolerable to lose (malformed events, sensor glitches)</td></tr>
+    <tr><td><code>expect_or_fail</code></td><td>—</td><td>Halts on first violation</td><td>Violation proves upstream is broken; stop and investigate</td></tr>
+  </tbody>
+</table>
+<p>Every violation lands in the pipeline event log → quality metrics for free, no separate Great Expectations job.</p>
+<div class="tip"><strong>Mode-choice heuristic (hers, verified):</strong> Drop when the <em>row</em> is the problem. Fail when the row proves the <em>system</em> is the problem. Warn when you're still learning what normal looks like.<br><br>
+ClinicalFlow examples worked through: <code>ssn IS NULL</code> → <code>expect_or_fail</code> (a surviving SSN means the upstream HIPAA de-id job is broken — halt, don't silently drop evidence); <code>heart_rate BETWEEN 20 AND 300</code> → <code>expect_or_drop</code> (occasional sensor glitch = junk row, keep flowing).</div>
+
+<h3>§36 Streaming table vs materialized view ⭐</h3>
+<table>
+  <thead><tr><th></th><th>Streaming table</th><th>Materialized view</th></tr></thead>
+  <tbody>
+    <tr><td>Model</td><td>Each input row processed <strong>exactly once, incrementally</strong>; results appended; old rows never revisited</td><td>Declares "this table = this query over its inputs"; framework keeps it true (full or incremental recompute)</td></tr>
+    <tr><td>Source requirement</td><td><strong>Append-only</strong> (files arriving, Kafka, rate) — "the past never changes"</td><td>Inputs may change: handles upstream <strong>updates/deletes</strong>, aggregations, joins</td></tr>
+    <tr><td>Under the hood</td><td>Structured Streaming + managed checkpoint</td><td>Managed recompute</td></tr>
+    <tr><td>Natural fit</td><td>Ingestion / bronze</td><td>Gold aggregates</td></tr>
+  </tbody>
+</table>
+<p>Declaration difference: <code>@dlt.table</code> returning <code>spark.readStream...</code> → streaming table; returning a batch <code>dlt.read(...)</code> query → materialized view.</p>
+<div class="tip"><strong>Memory hook:</strong> streaming table = <em>ledger</em> (append-only, each entry once); materialized view = <em>whiteboard</em> (always the current right answer, redrawn as needed).<br><br>
+<strong>The trap (verified with check):</strong> if silver rows get corrected after the fact, a streaming table doesn't crash — it already processed the original row and will never look again, so the correction is <em>silently ignored</em> and the aggregate stays wrong forever. Same failure family as checkpoint deletion: no error, wrong number. MV re-derives and picks up the fix.</div>
+
+<h3>§37 Schema drift prevention — pin the shape, police the content</h3>
+<p>Two-layer defense against evolving source files:</p>
+<pre><code>encounter_schema = StructType([
+    StructField("patient_id", StringType(), False),   # False = not nullable
+    StructField("heart_rate", IntegerType(), True),
+    StructField("event_ts",   TimestampType(), False),
+])
+
+@dlt.table
+def bronze_encounters():
+    return (spark.readStream.format("cloudFiles")
+            .schema(encounter_schema)          # ← pinned, not inferred
+            .load("/Volumes/.../raw"))</code></pre>
+<ul>
+  <li><strong>Layer 1 — explicit StructType</strong> pins the structure: a new upstream column (e.g. <code>insurance_id</code>) is simply <em>ignored</em> — drift can't leak into silver/gold. Adding it becomes a deliberate, reviewed code change. (Feature, not bug.)</li>
+  <li><strong>Layer 2 — expectations</strong> police the values: schema says <code>heart_rate</code> is an int; only an expectation says it's a <em>plausible</em> int.</li>
+  <li>Middle ground: Auto Loader's <code>_rescued_data</code> column captures unexpected fields so you can <em>notice</em> drift instead of being blind to it (more in 2G).</li>
+</ul>
+<p><strong>One-liner:</strong> schema pins the shape, expectations police the content.</p>
+
+<h3>§38 Pipeline update modes — two knobs</h3>
+<p><strong>Knob 1 — how the pipeline runs:</strong></p>
+<ul>
+  <li><strong>Triggered</strong> — start, process everything available, stop (availableNow at pipeline scale). Compute only up while working; latency = your schedule.</li>
+  <li><strong>Continuous</strong> — pipeline stays hot, processes as data arrives. Low latency, always-on cost.</li>
+</ul>
+<p><strong>Knob 2 — how much gets reprocessed:</strong></p>
+<ul>
+  <li><strong>Incremental update</strong> (default) — streaming tables read only new data from checkpointed offsets; MVs refresh as needed.</li>
+  <li><strong>Full refresh</strong> — wipe tables <em>and checkpoint state</em>, reprocess everything from the source. The "recover from a logic bug" button.</li>
+</ul>
+<div class="warn"><strong>Full-refresh gotcha (interview favorite, verified with check):</strong> full refresh = deliberately deleting the checkpoint — the rebuild is only as complete as what the source still holds. Files in a volume: fine. Kafka with 7-day retention on a table with 90 days of history: 83 days <strong>permanently gone</strong>. Protections: full-refresh only downstream MVs (fixed logic doesn't require re-ingesting bronze), and set <code>pipelines.reset.allowed = false</code> on ingestion tables. Never full-refresh a streaming table whose source forgets.</div>
+
+<hr>
+<p class="muted">Updated 2026-07-06 — 2D Ex-5 checkpoint lab completed (as-run scripts in databricks_exercises.py §5); Photon + Catalyst/Tungsten layer recap verified; 2E taught in full in one day: §34 declarative vs imperative, §35 expectations, §36 streaming table vs MV, §37 schema drift prevention, §38 update modes — all checks passed except §37 (recap Wednesday). Remaining for 2E: hands-on bronze→silver expectations lab in Free Edition (Wed 2026-07-08).</p>
+
+</body>
+</html>

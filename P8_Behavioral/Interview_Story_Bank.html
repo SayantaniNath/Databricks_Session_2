@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Interview Story Bank — Scope / Influence / Leadership</title>
+<style>
+:root {
+  color-scheme: light dark;
+  --bg: #ffffff; --fg: #1a1a1a; --muted: #666;
+  --card: #f6f8fa; --border: #e1e4e8; --accent: #0866ff;
+  --warn-bg: #fff4e6; --warn-border: #d35400;
+  --say-bg: #e8f4ea; --say-border: #2e7d32;
+  --scope-bg: #eef2ff; --scope-border: #4f46e5;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0d1117; --fg: #e6edf3; --muted: #9da7b1;
+    --card: #161b22; --border: #30363d; --accent: #58a6ff;
+    --warn-bg: #2a1f12; --warn-border: #f0883e;
+    --say-bg: #12261a; --say-border: #4caf50;
+    --scope-bg: #1a1f3a; --scope-border: #818cf8;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--fg);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  line-height: 1.6; max-width: 900px; margin: 0 auto; padding: 24px;
+}
+h1 { font-size: 1.5em; border-bottom: 2px solid var(--accent); padding-bottom: 8px; }
+h2 { font-size: 1.25em; color: var(--accent); margin-top: 40px; border-bottom: 1px solid var(--border); padding-bottom: 6px; }
+h3 { font-size: 1.05em; margin-top: 24px; }
+.storycard { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 16px 20px; margin: 16px 0; }
+.label { display: inline-block; font-size: 0.7em; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--accent); margin-bottom: 4px; }
+.beat { margin: 14px 0; }
+.beat p { margin: 4px 0 0; }
+.say { background: var(--say-bg); border-left: 4px solid var(--say-border); border-radius: 6px; padding: 10px 14px; margin: 8px 0; }
+.say::before { content: "SAY IT LIKE THIS"; display: block; font-size: 0.65em; letter-spacing: 1px; color: var(--say-border); font-weight: 700; margin-bottom: 6px; }
+.warn { background: var(--warn-bg); border-left: 4px solid var(--warn-border); border-radius: 6px; padding: 10px 14px; margin: 8px 0; }
+.warn::before { content: "⚠ NEVER SAY / WATCH OUT"; display: block; font-size: 0.65em; letter-spacing: 1px; color: var(--warn-border); font-weight: 700; margin-bottom: 6px; }
+.scope { background: var(--scope-bg); border-left: 4px solid var(--scope-border); border-radius: 6px; padding: 10px 14px; margin: 8px 0; font-size: 0.92em; }
+table { border-collapse: collapse; width: 100%; margin: 12px 0; }
+th, td { border: 1px solid var(--border); padding: 8px 10px; text-align: left; vertical-align: top; }
+th { background: var(--card); }
+.muted { color: var(--muted); font-size: 0.9em; }
+.tag { display: inline-block; background: var(--card); border: 1px solid var(--border); border-radius: 4px; padding: 1px 8px; font-size: 0.75em; margin-right: 6px; }
+</style>
+</head>
+<body>
+
+<h1>Interview Story Bank — Scope · Influence · Leadership</h1>
+<p class="muted">Reusable across any company's behavioral/recruiter screen — not Meta-specific. Built to the "Scope, Influence, Leadership" framing Meta's own DE prep guide asks for, but the structure works everywhere. Two flagship stories below. Practice both out loud until they come out the same way every time — that consistency is what makes an example feel true.</p>
+
+<div class="scope"><strong>Ground rule across every story here:</strong> real scale is 5–10 lakh rows per table in production work (Citi), not "big data" volume — the value is in the architecture decision and adoption, not row count. Personal projects (ClinicalFlow) are always labeled as personal, never blended into production claims. Kafka/GraphQL/Redis do not appear in the Citi story — they were never real there.</p>
+
+<hr>
+
+<h2>Story 1 — Consumption Layer Consolidation (Citi)</h2>
+<p class="muted"><span class="tag">Scope</span><span class="tag">Influence</span><span class="tag">Leadership</span><span class="tag">Strong metrics</span></p>
+
+<div class="storycard">
+<div class="beat"><span class="label">Context</span>
+<p>At Citibank, four business domains were each running their own separate Oracle pipeline into Tableau for the same category of reporting — same underlying source data, four different schemas, four teams doing redundant work to maintain it.</p></div>
+
+<div class="beat"><span class="label">Scope</span>
+<p>Four business domains, dashboards used by 200+ business stakeholders, tables in the half-million-to-million-row range each.</p></div>
+
+<div class="beat"><span class="label">Action</span>
+<p>I designed one shared consumption layer to replace the four separate pipelines — a single data model, the right indexing, and views built around how people actually queried the dashboards. I led the migration myself and ran the new model in parallel with the old ones so nobody's reporting broke during the switch.</p></div>
+
+<div class="beat"><span class="label">Challenge</span>
+<p>The hard part wasn't the design — it was that four teams already depended on the old pipelines daily. I had to prove the new model matched the old numbers exactly, table by table, before anyone would agree to retire the legacy ones.</p></div>
+
+<div class="beat"><span class="label">Influence</span>
+<p>Once live, ten-plus engineering teams adopted the same pattern for new domains — it stopped being "my project" and became the reference architecture.</p></div>
+
+<div class="beat"><span class="label">Leadership</span>
+<p>I mentored three junior engineers and vendor resources through the migration — schema walkthroughs, code reviews — so the pattern would hold up without me in the room.</p></div>
+
+<div class="beat"><span class="label">Metrics</span>
+<p>Source-to-mart latency dropped 40%, Tableau query performance improved 45%, now serves 200+ users org-wide.</p></div>
+</div>
+
+<h3>Follow-up bank</h3>
+<table>
+<tr><th>Likely question</th><th>Honest answer</th></tr>
+<tr><td>How did you measure the 40%/45%?</td><td>BI/reporting team tracked it via Tableau query performance metrics and Oracle execution stats, before vs. after consolidation.</td></tr>
+<tr><td>Your call or your manager's?</td><td>I proposed and owned the architecture; got sign-off given the cross-team blast radius, but the design decisions were mine.</td></tr>
+<tr><td>Any pushback from the four domain teams?</td><td>Yes — migration risk concerns. Addressed with parallel-run + phased cutover, proving equivalence before cutting over.</td></tr>
+<tr><td>What would you do differently?</td><td>Get stakeholder buy-in earlier in the design phase; automate the parallel-run verification instead of checking manually.</td></tr>
+<tr><td>Hardest technical decision?</td><td>Reconciling four divergent schemas into one model without breaking anyone's existing dashboard filters.</td></tr>
+</table>
+
+<div class="warn"><p>Do not mention Kafka, GraphQL, or Redis in this story — none were real here. If asked "what was the tech stack," say plainly: Oracle, light Talend ETL, SQL, and dimensional modeling.</p></div>
+
+<hr>
+
+<h2>Story 2 — Healthcare Data Architecture: IQVIA → ClinicalFlow → Snowflake</h2>
+<p class="muted"><span class="tag">Scope</span><span class="tag">Global/Ambiguity</span><span class="tag">Leadership</span><span class="tag">Personal-project continuity</span></p>
+
+<div class="storycard">
+<div class="beat"><span class="label">Context</span>
+<p>At IQVIA–Bayer, I designed the global healthcare analytics data model — standardized across 15+ clinical programmes worldwide, each with HIPAA and GDPR requirements to satisfy simultaneously.</p></div>
+
+<div class="beat"><span class="label">Scope</span>
+<p>Not one dataset — a repeatable architecture pattern deployed across 15+ programmes globally, each with its own source ERP systems and regulatory environment.</p></div>
+
+<div class="beat"><span class="label">Action</span>
+<p>I chose Data Vault 2.0 — hubs, links, satellites — over a flat Kimball model, specifically because the source ERP schemas were volatile across programmes; Data Vault absorbed that volatility without breaking downstream reporting every time a source changed. I layered Kimball-style marts on top for the actual BI consumption.</p></div>
+
+<div class="beat"><span class="label">Challenge</span>
+<p>The hard part was building one pattern that had to work across 15+ different regulatory and technical environments at once — not a single deployment, something other teams could repeat independently.</p></div>
+
+<div class="beat"><span class="label">Leadership / Influence</span>
+<p>The pattern was adopted and standardized across all 15+ programmes globally, becoming the reference model for how the org handled healthcare data compliance.</p></div>
+
+<div class="beat"><span class="label">Continuity — personal deepening (label this explicitly as personal)</span>
+<p>Since then, I've kept building in this same domain on my own time. I built AWS ClinicalFlow — a healthcare data lakehouse using Synthea synthetic EHR data: S3 with KMS encryption, Glue and EMR for HIPAA Safe Harbor de-identification and readmission analytics, Iceberg tables, and a Redshift gold layer with column-level privileges for the BI-facing views. I've also done hands-on Snowflake work — building queries and views — to round out my warehouse experience beyond Redshift. I'm upfront that ClinicalFlow is a personal project, not production work — but it's the same healthcare-data problem I owned professionally at IQVIA, just with the modern cloud-native stack.</p></div>
+</div>
+
+<h3>Follow-up bank</h3>
+<table>
+<tr><th>Likely question</th><th>Honest answer</th></tr>
+<tr><td>Why Data Vault over Kimball there?</td><td>Source ERP schema volatility across programmes — needed something that absorbed change without breaking every downstream report.</td></tr>
+<tr><td>Is ClinicalFlow professional or personal?</td><td>Explicitly personal/learning project. Same domain (healthcare, HIPAA/GDPR) as IQVIA, but modern stack (S3/Glue/EMR/Iceberg/Redshift), built to deepen architecture skills beyond the Oracle-era tooling I used in production.</td></tr>
+<tr><td>What's your real Snowflake depth?</td><td>Hands-on building queries and views — not architecture-level ownership. Redshift is where I have more depth, via ClinicalFlow's gold layer.</td></tr>
+<tr><td>Any compliance specifics?</td><td>HIPAA Safe Harbor de-identification (tokenization, age-bucketing, zip-prefix truncation, SSN nulling) and GDPR erasure via a dedicated consent dimension — real production pattern at IQVIA, same pattern rebuilt hands-on in ClinicalFlow.</td></tr>
+</table>
+
+<div class="warn"><p>Don't blend ClinicalFlow's Redshift/Iceberg work into the IQVIA story as if it were the same engagement — always separate "what I owned in production" from "what I built myself afterward to go deeper."</p></div>
+
+<hr>
+
+<h2>How to use this doc</h2>
+<ul>
+<li>Pick whichever story matches what's asked: Story 1 for architecture/optimization/ownership questions, Story 2 for global scope/compliance/leadership-under-ambiguity questions.</li>
+<li>Say each one out loud, unscripted, until the beats come out consistently — memorizing exact words sounds robotic; knowing the beats (Context → Scope → Action → Challenge → Influence → Leadership → Metrics) keeps it natural under follow-up pressure.</li>
+<li>Never let a follow-up push you into inflating scope or tech stack beyond what's in the "honest answer" column above.</li>
+</ul>
+
+</body>
+</html>

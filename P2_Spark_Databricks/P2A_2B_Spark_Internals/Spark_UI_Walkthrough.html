@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Spark UI — Walkthrough</title>
+<style>
+  :root {
+    --bg: #ffffff;
+    --fg: #1a1a1a;
+    --muted: #555;
+    --accent: #0b6e4f;
+    --accent-light: #e6f4ef;
+    --code-bg: #f4f4f6;
+    --code-fg: #1a1a1a;
+    --border: #e2e2e6;
+    --warn-bg: #fff7e6;
+    --warn-border: #f5b942;
+    --tip-bg: #eef6ff;
+    --tip-border: #3b82f6;
+    --danger-bg: #ffeaea;
+    --danger-border: #d44;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #16181d;
+      --fg: #e6e6e6;
+      --muted: #a1a1aa;
+      --accent: #34d399;
+      --accent-light: #1c2a25;
+      --code-bg: #1f232a;
+      --code-fg: #e6e6e6;
+      --border: #2c3038;
+      --warn-bg: #2a2418;
+      --warn-border: #d4a23a;
+      --tip-bg: #182335;
+      --tip-border: #5fa8ff;
+      --danger-bg: #2d1818;
+      --danger-border: #e06464;
+    }
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    padding: 1.25rem;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, sans-serif;
+    font-size: 17px;
+    line-height: 1.6;
+    color: var(--fg);
+    background: var(--bg);
+    max-width: 760px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+  h1 {
+    font-size: 1.75rem;
+    margin-top: 0;
+    border-bottom: 3px solid var(--accent);
+    padding-bottom: 0.4rem;
+  }
+  h2 {
+    font-size: 1.35rem;
+    margin-top: 2.2rem;
+    color: var(--accent);
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 0.25rem;
+  }
+  h3 {
+    font-size: 1.1rem;
+    margin-top: 1.4rem;
+  }
+  p, ul, ol { margin: 0.6rem 0; }
+  ul, ol { padding-left: 1.4rem; }
+  li { margin: 0.25rem 0; }
+  code {
+    font-family: ui-monospace, "SF Mono", Menlo, Monaco, Consolas, monospace;
+    font-size: 0.92em;
+    background: var(--code-bg);
+    color: var(--code-fg);
+    padding: 0.1em 0.35em;
+    border-radius: 4px;
+  }
+  pre {
+    background: var(--code-bg);
+    color: var(--code-fg);
+    padding: 0.9rem;
+    border-radius: 6px;
+    overflow-x: auto;
+    font-size: 0.85rem;
+    line-height: 1.45;
+  }
+  pre code { background: none; padding: 0; font-size: inherit; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 0.8rem 0;
+    font-size: 0.95rem;
+  }
+  th, td {
+    border: 1px solid var(--border);
+    padding: 0.5rem 0.6rem;
+    text-align: left;
+    vertical-align: top;
+  }
+  th { background: var(--accent-light); }
+  .callout {
+    margin: 1rem 0;
+    padding: 0.8rem 1rem;
+    border-left: 4px solid var(--accent);
+    background: var(--accent-light);
+    border-radius: 4px;
+  }
+  .warn { background: var(--warn-bg); border-left-color: var(--warn-border); }
+  .tip { background: var(--tip-bg); border-left-color: var(--tip-border); }
+  .danger { background: var(--danger-bg); border-left-color: var(--danger-border); }
+  .muted { color: var(--muted); }
+  hr { border: none; border-top: 1px solid var(--border); margin: 2rem 0; }
+  blockquote {
+    margin: 0.8rem 0;
+    padding: 0.4rem 0.9rem;
+    border-left: 4px solid var(--accent);
+    background: var(--accent-light);
+    border-radius: 4px;
+    font-style: italic;
+  }
+  .ascii-block {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 0.8rem;
+    background: var(--code-bg);
+    padding: 1rem;
+    border-radius: 6px;
+    white-space: pre;
+    overflow-x: auto;
+    line-height: 1.4;
+  }
+  .toc {
+    background: var(--accent-light);
+    padding: 0.8rem 1rem;
+    border-radius: 6px;
+    margin-bottom: 2rem;
+  }
+  .toc ol { margin: 0.4rem 0 0 0; padding-left: 1.4rem; }
+  .toc a { color: var(--accent); text-decoration: none; }
+  .toc a:hover { text-decoration: underline; }
+  .badge {
+    display: inline-block;
+    font-size: 0.8rem;
+    padding: 0.1em 0.5em;
+    border-radius: 3px;
+    background: var(--accent-light);
+    color: var(--accent);
+    font-weight: 600;
+  }
+</style>
+</head>
+<body>
+
+<h1>Spark UI — Walkthrough</h1>
+<p class="muted">How to read the Spark UI for debugging slow jobs &amp; interview answers. Companion to the Spark architecture doc.</p>
+
+<div class="toc">
+<strong>Contents</strong>
+<ol>
+  <li><a href="#access">How to access the Spark UI</a></li>
+  <li><a href="#tabs">The six tabs — overview</a></li>
+  <li><a href="#jobs">Jobs tab</a></li>
+  <li><a href="#stages">Stages tab — the most important</a></li>
+  <li><a href="#sql">SQL / DataFrame tab</a></li>
+  <li><a href="#executors">Executors tab</a></li>
+  <li><a href="#storage">Storage &amp; Environment tabs</a></li>
+  <li><a href="#diagnose">Diagnosing 4 common problems</a></li>
+  <li><a href="#walkthrough">Worked example — slow job walkthrough</a></li>
+  <li><a href="#interview">Interview cheat-sheet</a></li>
+</ol>
+</div>
+
+<h2 id="access">1. How to access the Spark UI</h2>
+<ul>
+  <li><strong>Databricks:</strong> open the cluster → click the <strong>Spark UI</strong> tab. Or from a notebook, click the job-progress widget and follow the "View" link.</li>
+  <li><strong>Local Spark (laptop):</strong> while a job is running, open <code>http://localhost:4040</code>. Multiple SparkSessions = ports 4041, 4042...</li>
+  <li><strong>spark-submit on a cluster:</strong> the driver logs the UI URL on startup. After the job finishes, the live UI dies — use the <strong>Spark History Server</strong> if enabled.</li>
+  <li><strong>EMR / Dataproc:</strong> Spark UI is accessible via the cluster's "Application Master" link in YARN ResourceManager.</li>
+</ul>
+
+<div class="warn callout">
+<strong>The live UI dies when the job ends.</strong> If you need to debug after-the-fact, enable the Spark History Server (<code>spark.eventLog.enabled = true</code>). Databricks keeps event logs by default for ~30 days.
+</div>
+
+<h2 id="tabs">2. The six tabs — overview</h2>
+<table>
+  <tr><th>Tab</th><th>Use it for</th></tr>
+  <tr><td><strong>Jobs</strong></td><td>List of all Jobs, their actions, status, duration. Top-down entry point.</td></tr>
+  <tr><td><strong>Stages</strong></td><td>Per-stage timing, task metrics, shuffle bytes, skew analysis. <span class="badge">most important</span></td></tr>
+  <tr><td><strong>SQL / DataFrame</strong></td><td>Physical plan + DAG with operator-level metrics. Where to spot bad join strategies.</td></tr>
+  <tr><td><strong>Executors</strong></td><td>Per-executor memory, GC time, cores, dead executors.</td></tr>
+  <tr><td><strong>Storage</strong></td><td>Cached/persisted DataFrames — what's in memory, how big.</td></tr>
+  <tr><td><strong>Environment</strong></td><td>Every Spark config value. Useful for "what did I actually set?"</td></tr>
+</table>
+
+<h2 id="jobs">3. Jobs tab</h2>
+<p>The landing page. Lists every Job (= one action you called) with:</p>
+<ul>
+  <li><strong>Job ID</strong> — sequential number.</li>
+  <li><strong>Description</strong> — the action that triggered it (e.g., <code>count at &lt;notebook&gt;:7</code>).</li>
+  <li><strong>Submitted</strong> — when it started.</li>
+  <li><strong>Duration</strong> — how long it ran.</li>
+  <li><strong>Stages: Succeeded/Total</strong> — e.g., <code>4/4</code> means 4 stages all succeeded.</li>
+  <li><strong>Tasks: Succeeded/Total</strong> — same idea at task granularity.</li>
+</ul>
+<p>Click a Job → drills into its <strong>DAG visualization</strong> (a graph of stages, with shuffle edges between them).</p>
+
+<div class="tip callout">
+<strong>How to use:</strong> sort by Duration. The longest Job is what to investigate first.
+</div>
+
+<h2 id="stages">4. Stages tab <span class="badge">most important</span></h2>
+<p>The single most useful page in Spark UI. Lists every Stage with:</p>
+<ul>
+  <li><strong>Stage ID</strong></li>
+  <li><strong>Description</strong> — the operations in the stage</li>
+  <li><strong>Duration</strong></li>
+  <li><strong>Tasks: Succeeded/Total</strong></li>
+  <li><strong>Input</strong> — bytes read from source</li>
+  <li><strong>Output</strong> — bytes written to sink</li>
+  <li><strong>Shuffle Read</strong> — bytes pulled from the previous shuffle</li>
+  <li><strong>Shuffle Write</strong> — bytes written for the next shuffle</li>
+</ul>
+
+<h3>Click into a stage — what to look at</h3>
+<p>The stage detail page is where 80% of debugging happens. Key sections:</p>
+
+<h3>(a) Summary Metrics table — the skew detector</h3>
+<p>Shows task-level metrics as a distribution: <strong>Min / 25th / Median / 75th / Max</strong> for each metric.</p>
+<table>
+  <tr><th>Metric</th><th>What it means</th><th>What "bad" looks like</th></tr>
+  <tr><td>Duration</td><td>Time per task</td><td>Max ≫ Median → <strong>skew</strong></td></tr>
+  <tr><td>GC Time</td><td>Time spent in garbage collection</td><td>&gt;10% of duration → memory pressure</td></tr>
+  <tr><td>Shuffle Read Size</td><td>Bytes pulled from previous stage</td><td>Max ≫ Median → skewed partition</td></tr>
+  <tr><td>Shuffle Spill (Memory)</td><td>Data spilled because memory was full</td><td>Any non-zero = memory pressure</td></tr>
+  <tr><td>Shuffle Spill (Disk)</td><td>Data spilled to disk (slow!)</td><td>Any non-zero = serious memory pressure</td></tr>
+</table>
+
+<div class="danger callout">
+<strong>Skew rule of thumb:</strong> if Max duration is &gt; 3× Median, you have skew. One partition is doing way more work than the others, holding up the whole stage.
+</div>
+
+<h3>(b) DAG visualization (top of page)</h3>
+<p>Shows the operators in this stage and how they connect. Each box is an operator like <code>Scan parquet</code>, <code>Filter</code>, <code>HashAggregate</code>, <code>SortMergeJoin</code>, <code>Exchange</code>.</p>
+<ul>
+  <li><code>Exchange</code> = a shuffle. Every <code>Exchange</code> is a stage boundary.</li>
+  <li><code>BroadcastExchange</code> = the broadcast prep step (good — means broadcast join is being used).</li>
+  <li><code>SortMergeJoin</code> = expensive join. Ask: could this be broadcast?</li>
+  <li><code>BroadcastHashJoin</code> = cheap join (small side broadcast). What you want for big-small joins.</li>
+</ul>
+
+<h3>(c) Tasks table — the per-task drill-down</h3>
+<p>Lists every task with duration, GC, shuffle read/write, status, host. Sort by Duration to find the slowest task. If one task is much slower than the others and processed much more data — that's your skew suspect.</p>
+
+<h2 id="sql">5. SQL / DataFrame tab</h2>
+<p>Every action shows up here as a "query" with:</p>
+<ul>
+  <li><strong>Description</strong> — short summary</li>
+  <li><strong>Duration</strong></li>
+  <li><strong>Details</strong> — link to the <strong>physical plan</strong> + a visual DAG of operators with row counts and time per operator</li>
+</ul>
+
+<h3>What to look for in the physical plan</h3>
+<pre><code>== Physical Plan ==
+*(3) HashAggregate(keys=[symbol#10], functions=[avg(price_usd_k#15)])
++- Exchange hashpartitioning(symbol#10, 200)
+   +- *(2) HashAggregate(keys=[symbol#10], functions=[partial_avg(price_usd_k#15)])
+      +- *(2) Project [symbol#10, price#11 / 1000 AS price_usd_k#15]
+         +- *(2) BroadcastHashJoin [symbol#10], [symbol#20], Inner, BuildRight
+            :- *(2) Filter isnotnull(symbol#10)
+            :  +- *(2) FileScan json [symbol#10,price#11]
+            +- BroadcastExchange HashedRelationBroadcastMode
+               +- *(1) Filter isnotnull(symbol#20)
+                  +- *(1) FileScan csv [symbol#20,market_cap_tier#21]</code></pre>
+
+<p>Reading bottom-up:</p>
+<ul>
+  <li><code>FileScan</code> — reading source files.</li>
+  <li><code>Filter</code> — predicate.</li>
+  <li><code>BroadcastExchange</code> — small side being broadcast. <strong>Good sign.</strong></li>
+  <li><code>BroadcastHashJoin</code> — the actual join (efficient). If you see <code>SortMergeJoin</code> instead, both sides shuffled.</li>
+  <li><code>HashAggregate</code> appears twice — <strong>partial</strong> aggregation before the shuffle, <strong>final</strong> aggregation after. This is Spark's two-phase aggregation pattern.</li>
+  <li><code>Exchange hashpartitioning</code> — the shuffle for groupBy.</li>
+  <li><code>*(N)</code> prefix = stage number. Whole-stage codegen groups operators in the same stage.</li>
+</ul>
+
+<div class="tip callout">
+<strong>Interview gold:</strong> "How do you tell which join strategy Spark used?" → "Read the physical plan in the SQL tab. <code>BroadcastHashJoin</code> = good for big-small. <code>SortMergeJoin</code> = both sides shuffled. <code>ShuffleHashJoin</code> = rare, falls between."
+</div>
+
+<h2 id="executors">6. Executors tab</h2>
+<p>Per-executor view. Each row shows one executor (or the driver) with:</p>
+<ul>
+  <li><strong>Cores</strong> — how many tasks can run in parallel on this executor.</li>
+  <li><strong>Memory Used / Total</strong> — RAM consumed vs allocated.</li>
+  <li><strong>Disk Used</strong> — spill bytes.</li>
+  <li><strong>Active Tasks / Total Tasks</strong> — current and lifetime workload.</li>
+  <li><strong>Task Time (GC Time)</strong> — total CPU time and time spent in GC.</li>
+  <li><strong>Input / Shuffle Read / Shuffle Write</strong> — totals.</li>
+  <li><strong>Status</strong> — Active or Dead.</li>
+</ul>
+
+<div class="danger callout">
+<strong>Red flags:</strong> any "Dead" executor (probably OOM'd — check logs). GC time &gt; 10% of task time (memory pressure). One executor doing 5× the work of others (skew at the executor level).
+</div>
+
+<h2 id="storage">7. Storage &amp; Environment tabs</h2>
+<p><strong>Storage:</strong> lists every cached/persisted DataFrame and how much memory + disk it's using. Useful when you call <code>df.cache()</code> or <code>df.persist()</code> — verify what's actually in memory.</p>
+<p><strong>Environment:</strong> dumps every Spark config value (executor memory, shuffle partitions, broadcast threshold, etc.). When debugging "did my setting actually apply?" — this is where you confirm.</p>
+
+<h2 id="diagnose">8. Diagnosing 4 common problems</h2>
+
+<h3>Problem 1 — "My job is slow. Where do I start?"</h3>
+<ol>
+  <li><strong>Jobs tab</strong> → sort by Duration → identify the slow Job.</li>
+  <li>Click into it → see the DAG with stage durations.</li>
+  <li><strong>Find the slow stage</strong> (usually 80%+ of total time in one stage).</li>
+  <li>Click that stage → look at <strong>Summary Metrics</strong> for skew, GC, spill.</li>
+</ol>
+
+<h3>Problem 2 — Skew</h3>
+<p><strong>Symptom:</strong> stage takes forever, but most tasks finished in seconds. One straggler task runs for minutes.</p>
+<p><strong>Spot it:</strong></p>
+<ul>
+  <li>Stage's <strong>Summary Metrics</strong>: Max Duration ≫ Median Duration.</li>
+  <li><strong>Tasks table</strong>: sort by Duration, see one task with huge Shuffle Read Size or Input Size.</li>
+</ul>
+<p><strong>Fix:</strong> salt the join key, enable AQE skew-join handling (<code>spark.sql.adaptive.skewJoin.enabled = true</code> in Spark 3+), or pre-aggregate skewed keys.</p>
+
+<h3>Problem 3 — Memory pressure (OOM / spill)</h3>
+<p><strong>Symptom:</strong> tasks failing with OOM, or stages super slow with non-zero Shuffle Spill (Disk).</p>
+<p><strong>Spot it:</strong></p>
+<ul>
+  <li>Stage Summary Metrics: <strong>Shuffle Spill (Memory)</strong> and <strong>Shuffle Spill (Disk)</strong> non-zero.</li>
+  <li>Executors tab: <strong>GC Time / Task Time</strong> &gt; 10%.</li>
+  <li>Dead executors in Executors tab.</li>
+</ul>
+<p><strong>Fix:</strong> increase <code>spark.executor.memory</code>, increase <code>spark.sql.shuffle.partitions</code> (smaller per-partition data), reduce skew, or partition input differently.</p>
+
+<h3>Problem 4 — Bad join strategy (the broadcast miss)</h3>
+<p><strong>Symptom:</strong> a stage shuffling huge amounts of data for a join where one side is small.</p>
+<p><strong>Spot it:</strong></p>
+<ul>
+  <li>SQL tab → physical plan shows <code>SortMergeJoin</code> instead of <code>BroadcastHashJoin</code>.</li>
+  <li>Stage's Shuffle Write/Read is in GB+ for a join.</li>
+</ul>
+<p><strong>Fix:</strong> wrap the small side in <code>broadcast(df)</code>, or raise <code>spark.sql.autoBroadcastJoinThreshold</code>.</p>
+
+<h2 id="walkthrough">9. Worked example — slow job walkthrough</h2>
+<p>Imagine a FinFlow report job takes 45 minutes. Walking through the UI:</p>
+
+<div class="ascii-block">Step 1: Jobs tab
+─────────────────
+Job ID  Description                  Duration   Stages
+   0    schema-infer (read.json)       3s        1/1
+   1    write parquet at report.py    45m        4/4   ← THE SLOW ONE
+
+Step 2: Click Job 1 → DAG view
+──────────────────────────────
+Stage 0 (read transactions)   2m    ← OK
+Stage 1 (read users_meta)     5s    ← OK
+Stage 2 (join + filter + agg) 42m   ← BOTTLENECK
+Stage 3 (write parquet)       1m    ← OK
+
+Step 3: Click Stage 2 → Summary Metrics
+──────────────────────────────────────
+Metric          Min    25%    Median  75%   Max
+Duration         5s     12s    18s    25s   38min   ← SKEW!
+Shuffle Read    50MB   80MB   120MB  180MB  18GB    ← ONE TASK READS 18 GB!
+GC Time          0s     1s     2s     3s    5s      ← OK
+
+Step 4: Stage 2 → Tasks table → sort by Duration desc
+─────────────────────────────────────────────────────
+Task ID  Duration   Shuffle Read   Host
+  157    38min      18 GB          executor-9
+  104    25s        180 MB         executor-3
+  ...
+  → Task 157 processing one mega-partition. Check the join key
+    distribution — likely a "hot" user_id (system user, anonymous,
+    null, etc.) with most of the rows.
+
+Diagnosis: skew on join key.
+Fix: AQE skew-join, or salt the key, or filter the hot value separately.</div>
+
+<p>That's the full debug path — Jobs → Stage → Summary Metrics → Tasks. Three clicks from "the job is slow" to "this one partition is the problem."</p>
+
+<h2 id="interview">10. Interview cheat-sheet</h2>
+
+<table>
+  <tr><th>Question</th><th>Answer-shape</th></tr>
+  <tr><td>"How do you debug a slow Spark job?"</td><td>"Open Spark UI, Jobs tab → find slow job → click into stages → identify slowest stage → look at Summary Metrics for skew, GC, spill → drill into Tasks table to find the straggler."</td></tr>
+  <tr><td>"How do you spot skew?"</td><td>"Stage Summary Metrics. If Max Duration is &gt; 3× Median, you have skew. Confirm with Tasks table — one task has much larger Shuffle Read."</td></tr>
+  <tr><td>"How do you know which join strategy Spark used?"</td><td>"SQL tab → physical plan. <code>BroadcastHashJoin</code> = small side broadcasted (good). <code>SortMergeJoin</code> = both sides shuffled (expensive)."</td></tr>
+  <tr><td>"What does Shuffle Spill (Disk) mean?"</td><td>"Memory wasn't enough to hold shuffle data, so Spark spilled to disk. Slow. Fix: more executor memory, more shuffle partitions, or fix skew."</td></tr>
+  <tr><td>"How do you verify a config actually took effect?"</td><td>"Environment tab in Spark UI lists every active config value."</td></tr>
+  <tr><td>"What's the difference between Jobs and Stages?"</td><td>"One action = one Job. One Job = many Stages, split at shuffle boundaries. One Stage = many Tasks, one per partition."</td></tr>
+</table>
+
+<h3>Three killer phrases to use in interviews</h3>
+<ol>
+  <li>"I'd start by looking at the Spark UI — Jobs tab, then drill into the slow stage."</li>
+  <li>"In the Summary Metrics, if Max ≫ Median for task duration, that's skew."</li>
+  <li>"The physical plan in the SQL tab shows me whether Spark chose BroadcastHashJoin or SortMergeJoin."</li>
+</ol>
+
+<hr>
+<p class="muted">Generated 2026-05-28 — companion to <code>Spark_Architecture_Walkthrough.html</code>. Read this once, then refer back when working in Databricks notebooks.</p>
+
+</body>
+</html>

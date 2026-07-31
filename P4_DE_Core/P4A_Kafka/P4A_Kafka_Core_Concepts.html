@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>P4A — Kafka Core Concepts</title>
+<style>
+body{font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;max-width:900px;margin:2rem auto;padding:0 1.2rem;line-height:1.65;color:#1a1a1a}
+h1{border-bottom:3px solid #d63384;padding-bottom:.4rem}
+h2{margin-top:2.5rem;color:#0d5c8c;border-bottom:1px solid #ddd;padding-bottom:.3rem}
+h3{margin-top:1.6rem;color:#333}
+code{background:#f2f4f7;padding:.15rem .35rem;border-radius:3px;font-size:.9em}
+pre{background:#1e2430;color:#e6edf3;padding:1rem;border-radius:6px;overflow-x:auto;font-size:.85em}
+table{border-collapse:collapse;width:100%;margin:1rem 0}
+th,td{border:1px solid #d6dae0;padding:.5rem .7rem;text-align:left;font-size:.93em}
+th{background:#eef2f6}
+.key{background:#fff8e1;border-left:4px solid #f0ad4e;padding:.7rem 1rem;margin:1rem 0}
+.trap{background:#fdecea;border-left:4px solid #d9534f;padding:.7rem 1rem;margin:1rem 0}
+.meta{color:#666;font-size:.9em}
+</style></head><body>
+
+<h1>Pillar 4A — Kafka: Core Concepts</h1>
+<p class="meta">Sessions: 2026-07-27, 2026-07-29, <b>2026-07-30 (full re-teach from scratch)</b>.
+Covers: the log, partitions, brokers, replication, partitioning strategy, exactly-once, plus a 2D Structured Streaming checkpoint recap.</p>
+
+<h2>1. Why Kafka exists</h2>
+<p>6 producers &times; 8 consumers point-to-point = ~48 integrations. Kafka in the middle = 14 connections.
+It is a <b>decoupling buffer</b> — not a database, not a classic queue.</p>
+
+<h3>The log</h3>
+<p>A topic is an <b>append-only, immutable, ordered</b> sequence of records. Writes only append. Positions are <b>offsets</b>.</p>
+<pre>topic "rides"
+[0][1][2][3][4][5][6]  &rarr; new writes append here</pre>
+<p>Two consequences that separate Kafka from RabbitMQ/SQS:</p>
+<ol>
+<li><b>Reading does not delete.</b> Many consumer groups read the same topic independently; a new team can replay from offset 0.</li>
+<li><b>Retention is time/size based, not consumption based.</b> Default 7 days. Consumer down 9 days = permanent loss.</li>
+</ol>
+
+<h3>Partitions</h3>
+<pre>topic "rides"
+  partition 0: [0][1][2][3]
+  partition 1: [0][1][2]
+  partition 2: [0][1][2][3][4]</pre>
+<div class="key"><b>Offsets are unique only within a partition</b>, never across the topic.<br>
+<b>Ordering is guaranteed within a partition, never across a topic.</b><br>
+<b>A partition is read by at most one consumer per group</b> &rarr; partition count is the parallelism ceiling.</div>
+
+<p><b>Q: 6 partitions, 10 consumers in one group?</b> 6 consume (one partition each), 4 sit idle as <b>hot standbys</b> —
+if one dies a rebalance hands its partition over in seconds.</p>
+
+<h2>2. Brokers and the cluster</h2>
+<p>A <b>broker</b> = one Kafka server. A <b>cluster</b> = several brokers. Partitions spread across brokers = horizontal scaling.</p>
+<pre>topic "rides", 6 partitions, 3 brokers
+Broker 1: p0, p1    Broker 2: p2, p3    Broker 3: p4, p5</pre>
+<p><b>bootstrap.servers</b> is only a phone book — the client fetches metadata, then talks <b>directly</b> to the leader broker. No proxy in the path. 2–3 addresses suffice for a 50-broker cluster.</p>
+<p><b>ZooKeeper &rarr; KRaft.</b> Kafka 3.x+ uses its own Raft implementation; metadata lives in an internal Kafka topic. Simpler ops, faster failover, far higher partition counts.</p>
+
+<h3>Why Kafka is fast</h3>
+<ul>
+<li><b>Sequential disk I/O</b> — appending to the end of a file; no random reads/writes, no per-message index.</li>
+<li><b>Zero-copy</b> — <code>sendfile()</code> pushes bytes from page cache straight to the socket, never through the JVM heap. Hence small heap, big page cache.</li>
+</ul>
+<p><b>On disk:</b> a partition is a directory of <b>segment</b> files (~1 GB). Retention deletes whole segments, not individual records — which is why data can outlive its retention setting slightly.</p>
+
+<h2>3. Replication and durability</h2>
+<p>Every partition has N copies (<code>replication.factor</code>, normally 3): one <b>leader</b>, the rest <b>followers</b>.</p>
+<pre>p0 &rarr; Broker 1 (LEADER) | Broker 2 (follower) | Broker 3 (follower)
+p1 &rarr; Broker 2 (LEADER) | Broker 3 (follower) | Broker 1 (follower)</pre>
+<div class="key"><b>Followers serve no client traffic.</b> They are not read replicas — they exist only to take over.
+All reads and writes for a partition go to its leader. Leadership is spread so every broker does real work.</div>
+<p>Replicas are always on <b>distinct brokers</b> (RF=3 needs &ge;3 brokers). With <code>broker.rack</code> set, replicas spread across AZs — an entire AZ can fail and the partition survives. Cost: cross-AZ traffic charges + added <code>acks=all</code> latency.</p>
+<p><i>Note:</i> a partition lives on one <b>broker</b>; a broker may have many disks (<code>log.dirs</code>). Different partitions sit on different disks; one partition's log is on exactly one disk.</p>
+
+<h3>ISR — In-Sync Replicas</h3>
+<p>Replicas caught up with the leader (within <code>replica.lag.time.max.ms</code>, default 30s). Laggards are ejected and rejoin when caught up. <b>Only an ISR member can be elected leader.</b></p>
+
+<h3>acks — the durability dial</h3>
+<table><tr><th>acks</th><th>Leader waits for</th><th>Risk</th><th>Use</th></tr>
+<tr><td><code>0</code></td><td>nothing</td><td>loses data freely</td><td>metrics, logs</td></tr>
+<tr><td><code>1</code></td><td>its own disk write</td><td>leader dies pre-replication &rarr; <b>loss</b></td><td>dangerous middle ground</td></tr>
+<tr><td><code>all</code></td><td>every ISR member</td><td>none, if configured right</td><td>payments, CDC</td></tr></table>
+<div class="trap"><b>Trap:</b> <code>acks=all</code> alone is NOT safe. If the ISR has shrunk to just the leader, "all" means "one".
+Pair it with <code>min.insync.replicas=2</code>.</div>
+<div class="key"><b>The production triple:</b> <code>replication.factor=3</code> + <code>min.insync.replicas=2</code> + <code>acks=all</code>.<br>
+Tolerates one broker failing with zero loss and zero downtime. Not 3, because then any single restart halts all writes.</div>
+
+<h3>Failure table (RF=3, min.insync=2, acks=all)</h3>
+<table><tr><th>Brokers down</th><th>ISR</th><th>Writes</th><th>Reads</th></tr>
+<tr><td>0</td><td>3</td><td>&#10003; normal</td><td>&#10003;</td></tr>
+<tr><td>1</td><td>2</td><td>&#10003; fine — the reason min.insync=2</td><td>&#10003;</td></tr>
+<tr><td>2</td><td>1</td><td>&#10007; rejected, <code>NotEnoughReplicasException</code></td><td>&#10003;</td></tr>
+<tr><td>3</td><td>0</td><td>&#10007; partition offline</td><td>&#10007;</td></tr></table>
+<p><b>Interview line:</b> <i>min.insync.replicas is the setting that makes Kafka fail loudly instead of losing data quietly.</i></p>
+<p><b><code>unclean.leader.election.enable</code></b> — if true, a stale non-ISR replica may become leader when all ISR members die: stays available, silently loses records. Default false.
+<i>Kafka defaults to consistency over availability; this is the switch that flips it.</i> (Literal CAP choice.)</p>
+
+<h2>4. Partitioning strategy</h2>
+<p>Every record is <b>key + value</b>. The key is not metadata — <b>it is the routing decision</b>.</p>
+<pre>partition = murmur2(serialized_key) % number_of_partitions</pre>
+<table><tr><th>Case</th><th>Behaviour</th></tr>
+<tr><td>Key present</td><td>Deterministic hash — same key always &rarr; same partition, from any producer, any language. This is what gives ordering.</td></tr>
+<tr><td>Key null</td><td><b>Sticky partitioner</b> (clients 2.4+): fill a batch for one partition, send, switch. Older clients: strict round-robin per record. "Null key = round-robin" is outdated — it's round-robin <i>per batch</i>.</td></tr>
+<tr><td>Explicit partition</td><td>Overrides everything; you own rebalancing correctness.</td></tr>
+<tr><td>Custom partitioner</td><td>Implement <code>Partitioner</code> — e.g. VIP tenants to dedicated partitions.</td></tr></table>
+<div class="key">You don't get global ordering. You <b>choose the unit</b> you need ordering within, and make that the key:
+per-rider, per-account, per-device, per-card.</div>
+
+<h3>Failure mode 1 — hot partitions (key skew)</h3>
+<p>Key by <code>country_code</code> with 60% one country &rarr; one partition takes 60% of load; one consumer lags while others idle, and adding consumers cannot help.
+Choose a <b>high-cardinality, evenly distributed</b> key (<code>user_id</code> good; country/status/event_type bad).
+For a genuinely hot key: <b>composite key</b> <code>merchant_id:bucket_0..9</code> — the same salting used for Spark skew.</p>
+
+<h3>Failure mode 2 — changing partition count breaks ordering</h3>
+<p><code>% number_of_partitions</code> means changing the divisor rehashes every key. A key on p2 under 6 partitions may map to p5 under 10 — old history in p2, new events in p5, so a consumer can read new state before old.
+<b>Kafka allows this silently, with no warning.</b> Never shrink (impossible), avoid growing keyed topics, over-provision at creation.</p>
+
+<h3>Sizing partition count</h3>
+<ul>
+<li>Floor: <b>partitions &ge; peak consumers</b> you will ever want.</li>
+<li><code>partitions = target_throughput / per_partition_throughput</code>, plus headroom.</li>
+<li>Costs: file handles, memory, replication threads, longer leader election. Thousands/broker fine on KRaft; tens of thousands is trouble.</li>
+<li>Default for a new topic: <b>2–3&times; expected consumer count</b>.</li>
+</ul>
+<p><b>Interview line:</b> <i>Partitions buy parallelism and cost global ordering plus per-partition overhead — so size for peak consumers with headroom, because growing later breaks key-ordering guarantees.</i></p>
+
+<h3>Worked example — fraud detection</h3>
+<p>Rule: "3 transactions in different cities within 10 minutes", per card. <b>Key = credit_card_number</b> (tokenized).</p>
+<div class="trap"><b>Why <code>transaction_id</code> is the worst possible key:</b> unique per record &rarr; every transaction hashes to a different partition.
+One card's 5 transactions scatter across 5 partitions and 5 consumers. The 10-minute window never sees them together — the rule doesn't fire slowly, it <b>silently never fires</b>.<br>
+<b>General rule: keys should be the entity you group by, not the identity of the event.</b></div>
+<p>The key also determines <b>stateful streaming correctness</b> — <code>groupBy(card).window(10 min)</code> only works if all that card's events reach the same task. Re-keying later means a new topic or a repartition step: choosing the key is an architecture decision made once, expensive to reverse.</p>
+
+<h2>5. Delivery semantics &amp; exactly-once</h2>
+<table><tr><th>Guarantee</th><th>Meaning</th></tr>
+<tr><td>At-most-once</td><td>Send, never retry. Fast, loses data. <code>acks=0</code>.</td></tr>
+<tr><td>At-least-once</td><td>Retry until acked. <b>No loss, duplicates happen.</b> The default reality.</td></tr>
+<tr><td>Exactly-once</td><td>No loss, no duplicates — via the two mechanisms below.</td></tr></table>
+<p><b>Why duplicates are unavoidable:</b> broker writes the record, its ack is lost in the network, producer times out and retries — the broker has no way to know it's the same record.</p>
+
+<h3>Mechanism 1 — idempotent producer</h3>
+<p><code>enable.idempotence=true</code> (default since 3.0). Producer gets a <b>PID</b> and stamps each record with a <b>monotonic sequence number per partition</b>.
+The broker tracks the last sequence per (PID, partition); on retry it recognises the duplicate, <b>drops it, and still returns success</b>.
+Requires <code>acks=all</code>, <code>retries&gt;0</code>, <code>max.in.flight&le;5</code>. Solves duplicates from <i>producer retries</i> — the common case. ~3–5% throughput cost.</p>
+
+<h3>Mechanism 2 — transactional API (read-process-write)</h3>
+<p>Problem: consumer reads topic A, writes topic B, commits its offset. Crash between the write and the offset commit &rarr; reprocess &rarr; output written twice.</p>
+<pre>producer.initTransactions();
+producer.beginTransaction();
+producer.send(outputRecord);
+producer.sendOffsetsToTransaction(offsets, groupId);  // offsets INSIDE the txn
+producer.commitTransaction();</pre>
+<div class="key">The offset commit going <b>through the producer</b> is the whole trick — output write and offset commit become one atomic unit.
+Consumers must set <b><code>isolation.level=read_committed</code></b>; the default <code>read_uncommitted</code> sees aborted/open transactions and quietly defeats the design.</div>
+
+<h3>The honest limitation</h3>
+<p><b>Exactly-once holds only within Kafka.</b> Any external sink (Postgres, S3, Delta, REST) is outside the transaction coordinator's reach.
+External sinks need their own idempotency: upsert on a natural key, deterministic file naming, or batch-ID dedup (what Delta does — below).</p>
+
+<h2>6. Recap — 2D checkpoints + the Delta atomic commit</h2>
+<p>Re-taught 2026-07-30 because the mechanism underpins every "how do you guarantee exactly-once?" answer.</p>
+
+<h3>A micro-batch</h3>
+<p>Streaming = a loop of small batch jobs: ask the source what's new &rarr; <b>freeze that range as batch N</b> &rarr; run the query &rarr; write to sink &rarr; record completion.
+Batch N is a fixed, named offset range decided <i>before</i> processing — which is what makes replay deterministic.</p>
+
+<h3>The checkpoint directory</h3>
+<pre>/checkpoint/
+├── offsets/    &larr; "batch N will read THIS range"  (written BEFORE processing)
+├── commits/    &larr; "batch N finished"              (written AFTER the sink write)
+├── metadata    &larr; the stream's permanent appId
+└── state/      &larr; aggregation/window state (RocksDB)</pre>
+<p><code>offsets/47</code> present but <code>commits/47</code> absent = crashed mid-batch-47, readable at a glance.</p>
+<table><tr><th>State found</th><th>Action on restart</th></tr>
+<tr><td>offsets/47 + commits/47</td><td>start batch 48</td></tr>
+<tr><td>offsets/47, no commits/47</td><td><b>re-run batch 47 with the exact recorded offset range</b></td></tr></table>
+<p><b>The exposure:</b> the crash may have happened <i>after</i> Delta accepted the write but <i>before</i> <code>commits/47</code> was written. Streaming cannot tell the difference, so it replays. Unprotected, that's duplicates.</p>
+
+<h3>The Delta side — SetTransaction</h3>
+<p>Every Delta write is an atomic commit (a new JSON in <code>_delta_log/</code>, made visible atomically — no half state). A streaming writer adds one extra action:</p>
+<pre>// _delta_log/00000000000000000012.json
+{"add": {"path": "part-0001.parquet", ...}}
+{"add": {"path": "part-0002.parquet", ...}}
+{"txn": {"appId": "a7f3-stream-id", "version": 47, ...}}</pre>
+<ul>
+<li><b>appId</b> — which stream (from the checkpoint's <code>metadata</code>); two streams writing one table don't interfere.</li>
+<li><b>version</b> — the batch number.</li>
+</ul>
+<p>Data files and the claim "stream a7f3 already wrote batch 47" land in the <b>same commit</b> — they cannot disagree.</p>
+
+<h3>The two mechanisms meeting</h3>
+<ol>
+<li>Streaming sees offsets/47 without commits/47 &rarr; replays batch 47, same Kafka offsets.</li>
+<li>Query recomputes the same rows.</li>
+<li>Delta sink scans <code>_delta_log</code> for the latest <code>txn</code> with appId=a7f3 &rarr; finds version 47.</li>
+<li>47 is not &gt; 47 &rarr; <b>skip the write silently</b>.</li>
+<li>commits/47 written, on to batch 48.</li>
+</ol>
+<div class="key"><b>Checkpoint = no data loss</b> (every batch processed at least once).<br>
+<b>Delta txn = no duplicates</b> (every batch written at most once).<br>
+Together = exactly-once. Note the work was redone; the <i>write</i> was not.</div>
+
+<h3>What deleting parts of the checkpoint costs</h3>
+<table><tr><th>Deleted</th><th>Consequence</th></tr>
+<tr><td><code>commits/</code> only</td><td>Recompute wasted, <b>no data impact</b> — Delta's txn dedup still catches the replay because appId survived.</td></tr>
+<tr><td><code>offsets/</code></td><td>Loses read position &rarr; gap, or re-read from <code>startingOffsets</code>.</td></tr>
+<tr><td><code>metadata</code></td><td><b>New appId &rarr; Delta dedup blind &rarr; duplicates.</b> The fatal one.</td></tr></table>
+<p><b>Rule:</b> the checkpoint is not a cache — it is the stream's <b>identity</b> and its <b>ledger</b>. Deleting it declares a brand-new pipeline. (Proven in the 2D lab: after deletion the rate source re-emitted and duplicates appeared.)</p>
+
+<h2>7. Still open in 4A (hands-on, August build sessions)</h2>
+<ul>
+<li>Kafka Connect + Debezium — feeds the CDC project (Aug 14)</li>
+<li><code>kafka-python</code> producer/consumer — Fraud Detection project (Aug 10)</li>
+<li>Redpanda via Docker for local dev (~15 min, do it when first running a broker)</li>
+</ul>
+
+<h2>Interview quick-fire</h2>
+<table>
+<tr><th>Question</th><th>Answer</th></tr>
+<tr><td>Ordering guarantee?</td><td>Within a partition only. Key by the entity you need ordered.</td></tr>
+<tr><td>6 partitions, 10 consumers?</td><td>6 active, 4 idle standbys.</td></tr>
+<tr><td>Safe durability config?</td><td>RF=3, min.insync.replicas=2, acks=all.</td></tr>
+<tr><td>2 of 3 brokers down?</td><td>Writes rejected (NotEnoughReplicas), reads fine — intended, fail loud not silent.</td></tr>
+<tr><td>Do followers serve reads?</td><td>No. Leader only.</td></tr>
+<tr><td>Worst partition key?</td><td>A unique ID — maximum spread, destroys co-location.</td></tr>
+<tr><td>Can I add partitions?</td><td>Yes, never remove — but it rehashes keys and breaks ordering silently.</td></tr>
+<tr><td>Exactly-once end-to-end?</td><td>Only within Kafka. External sinks need their own idempotency (Delta: appId+version).</td></tr>
+<tr><td>ZooKeeper?</td><td>Replaced by KRaft in 3.x+.</td></tr>
+</table>
+
+</body></html>

@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Real-Time Fraud Detection Pipeline — Build Blueprint + Interview Prep</title>
+<style>
+  body { font-family: Arial, sans-serif; font-size: 13px; line-height: 1.7; color: #1a1a1a; max-width: 860px; margin: 40px auto; padding: 0 32px 80px; }
+  h1 { font-size: 22px; border-bottom: 3px solid #1a1a2e; padding-bottom: 10px; margin-bottom: 4px; }
+  .subtitle { color: #555; font-size: 13px; margin-bottom: 36px; }
+  .status-banner { background: #fff8e1; border: 1px solid #f59e0b; border-radius: 8px; padding: 14px 18px; margin-bottom: 28px; font-weight: bold; color: #92400e; }
+  h2 { font-size: 15px; background: #1a1a2e; color: white; padding: 10px 16px; border-radius: 6px; margin: 28px 0 14px; }
+  h3 { font-size: 13px; font-weight: bold; color: #1a1a2e; border-left: 4px solid #6366f1; padding-left: 10px; margin: 20px 0 8px; }
+  .pipeline { background: #f0f0ff; border: 1px solid #c7c7f0; border-radius: 8px; padding: 14px 18px; font-family: monospace; font-size: 12px; margin: 12px 0; color: #2d2d6e; white-space: pre-wrap; }
+  .qa-block { background: #f9f9f9; border: 1px solid #e0e0e0; border-radius: 8px; padding: 16px 20px; margin: 14px 0; }
+  .q { font-weight: bold; color: #1a1a2e; margin-bottom: 8px; }
+  .a { color: #333; }
+  .build-step { background: #e8f5e9; border-left: 4px solid #10b981; padding: 10px 14px; border-radius: 4px; margin: 10px 0; }
+  .decision { background: #f0f0ff; border-left: 4px solid #6366f1; padding: 10px 14px; border-radius: 4px; margin: 10px 0; }
+  code { background: #eef; padding: 1px 6px; border-radius: 4px; font-size: 12px; font-family: monospace; }
+  ul, ol { margin: 6px 0; padding-left: 20px; }
+  li { margin-bottom: 4px; }
+  hr { border: none; border-top: 1px solid #ddd; margin: 28px 0; }
+  table { border-collapse: collapse; width: 100%; margin: 12px 0; font-size: 12px; }
+  th { background: #1a1a2e; color: white; padding: 8px 12px; text-align: left; }
+  td { border: 1px solid #ddd; padding: 8px 12px; }
+  tr:nth-child(even) { background: #f9f9f9; }
+</style>
+</head>
+<body>
+
+<h1>Real-Time Fraud Detection Pipeline</h1>
+<div class="subtitle">Sayantani Nath &nbsp;·&nbsp; Stage 3 Project &nbsp;·&nbsp; Target: Jul 2026</div>
+
+<div class="status-banner">
+  ⚠️ NOT STARTED YET — This is a build blueprint + pre-interview prep document.<br>
+  Update this document as you build each component. Only put this on your resume once Stage 3 is complete.
+</div>
+
+<h2>One-Liner (Learn This Now)</h2>
+<p>An end-to-end real-time streaming pipeline that ingests financial transaction events through Kafka, scores them for fraud using IsolationForest anomaly detection, routes alerts to a dedicated Kafka topic, sinks all records to Delta Lake, and orchestrates the full flow with Airflow — built on Databricks.</p>
+
+<h2>Why This Project (The Interview Story)</h2>
+<p>I wanted a capstone project that used every layer of a real DE stack in one coherent flow: event streaming, real-time scoring, Delta Lake storage with ACID guarantees, and orchestration. Fraud detection was a deliberate choice — it has real business stakes (financial loss, customer trust), a natural latency requirement (must detect in near real-time, not batch daily), and a clear definition of success (flagged transactions reach the alert topic before the next window closes). It's also rare in tutorial portfolios, which usually clone Reddit feeds or weather APIs.</p>
+
+<h2>Full Architecture — End to End</h2>
+<div class="pipeline">Data Source
+  Kaggle "Credit Card Fraud Detection" dataset
+  OR PaySim simulated mobile money transactions
+  ↓
+transaction_producer.py (Python)
+  Reads dataset rows, publishes to Kafka topic: "transactions"
+  Message format: JSON {transaction_id, amount, merchant, timestamp, features...}
+  ↓
+Kafka Topic: "transactions"
+  ↓
+PySpark Structured Streaming (Databricks)
+  readStream from Kafka
+  ↓ parse JSON payload
+  ↓ feature engineering (amount_log, hour_of_day, merchant_category)
+  ↓ IsolationForest scoring (scikit-learn model, broadcast to workers)
+  ↓ tag each record: is_fraud = True/False, anomaly_score
+  ↓
+Fork:
+  ├─ All records → Delta Lake sink (transactions table, Bronze layer)
+  └─ Flagged records (is_fraud=True) → Kafka topic: "fraud_alerts"
+  ↓
+Delta Lake (Databricks)
+  Bronze: raw transactions
+  Silver: cleaned + scored transactions
+  Gold: daily fraud summary mart (count, amount_sum, by merchant_category)
+  ↓
+Airflow DAG
+  Schedules: producer start, dbt runs on Delta, daily alert report
+  ↓
+Optional: Grafana or Databricks dashboard for live fraud rate</div>
+
+<h2>Technology Choices — Why Each One</h2>
+<table>
+  <tr><th>Component</th><th>Choice</th><th>Why</th></tr>
+  <tr><td>Event streaming</td><td>Apache Kafka</td><td>Industry standard for financial event streams. Decouples producer from consumer. Replay capability for debugging. Separate topics for transactions vs alerts is a clean architectural pattern</td></tr>
+  <tr><td>Stream processing</td><td>PySpark Structured Streaming</td><td>Handles exactly-once semantics with checkpoints. Integrates natively with Delta Lake. Runs on Databricks without setup overhead</td></tr>
+  <tr><td>Anomaly detection</td><td>IsolationForest (scikit-learn)</td><td>Doesn't require labeled training data — unsupervised. Works well on tabular financial features. Fast inference. Can be broadcast to Spark workers as a broadcast variable so the model doesn't re-serialize for every partition</td></tr>
+  <tr><td>Storage</td><td>Delta Lake</td><td>ACID transactions on a data lake. Time travel for debugging (what was the fraud rate on a specific day?). MERGE for upserts. OPTIMIZE + Z-ORDER for query performance. Native to Databricks</td></tr>
+  <tr><td>Orchestration</td><td>Apache Airflow</td><td>Schedules the producer, dbt runs, and daily reports. Retry on failure. Observable via Airflow UI</td></tr>
+  <tr><td>Platform</td><td>Databricks</td><td>PySpark + Delta Lake + Unity Catalog in one platform. Matches where the industry is going for lakehouse workloads</td></tr>
+</table>
+
+<h2>Build Order (Follow This Sequence)</h2>
+<ol>
+  <li class="build-step"><strong>Step 1:</strong> Download Kaggle Credit Card Fraud dataset. Write transaction_producer.py to read CSV rows and print them — don't touch Kafka yet</li>
+  <li class="build-step"><strong>Step 2:</strong> Add Kafka. Run a local Kafka broker (Docker). Publish transactions to "transactions" topic. Verify with kafka-console-consumer</li>
+  <li class="build-step"><strong>Step 3:</strong> Write PySpark consumer that reads from Kafka topic and prints records — no ML yet, just confirm the stream works</li>
+  <li class="build-step"><strong>Step 4:</strong> Add IsolationForest. Train it on the Kaggle features offline. Broadcast the model to Spark workers. Score each record</li>
+  <li class="build-step"><strong>Step 5:</strong> Fork the output — write all records to Delta Lake, write flagged records to "fraud_alerts" Kafka topic</li>
+  <li class="build-step"><strong>Step 6:</strong> Add dbt models on top of Delta Lake — Bronze/Silver/Gold layers</li>
+  <li class="build-step"><strong>Step 7:</strong> Add Airflow DAG to orchestrate the full flow</li>
+  <li class="build-step"><strong>Step 8:</strong> Update this document with what you actually built, then add to resume</li>
+</ol>
+
+<h2>Key Concepts to Understand Before Building</h2>
+<ul>
+  <li><strong>Kafka topic:</strong> A named stream of records. Producers write to it, consumers read from it. "transactions" and "fraud_alerts" are two separate topics</li>
+  <li><strong>Consumer group:</strong> Multiple consumers can read from the same topic in parallel — Kafka tracks the offset (position) per group</li>
+  <li><strong>Exactly-once semantics:</strong> PySpark + Kafka can guarantee each record is processed exactly once — not zero times (lost), not twice (duplicate). Requires checkpointing</li>
+  <li><strong>Checkpoint:</strong> PySpark saves its progress to a checkpoint location. If it crashes and restarts, it picks up from the last checkpoint instead of reprocessing everything</li>
+  <li><strong>Watermark:</strong> Tells Spark how long to wait for late-arriving records before closing a time window. Important for windowed aggregations</li>
+  <li><strong>IsolationForest:</strong> Anomaly detection algorithm. Builds random decision trees, isolates outliers faster (fewer splits needed). contamination parameter = expected % of fraud</li>
+  <li><strong>Broadcast variable:</strong> In Spark, if you have a large model or lookup table, broadcasting it sends one copy to each worker node instead of serializing it with every task</li>
+  <li><strong>Delta Lake MERGE:</strong> Upsert pattern — update if exists, insert if not. Used for deduplication and SCD patterns on streaming data</li>
+</ul>
+
+<h2>Interview Q&amp;A (Prepare These Now — Build First, Then Practice)</h2>
+
+<div class="qa-block">
+  <div class="q">Q: Walk me through this pipeline end to end.</div>
+  <div class="a">[Fill this in once you've built it. Use the pipeline diagram above as your guide — walk through each component, what it does, and why you made that choice.]</div>
+</div>
+
+<div class="qa-block">
+  <div class="q">Q: Why Kafka and not just batch processing?</div>
+  <div class="a">Fraud detection has a latency requirement — if you batch daily, a fraudulent transaction completes before you detect it. Kafka gives you an event stream where each transaction is available for scoring within milliseconds of occurring. The separate alert topic means downstream systems (risk team notification, card freeze trigger) can react immediately without polling a database.</div>
+</div>
+
+<div class="qa-block">
+  <div class="q">Q: Why IsolationForest over a supervised model?</div>
+  <div class="a">Two reasons. First, fraud labels are rare and often delayed — real fraud datasets have 99%+ legitimate transactions, and you often don't know a transaction was fraudulent until days later when a chargeback happens. IsolationForest is unsupervised so it doesn't need labels. Second, it's interpretable — the anomaly score tells you how far a transaction deviates from normal patterns, which you can threshold and tune. A deep learning model would give you better accuracy but worse interpretability for a compliance conversation.</div>
+</div>
+
+<div class="qa-block">
+  <div class="q">Q: How does Delta Lake help here specifically?</div>
+  <div class="a">Three things. ACID transactions mean the streaming write and the batch dbt read never see partial data — no dirty reads. Time travel means I can query the transaction table as it was at any point in time, which is critical for regulatory audit ("show me the fraud rate on this specific date"). And MERGE lets me upsert records cleanly — if a transaction arrives late or needs correction, I merge it rather than appending a duplicate.</div>
+</div>
+
+<div class="qa-block">
+  <div class="q">Q: What would you monitor in production?</div>
+  <div class="a">Four things: consumer lag (is the Spark consumer keeping up with Kafka or falling behind?), fraud rate over time (sudden spike = either real fraud wave or model drift), pipeline latency (time from transaction event to alert), and checkpoint health (are checkpoints completing before the next micro-batch starts?).</div>
+</div>
+
+<hr>
+<p style="color:#888;font-size:11px;">Last updated: May 2026. Update this document after each build step. Do not put on resume until Step 7 is complete.</p>
+
+</body>
+</html>

@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>AI Job Application Agent — Interview Prep</title>
+<style>
+  body { font-family: Arial, sans-serif; font-size: 13px; line-height: 1.7; color: #1a1a1a; max-width: 860px; margin: 40px auto; padding: 0 32px 80px; }
+  h1 { font-size: 22px; border-bottom: 3px solid #1a1a2e; padding-bottom: 10px; margin-bottom: 4px; }
+  .subtitle { color: #555; font-size: 13px; margin-bottom: 36px; }
+  h2 { font-size: 15px; background: #1a1a2e; color: white; padding: 10px 16px; border-radius: 6px; margin: 28px 0 14px; }
+  h3 { font-size: 13px; font-weight: bold; color: #1a1a2e; border-left: 4px solid #6366f1; padding-left: 10px; margin: 20px 0 8px; }
+  .pipeline { background: #f0f0ff; border: 1px solid #c7c7f0; border-radius: 8px; padding: 14px 18px; font-family: monospace; font-size: 12px; margin: 12px 0; color: #2d2d6e; white-space: pre-wrap; }
+  .qa-block { background: #f9f9f9; border: 1px solid #e0e0e0; border-radius: 8px; padding: 16px 20px; margin: 14px 0; }
+  .q { font-weight: bold; color: #1a1a2e; margin-bottom: 8px; }
+  .a { color: #333; }
+  .warn { background: #fff8e1; border-left: 4px solid #f59e0b; padding: 10px 14px; border-radius: 4px; margin: 12px 0; font-size: 12px; }
+  .done { background: #e8f5e9; border-left: 4px solid #10b981; padding: 10px 14px; border-radius: 4px; margin: 12px 0; }
+  code { background: #eef; padding: 1px 6px; border-radius: 4px; font-size: 12px; font-family: monospace; }
+  ul, ol { margin: 6px 0; padding-left: 20px; }
+  li { margin-bottom: 4px; }
+  hr { border: none; border-top: 1px solid #ddd; margin: 28px 0; }
+</style>
+</head>
+<body>
+
+<h1>AI Job Application Agent — Interview Prep</h1>
+<div class="subtitle">Sayantani Nath &nbsp;·&nbsp; Built: 2026 &nbsp;·&nbsp; Status: Live &nbsp;·&nbsp; Language: Python</div>
+
+<h2>One-Liner</h2>
+<p>A Python automation pipeline that scrapes live job postings from LinkedIn and Indeed, scores them against a resume using keyword matching, filters visa-restricted roles, and auto-fills ATS application forms using browser automation — saving ~2 hours/week of repetitive form-filling.</p>
+
+<h2>Full Pipeline — End to End</h2>
+<div class="pipeline">LinkedIn / Indeed (scraped via jobspy)
+  ↓
+job_matcher.py
+  ↓ score each job against 35 resume keywords
+  ↓ filter: SF Bay Area + US Remote only
+  ↓ filter: remove green card / clearance / citizenship required roles
+  ↓ flag: EAD-friendly jobs (explicitly mention L2, EAD, work auth)
+  ↓
+Ranked CSV → job_matches_YYYYMMDD.csv
+  ↓ (you review top matches, pick a role)
+  ↓
+agent_apply.py &lt;apply_url&gt;
+  ↓ opens real Chrome via Playwright
+  ↓ scans all visible form fields
+  ↓ matches field labels → profile.yaml values
+  ↓ fills: name, email, phone, LinkedIn, GitHub, portfolio, location, work auth
+  ↓ uploads resume PDF automatically
+  ↓ STOPS — you review and submit manually</div>
+
+<h2>File-by-File Breakdown</h2>
+
+<h3>job_matcher.py</h3>
+<ul>
+  <li>Uses <code>jobspy</code> library to scrape LinkedIn + Indeed simultaneously — 20+ job titles searched in one run</li>
+  <li><strong>Scoring:</strong> <code>score_job(title, description)</code> matches text against ~35 resume keywords. Score = (matched / total) × 250, capped at 100</li>
+  <li><strong>Location filter:</strong> Two modes — <code>remote_only</code> (must say "remote" in location string) and <code>sf_relocated</code> (SF Bay Area + major US cities + remote). remote_only is stricter because LinkedIn often tags hybrid jobs as is_remote=True</li>
+  <li><strong>Visa filter:</strong> <code>is_visa_restricted()</code> scans for ~25 phrases: "US citizens only", "green card only", "security clearance", "FedRAMP", "requires citizenship" — removes these before scoring</li>
+  <li><strong>EAD signal:</strong> Flags jobs that explicitly mention EAD, L2, work authorization, no sponsorship required</li>
+  <li><strong>Output:</strong> Sorted CSV with score, title, company, salary, apply URL, matched keywords, EAD status</li>
+</ul>
+
+<h3>agent_apply.py</h3>
+<ul>
+  <li>Takes a single ATS URL as input, opens it in Chrome (headless=False — visible window)</li>
+  <li><strong>field_signal():</strong> For each form field, collects label, placeholder, aria-label, field name, nearby heading text → concatenates into one lowercase string</li>
+  <li><strong>matches_keyword():</strong> Word-boundary regex — <code>\bstate\b</code> matches "state" field but NOT "United States"</li>
+  <li><strong>Combobox handling:</strong> React ATS platforms (Greenhouse, Lever) render dropdowns as comboboxes — the script clicks, types, waits for dropdown, clicks matching option</li>
+  <li><strong>File upload:</strong> Detects <code>input[type=file]</code>, uploads resume PDF automatically</li>
+  <li><strong>Never submits:</strong> Stops after filling, prints summary of filled/skipped fields, waits for you to review and submit</li>
+</ul>
+
+<h2>Why You Built It</h2>
+<p>Each job application repeats the same 20-40 form fields — name, email, phone, LinkedIn, work authorization. Manually filling these 30-50 times a month is pure repetitive work. The visa filter was added after wasting time on roles requiring US citizenship or clearance, which an L2 EAD holder cannot have. The agent catches these before they reach the shortlist.</p>
+
+<h2>Design Decisions to Defend</h2>
+<ul>
+  <li><strong>jobspy over LinkedIn API:</strong> LinkedIn's official API blocks individual developer access for job search. jobspy scrapes structured data from both LinkedIn and Indeed in one call</li>
+  <li><strong>Playwright over Selenium:</strong> Modern ATS platforms are React SPAs. Playwright handles client-side rendering, async loading, and shadow DOM better than Selenium</li>
+  <li><strong>Word-boundary regex:</strong> Simple substring matching caused "state" to match inside "United States", filling the wrong field. Word boundaries prevent this</li>
+  <li><strong>headless=False:</strong> You need to see the form in real time to catch captchas, load failures, or unexpected UI</li>
+  <li><strong>Never auto-submit:</strong> A wrong submission (wrong salary, wrong answer) can't be undone. Human stays in the loop for final review</li>
+  <li><strong>Two location modes:</strong> LinkedIn tags hybrid roles as is_remote=True. remote_only mode requires "remote" explicitly in the location string to catch these false positives</li>
+</ul>
+
+<h2>What It Can't Do Yet</h2>
+<ul>
+  <li>Dropdown/select fields (ethnicity, gender, job type) — need separate handling</li>
+  <li>LinkedIn Easy Apply — different mechanism, separate build needed</li>
+  <li>Free-text "why do you want to work here" questions — needs LLM integration</li>
+</ul>
+
+<h2>Interview Q&amp;A</h2>
+
+<div class="qa-block">
+  <div class="q">Q: Walk me through this pipeline end to end.</div>
+  <div class="a">I run job_matcher.py which scrapes LinkedIn and Indeed for 20+ data engineering job titles. Each job gets scored against my resume keywords — things like dimensional modeling, Kafka, Snowflake. It filters out visa-restricted roles and flags EAD-friendly ones. Output is a ranked CSV. I pick a role, pass its URL to agent_apply.py, which opens Chrome, reads all form fields, matches them to my profile using keyword rules, fills everything it can, uploads my resume — then stops. I review the filled form and click Submit myself.</div>
+</div>
+
+<div class="qa-block">
+  <div class="q">Q: Why didn't you use the LinkedIn API?</div>
+  <div class="a">LinkedIn's API is not available to individual developers for job search. jobspy scrapes structured job data from both LinkedIn and Indeed in one call — title, company, salary, location, description, is_remote flag. The trade-off is it can break if the sites change their HTML, but for a personal tool that's acceptable.</div>
+</div>
+
+<div class="qa-block">
+  <div class="q">Q: How does field matching work?</div>
+  <div class="a">For each form field I collect every clue about what it's asking — label, placeholder, aria-label, field name, nearby heading — and concatenate into one lowercase string. Then I match that against keyword rules using word-boundary regex. Word boundaries were important: plain substring matching caused "state" to match inside "United States", filling the wrong field with a Yes/No work auth answer.</div>
+</div>
+
+<div class="qa-block">
+  <div class="q">Q: What would you build next?</div>
+  <div class="a">Three things: LLM-powered answers for open-ended questions like "why do you want this role", LinkedIn Easy Apply support since most quick applications go through that, and a proper tracking dashboard instead of a CSV — callback rate by company type, visa filter effectiveness, salary range distribution.</div>
+</div>
+
+<div class="qa-block">
+  <div class="q">Q: What's the hardest bug you fixed?</div>
+  <div class="a">The combobox problem. Some ATS platforms render Yes/No and dropdown fields as React comboboxes — they look like plain text inputs but reject direct fill() because React controls the state. Plain el.fill("Yes") would appear filled, then silently reset when React re-rendered. The fix was to detect comboboxes via role="combobox" or aria-autocomplete attributes, then click, type, wait for the dropdown, and click the matching option — mimicking real human interaction so React accepted the value.</div>
+</div>
+
+</body>
+</html>

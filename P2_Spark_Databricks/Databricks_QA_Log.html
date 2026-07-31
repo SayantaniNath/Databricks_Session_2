@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Databricks — Q&amp;A Log</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #ffffff;
+    --fg: #1a1a1a;
+    --muted: #666;
+    --card: #f6f8fa;
+    --border: #e1e4e8;
+    --accent: #d35400;
+    --code-bg: #f0f2f4;
+    --code-fg: #c0392b;
+    --q-bg: #fff4e6;
+    --q-border: #d35400;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0d1117;
+      --fg: #e6edf3;
+      --muted: #9da7b1;
+      --card: #161b22;
+      --border: #30363d;
+      --accent: #f0883e;
+      --code-bg: #1c2128;
+      --code-fg: #ff9b8a;
+      --q-bg: #2a1f12;
+      --q-border: #f0883e;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    line-height: 1.6;
+    max-width: 820px;
+    margin: 0 auto;
+    padding: 24px 18px 80px;
+    font-size: 16px;
+  }
+  h1 { font-size: 1.6rem; margin-bottom: 4px; }
+  .sub { color: var(--muted); font-size: 0.9rem; margin-bottom: 28px; }
+  .date-head {
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: var(--accent);
+    border-bottom: 2px solid var(--border);
+    padding-bottom: 6px;
+    margin: 36px 0 18px;
+  }
+  .qa { margin-bottom: 28px; }
+  .q {
+    background: var(--q-bg);
+    border-left: 4px solid var(--q-border);
+    padding: 10px 14px;
+    border-radius: 6px;
+    font-weight: 600;
+    margin-bottom: 12px;
+  }
+  .q::before { content: "Q: "; color: var(--accent); }
+  .a { padding-left: 4px; }
+  code {
+    background: var(--code-bg);
+    color: var(--code-fg);
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-family: "SF Mono", Menlo, Consolas, monospace;
+    font-size: 0.88em;
+  }
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 16px;
+    overflow-x: auto;
+    font-size: 0.85rem;
+    line-height: 1.5;
+  }
+  pre code { background: none; color: var(--fg); padding: 0; }
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 14px 0;
+    font-size: 0.9rem;
+  }
+  th, td {
+    border: 1px solid var(--border);
+    padding: 7px 10px;
+    text-align: left;
+  }
+  th { background: var(--card); }
+  ul { padding-left: 22px; }
+  li { margin-bottom: 5px; }
+  .key { color: var(--accent); font-weight: 600; }
+  hr { border: none; border-top: 1px solid var(--border); margin: 0; }
+</style>
+</head>
+<body>
+
+<h1>Databricks — Q&amp;A Log</h1>
+<div class="sub">Running log of Databricks-platform questions (Unity Catalog, Photon, DLT/Lakeflow, platform features) asked during learning sessions, with answers. Newest date at bottom. Spark-core questions live in PySpark_QA_Log.</div>
+
+<div class="section">
+  <h2>Unity Catalog — What is a Catalog? (asked 2026-07-06, during 2D Ex-5 lab)</h2>
+  <div class="qa-block">
+    <div class="question">Q: What is a catalog in Databricks?</div>
+    <p><strong>The top level of Unity Catalog's three-level namespace:</strong> <code>catalog.schema.table</code> — a "database of databases."</p>
+    <ul>
+      <li><strong>Catalog</strong> — top-level container; groups schemas</li>
+      <li><strong>Schema</strong> (= database) — groups tables, views, and volumes</li>
+      <li><strong>Table / view / volume</strong> — the actual objects</li>
+    </ul>
+    <p>Example from the Ex-5 lab: <code>workspace.default.ex5_rate_sink</code> → catalog <code>workspace</code> (Free Edition's default) → schema <code>default</code> → table <code>ex5_rate_sink</code>. The checkpoint path <code>/Volumes/workspace/default/mydata</code> is the same namespace — <code>mydata</code> is a <em>volume</em> object in that same schema.</p>
+    <p><strong>Why catalogs exist:</strong> they're the governance boundary. Teams separate environments (<code>dev</code>/<code>staging</code>/<code>prod</code>) or business units by catalog, and grants cascade down:</p>
+    <pre><code>GRANT SELECT ON CATALOG prod TO analysts;   -- applies to every schema/table inside</code></pre>
+    <p><span class="key">Note:</span> Full Unity Catalog coverage (RBAC, row filters, column masks, lineage) is Stage 2F — this entry is just the namespace piece.</p>
+  </div>
+
+  <div class="qa-block">
+    <div class="question">Q: What does a volume do? (asked 2026-07-06, during 2D Ex-5 lab)</div>
+    <p><strong>A volume is Unity Catalog's container for non-tabular files</strong> — the file-system counterpart to a table.</p>
+    <table>
+      <tr><th></th><th>Table</th><th>Volume</th></tr>
+      <tr><td>Holds</td><td>Rows/columns Spark manages</td><td>Arbitrary files: CSVs, checkpoints, logs, models, images</td></tr>
+      <tr><td>Access</td><td>SQL / DataFrame API</td><td>Path: <code>/Volumes/&lt;catalog&gt;/&lt;schema&gt;/&lt;volume&gt;/...</code></td></tr>
+      <tr><td>Governance</td><td>UC grants, lineage, audit</td><td>Same — unlike ungoverned DBFS/raw S3 paths</td></tr>
+    </table>
+    <p>Lives in the same three-level namespace: <code>workspace.default.mydata</code> = catalog.schema.<strong>volume</strong>.</p>
+    <p><span class="key">Why the Ex-5 lab uses one:</span> a streaming checkpoint needs a durable directory to write <code>offsets/</code> and <code>commits/</code> into; in Free Edition the sanctioned file-storage location is a volume — hence <code>ckpt = "/Volumes/workspace/default/mydata/ex5_ckpt"</code>.</p>
+  </div>
+
+</div>
+
+<div class="section">
+  <h2>Photon Recap + Catalyst / Tungsten / Photon Layer Map (asked 2026-07-06, pre-2E recap)</h2>
+
+  <div class="qa-block">
+    <div class="question">Q: What are Catalyst and Tungsten, and where does Photon fit?</div>
+    <table>
+      <tr><th>Layer</th><th>Job</th><th>Analogy</th></tr>
+      <tr><td><strong>Catalyst</strong></td><td>The <strong>planner</strong> — takes DataFrame/SQL code, decides <em>what</em> to do and in what order. 4 phases: Analysis → Logical Optimization (filter pushdown, column pruning) → Physical Planning (BHJ vs SMJ) → Code Generation</td><td>Architect drawing the blueprint</td></tr>
+      <tr><td><strong>Tungsten</strong></td><td>The classic <strong>executor</strong> — runs the plan on the JVM. Tricks: off-heap memory (dodges GC), whole-stage code generation (fuses a stage's operators into one function — the <code>*(1)</code> in explain output)</td><td>Construction crew</td></tr>
+      <tr><td><strong>Photon</strong></td><td>Replacement executor in <strong>C++</strong>, vectorized + columnar. Same blueprint, faster crew</td><td>Better construction crew</td></tr>
+    </table>
+    <p><span class="key">Key sentence:</span> Photon replaces <strong>Tungsten (execution)</strong>, not <strong>Catalyst (planning)</strong>. Catalyst still plans every query; Photon executes the plan faster where it can.</p>
+  </div>
+
+  <div class="qa-block">
+    <div class="question">Q: What is Photon? (recap — taught in 2B §22)</div>
+    <p>Databricks' rewrite of Spark's execution engine in <strong>C++</strong>. Code doesn't change — same PySpark/SQL — only execution swaps.</p>
+    <ul>
+      <li><strong>Vectorized</strong> — processes batches of column values with CPU SIMD ("one instruction, many values") instead of row-at-a-time.</li>
+      <li><strong>Columnar</strong> — operates on columns in memory, matching Parquet/Delta layout and CPU cache behavior.</li>
+      <li><strong>Activates per-operator</strong>, not all-or-nothing: scans/filters/joins/aggregations on Delta/Parquet → Photon; RDD API, most Python UDFs, exotic functions → fall back to JVM Spark mid-query. <code>EXPLAIN</code> shows <code>Photon</code>-prefixed operators.</li>
+      <li><strong>Why:</strong> 2–8x on SQL/DataFrame workloads, zero code change. Higher DBU rate but usually net cheaper (finishes faster).</li>
+    </ul>
+  </div>
+
+  <div class="qa-block">
+    <div class="question">Q: A pipeline has a heavy groupBy().agg() and a Python UDF in one withColumn — what does Photon do with each?</div>
+    <p>The <code>groupBy().agg()</code> runs <strong>in Photon</strong> (supported). The Python UDF <strong>can't run in C++</strong> — that operator <strong>falls back to JVM Spark</strong>. One query, mixed execution; the seam is visible in <code>EXPLAIN</code>.</p>
+    <p><span class="key">Practical consequence:</span> replace Python UDFs with built-in functions where possible, or you lose Photon exactly on your most expensive step.</p>
+  </div>
+
+  <div class="qa-block">
+    <div class="question">Q: Why does vectorized + columnar beat row-at-a-time on modern CPUs?</div>
+    <p>Row-at-a-time: the CPU handles one value, checks what to do, moves on — high overhead per value. Vectorized: load a batch of one column's values and apply <strong>one SIMD instruction to many values at once</strong>. Columnar layout puts those batches contiguously in memory → CPU cache stays hot. Less overhead per value + hardware parallelism = the 2–8x.</p>
+  </div>
+
+  <div class="qa-block">
+    <div class="question">Q: Stateless vs stateful streams — what's the difference and why does it matter? (asked 2026-07-06 and again 2026-07-07 — retention flag)</div>
+    <p><strong>Stateless</strong> — each row processed on its own; Spark remembers nothing between micro-batches. <code>filter</code>, <code>select</code>, <code>map</code>. Batch 7 needs nothing from batches 1–6.</p>
+    <p><strong>Stateful</strong> — the answer depends on rows from earlier batches, so Spark carries memory forward in the checkpoint's <code>state/</code> folder. <code>groupBy(window(...)).count()</code>: batch 7's job is "add these events to the totals so far" — the totals ARE the state.</p>
+    <p><strong>Why it matters (checkpoint deletion):</strong></p>
+    <ul>
+      <li>Stateless → worst case reprocessing/duplicates — visible, fixable.</li>
+      <li>Stateful → window counts / watermark / dedup history gone; counts restart from zero mid-window; job reports a plausible-looking <strong>wrong</strong> number with no error — <em>silently wrong</em>.</li>
+    </ul>
+    <p><span class="key">The trap:</span> <code>dropDuplicates("order_id")</code> looks stateless but is <strong>stateful</strong> — it must remember every order_id ever seen. Checkpoint gone → old duplicates sail through → double-counted revenue downstream.</p>
+    <p><span class="key">Rule of thumb:</span> if this batch requires remembering anything from previous batches — aggregation, window, dedup, stream-stream join — it's stateful.</p>
+  </div>
+</div>
+
+<div class="section">
+  <h2>2E Schema Drift + Expectations (asked 2026-07-07, closing 2E)</h2>
+
+  <div class="qa-block">
+    <div class="question">Q: Upstream renames patient_id → patientId and you rely on schema inference. What breaks?</div>
+    <p>With inference, Spark just re-infers the new shape. Your <code>patient_id</code> column no longer exists (so an <code>expect(patient_id IS NOT NULL)</code> references a missing column), and the new <code>patientId</code> flows in <strong>untyped and unvalidated</strong> → drift reaches silver silently.</p>
+    <p><span class="key">Two guards:</span> schema = <strong>shape</strong> guard, Expectations = <strong>content</strong> guard. You need both.</p>
+  </div>
+
+  <div class="qa-block">
+    <div class="question">Q: How does pinning an explicit StructType catch the rename? Does it throw an error?</div>
+    <p>No error — it does something you <em>notice</em>. On a JSON read with an explicit schema: the file's <code>patientId</code> isn't in your schema → <strong>ignored/dropped</strong>; your schema's <code>patient_id</code> isn't in the file → comes through <strong>all NULL</strong>. Result: a critical column suddenly 100% null = a loud signal that upstream changed, instead of bad data quietly reaching silver.</p>
+    <pre>schema = StructType([
+    StructField("patient_id", StringType()),
+    StructField("name",       StringType()),
+])
+df = spark.read.schema(schema).json("/path/to/patients")</pre>
+  </div>
+
+  <div class="qa-block">
+    <div class="question">Q: If I don't know a column was renamed, how do I fix it without guessing?</div>
+    <p>You can't — and you're not supposed to auto-heal an unknown rename (you'd be guessing intent). The workflow is <strong>detect loud → inspect rescued → then rename</strong>:</p>
+    <ol>
+      <li>Pipeline fails (patient_id all null / expectation trips) → you're alerted.</li>
+      <li>Anything that didn't fit the schema lands in the <strong>rescued-data</strong> column (<code>schemaEvolutionMode="rescue"</code> / <code>_rescued_data</code>) → you <em>see</em> <code>patientId</code> sitting there. Now you know the new name.</li>
+      <li>Add the one-line fix: <code>df.withColumnRenamed("patientId", "patient_id")</code>.</li>
+    </ol>
+  </div>
+
+  <div class="qa-block">
+    <div class="question">Q: Where are DLT Expectations written, and what do the three modes do?</div>
+    <p>They're <strong>decorators on top of the table function</strong>. Each takes a name you pick + a SQL condition that should be true.</p>
+    <pre>@dlt.table(name="patients_silver")
+@dlt.expect("has_name",       "name IS NOT NULL")        # warn  — keep row, just count it
+@dlt.expect_or_drop("real_zip","length(zip_code) = 5")   # drop  — drop the bad row
+@dlt.expect_or_fail("has_id",  "patient_id IS NOT NULL") # fail  — stop the whole pipeline
+def patients_silver():
+    return dlt.read("patients_bronze")</pre>
+    <p><span class="key">Heuristic:</span> <strong>fail</strong> = system's broken (missing key), <strong>drop</strong> = row's bad (garbage zip), <strong>warn</strong> = still learning what normal looks like.</p>
+  </div>
+</div>
+
+<div class="section">
+  <h2>Derar DEA Practice Test — Missed Questions (2026-07-07)</h2>
+  <p>26 misses clustered into 6 weak areas. Ranked by frequency; top two (DABs, UC grants) are the focus for re-watch.</p>
+
+  <div class="qa-block">
+    <div class="question">Weak Area 1 — Databricks Asset Bundles (DABs) [top gap]</div>
+    <table>
+      <tr><th>Topic</th><th>Rule</th></tr>
+      <tr><td>Config file</td><td>Named <code>databricks.yml</code>, YAML (not JSON/XML). Defines targets, resources, configurations.</td></tr>
+      <tr><td>Target env syntax</td><td>Under top-level <code>targets:</code> → nest <code>workspace:</code> with <code>host</code> + <code>root_path</code>. NOT <code>environments:</code>/<code>hosts:</code>/<code>workspaces:</code>.</td></tr>
+      <tr><td>Variables timing</td><td><code>--var</code> is <strong>deploy-time</strong>. It's substituted into the deployed job at <code>bundle deploy</code>; <code>bundle run --var</code> can't override it → notebook gets the deploy-time value.</td></tr>
+      <tr><td>Non-interactive deploy</td><td><code>databricks bundle deploy --target prod <strong>--auto-approve</strong></code>. <code>--force</code> = Git-branch override only; <code>--confirm</code>/<code>--non-interactive</code> not valid.</td></tr>
+    </table>
+  </div>
+
+  <div class="qa-block">
+    <div class="question">Weak Area 2 — Unity Catalog grants & governance [2nd gap]</div>
+    <table>
+      <tr><th>Topic</th><th>Rule</th></tr>
+      <tr><td>Full perms</td><td><code>GRANT ALL PRIVILEGES ON <strong>TABLE</strong> employees TO hr_team</code> — the <code>TABLE</code> keyword is required.</td></tr>
+      <tr><td>Privilege hierarchy</td><td>Catalog → Schema → Object. To query you need <strong>USE CATALOG + USE SCHEMA + SELECT</strong>. Object grant alone → INSUFFICIENT_PERMISSIONS.</td></tr>
+      <tr><td>Clear existing grants</td><td><code>REVOKE ALL PRIVILEGES ON SCHEMA ... FROM group</code>. NOT <code>DENY</code> (legacy Hive; and DENY would block the new grants you're about to add).</td></tr>
+      <tr><td>Column mask UDF</td><td><code>CASE WHEN is_account_group_member('doctors') THEN diagnosis ELSE 'CONFIDENTIAL' END</code> — reveal to the group, mask everyone else.</td></tr>
+      <tr><td>Predictive optimization</td><td>On managed tables: auto maintenance (OPTIMIZE/VACUUM/ANALYZE) + collects stats on write. NOT encryption/profiling/tiering.</td></tr>
+      <tr><td>Managed vs external DROP</td><td>DROP on <strong>external</strong> table → only metadata deleted, data files kept (LOCATION clause). Managed → both deleted.</td></tr>
+    </table>
+  </div>
+
+  <div class="qa-block">
+    <div class="question">Weak Area 3 — Compute types</div>
+    <ul>
+      <li><strong>Interactive (all-purpose) compute</strong> → dev + cell-by-cell + debugger/breakpoints.</li>
+      <li><strong>Classic job compute</strong> → on-prem connectivity (lives in customer VNet/VPC → VPN/DirectConnect to on-prem PostgreSQL). Serverless can't bridge on-prem.</li>
+      <li><strong>Classic compute VMs live in the customer's cloud account</strong> (data plane). Web app / notebooks / workflows = Databricks control plane.</li>
+      <li><strong>Auto Stop</strong> → minimizes total running time (cost) by stopping an idle warehouse.</li>
+    </ul>
+  </div>
+
+  <div class="qa-block">
+    <div class="question">Weak Area 4 — Lakeflow Jobs & Connect</div>
+    <ul>
+      <li>Conditional branching → <strong>If/else condition task</strong> at orchestration level (not logic buried in a notebook).</li>
+      <li><code>run_if</code>: <strong>ALL_SUCCESS</strong> = run only if all upstream succeeded; <strong>ALL_DONE</strong> = run regardless of outcome.</li>
+      <li>Lakeflow Connect <strong>managed connectors = SaaS + Database</strong>. Auto Loader / COPY INTO / CTAS are NOT managed connectors.</li>
+      <li>SaaS ingest config: UC connection (stores creds) → destination catalog/schema → schedule + notifications. No manual CSV/JSON export.</li>
+    </ul>
+  </div>
+
+  <div class="qa-block">
+    <div class="question">Weak Area 5 — SQL / PySpark functions</div>
+    <ul>
+      <li><code>df.summary()</code> → a <strong>DataFrame</strong> of count/mean/stddev/min/25%/50%/75%/max.</li>
+      <li><code>F.split("2026-01","-").getItem(1)</code> → month "01". Arrays are <strong>0-indexed</strong> (getItem(0)=year).</li>
+      <li><code>TRY_CAST('100$' AS INT)</code> → <strong>NULL</strong> (safe; plain CAST errors).</li>
+      <li>Null-safe equality = <code>&lt;=&gt;</code> (NULL &lt;=&gt; NULL is true; = returns NULL). Same as <code>IS NOT DISTINCT FROM</code>.</li>
+      <li>UDF syntax: <code>CREATE FUNCTION f(x INT) <strong>RETURNS</strong> INT <strong>RETURN</strong> x+1;</code></li>
+      <li>Every combination (Cartesian product) → <code>colors_df.<strong>crossJoin</strong>(sizes_df)</code>.</li>
+    </ul>
+  </div>
+
+  <div class="qa-block">
+    <div class="question">Weak Area 6 — Delta &amp; skew</div>
+    <ul>
+      <li><strong>VACUUM</strong> deletes old data files → breaks time travel beyond retention. (Not OPTIMIZE/ZORDER/DELETE.)</li>
+      <li>Skew fix — <strong>broadcasting the skewed keys is NOT a fix</strong> (broadcast = small lookups; adds memory pressure). Real fixes: salting, repartition, isolate hot keys into a dedicated job.</li>
+    </ul>
+  </div>
+
+  <div class="qa-block">
+    <div class="question">Lakeflow — is a pipeline idempotent? Can I change expectations and rerun freely? (proven hands-on 2026-07-16)</div>
+    <ul>
+      <li><strong>Materialized view</strong> (<code>@dlt.table</code> + <code>dlt.read</code>, batch source) → <strong>full recompute every run</strong> → idempotent. Change a rule and rerun, output rebuilds from scratch under the current rules on ALL rows.</li>
+      <li><strong>Streaming table</strong> (<code>spark.readStream</code> / <code>dlt.read_stream</code>) → <strong>incremental, new data only</strong> (checkpoint tracks position). Already-written rows are <strong>not</strong> re-judged; a tightened expectation affects only <strong>future</strong> rows.</li>
+      <li>To re-apply a changed rule to history on a streaming table → <strong>Full refresh</strong> (replays the source).</li>
+      <li>Proof observed: streaming <code>orders_silver_stream</code> = 4 on first build; appended 2 rows + normal rerun → 5 (processed only the 2 new rows, not all 8). An MV would have re-read all 8.</li>
+      <li>Changing table <em>type</em> (MV ↔ streaming) on the same table name requires a <strong>full refresh</strong> — DLT won't silently convert one into the other.</li>
+    </ul>
+  </div>
+
+  <div class="qa-block">
+    <div class="question">Auto Loader — 2G lab (2026-07-17): why did schema evolution fail on the WRITE side, not the read side?</div>
+    <ul>
+      <li><strong>There are TWO independent schema guards</strong> in a <code>cloudFiles &rarr; Delta</code> pipeline, and evolving one does nothing for the other:
+        <ul>
+          <li><strong>Read side</strong> — <code>cloudFiles.schemaEvolutionMode</code>, state lives in <code>schemaLocation</code>.</li>
+          <li><strong>Write side</strong> — <code>mergeSchema</code>, state lives in the table's <code>_delta_log</code>.</li>
+        </ul>
+      </li>
+      <li>Observed: landing a file with a new <code>region</code> column threw <code>DELTA_METADATA_MISMATCH</code>, not <code>UnknownFieldException</code>. <code>DeltaSink.updateMetadata</code> in the stack = the failure is on the <strong>sink</strong>. Table schema had 4 cols, data schema had 5 &rarr; Auto Loader had <em>already</em> evolved its read schema (the file was in the dir at stream start), and Delta's <strong>schema enforcement</strong> (2C) then rejected the wider DataFrame.</li>
+      <li>Normal fix = <code>.option("mergeSchema","true")</code> on <code>writeStream</code>. <strong>On UC standard access mode</strong> Table ACLs block automatic schema migration &rarr; must widen explicitly: <code>ALTER TABLE ... ADD COLUMN region STRING;</code> then rerun the stream.</li>
+      <li>Result: 4 rows, <code>region='us-west'</code> on the new row, <strong>NULL</strong> on the older three. Delta backfills nothing — rows that landed before the column existed have no value for it.</li>
+    </ul>
+  </div>
+
+  <div class="qa-block">
+    <div class="question">Why does <code>addNewColumns</code> FAIL on a new column instead of silently adding it?</div>
+    <ul>
+      <li><strong>Mechanical reason:</strong> a stream's schema is fixed when the query starts. <code>.load()</code> resolves a schema and Spark builds the query plan around it; that plan is what executors run. A DataFrame's schema <strong>cannot change mid-flight</strong>. So on an unknown column Auto Loader writes the wider schema to <code>schemaLocation</code> and stops. The next start reads it, plans around it, and the column flows.</li>
+      <li>The "fail" is a <strong>handoff, not a rejection</strong> — fail &rarr; update &rarr; restart.</li>
+      <li>In production it isn't disruptive: a job with retries (or a Lakeflow pipeline) restarts automatically and resumes from the checkpoint — nothing lost, nothing reprocessed. It only looks harsh when you're the one clicking Run.</li>
+      <li>Alternatives: <code>"rescue"</code> never fails but new columns land in <code>_rescued_data</code> as JSON; <code>"none"</code> ignores them. <code>addNewColumns</code> is the default because a brief restart is a good trade for the column actually existing in the table.</li>
+    </ul>
+  </div>
+
+  <div class="qa-block">
+    <div class="question">How do you PROVE the checkpoint made ingestion incremental? (the "1, not 3" test)</div>
+    <ul>
+      <li><code>DESCRIBE HISTORY &lt;table&gt;</code> — one commit per run. Observed: v0 <code>CREATE TABLE</code> (implicit, from <code>toTable</code>), v1 <code>numOutputRows=2</code>, v2 <code>numOutputRows=1</code>.</li>
+      <li><strong>The inference:</strong> on run 2 both files were still in the directory — nothing moved or deleted. With no memory it would have reprocessed both &rarr; 3 rows written and rows 1&ndash;2 duplicated. It wrote <strong>1</strong> &rarr; it skipped file 1 &rarr; the checkpoint (RocksDB) remembered. Swap <code>cloudFiles</code> for <code>spark.read.json</code> and that run writes 3 <em>every time</em>.</li>
+      <li>Same <code>queryId</code> across both runs with <code>epochId</code> 0&rarr;1 — <strong>stream identity lives in the checkpoint, not the session</strong> (same lesson as the 2D lab, where a notebook restart wiped the vars but the stream resumed).</li>
+      <li><code>isBlindAppend=true</code> — the write read no existing data, which is what makes an append stream cheap and conflict-free under OCC.</li>
+      <li>File-level proof instead: <code>.load(base).selectExpr("*", "_metadata.file_name as source_file")</code> — but add it <strong>before</strong> the first run; earlier rows won't have it.</li>
+      <li>Gotcha: <code>numFilesInputted</code> is <strong>not</strong> a real key. <code>lastProgress</code> has <code>numInputRows</code> at top level; Auto Loader adds <code>numFilesOutstanding</code>/<code>numBytesOutstanding</code> under <code>sources[0].metrics</code>. And keep the query handle — chaining <code>.awaitTermination()</code> onto <code>.toTable()</code> throws it away.</li>
+    </ul>
+  </div>
+
+  <div class="qa-block">
+    <div class="question">What are the alternatives to Auto Loader for ingesting JSON — and what do the commands look like?</div>
+    <ul>
+      <li><strong>Batch PySpark:</strong> <code>spark.read.json(path)</code> &middot; <code>spark.read.format("json").load(path)</code> &middot; <code>spark.read.schema(s).json(path)</code> (explicit schema skips inference).</li>
+      <li><strong>Batch SQL:</strong> <code>SELECT * FROM json.`/path`</code> &middot; <code>SELECT * FROM read_files('/path', format =&gt; 'json')</code> &middot; <code>CREATE TABLE t USING JSON LOCATION '/path'</code>.</li>
+      <li><strong>Incremental SQL:</strong> <code>COPY INTO t FROM '/path' FILEFORMAT = JSON</code> — idempotent, tracks loaded files, good for thousands of files on a schedule.</li>
+      <li><strong>Legacy file streaming source:</strong> <code>spark.readStream.format("json").schema(s).load(path)</code> — streams, but re-lists the whole directory every batch and needs an explicit schema: no inference, no evolution, no RocksDB registry. <strong>Auto Loader is its replacement.</strong></li>
+      <li><strong>Dividing line:</strong> only <strong>Auto Loader and COPY INTO remember what they already ingested</strong>; only Auto Loader scales to millions of files with schema evolution. The rest reprocess.</li>
+      <li>Lakeflow Declarative Pipelines (2E) still use Auto Loader underneath — the pipeline just manages the stream and expectations for you.</li>
+    </ul>
+  </div>
+
+  <div class="qa-block">
+    <div class="question">Auto Loader path/setup details worth remembering</div>
+    <ul>
+      <li><strong>Two <code>format</code> calls:</strong> <code>.format("cloudFiles")</code> = the source is Auto Loader; <code>.option("cloudFiles.format","json")</code> = the underlying file type.</li>
+      <li><code>cloudFiles.inferColumnTypes=true</code> matters — without it every inferred column comes back as a <strong>string</strong> (<code>amount</code> would be <code>"100"</code>, not a bigint).</li>
+      <li><code>_schema</code> and <code>_ckpt</code> can live <strong>inside</strong> the scanned directory: Spark's file source skips paths starting with <code>_</code> or <code>.</code>. Drop the underscore and Auto Loader would try to ingest its own checkpoint.</li>
+      <li>Schema versions are inspectable: <code>dbutils.fs.ls(f"{schema_loc}/_schemas")</code> &rarr; <code>0</code>, <code>1</code>, ... Two versions = the fail&rarr;update&rarr;restart cycle ran.</li>
+      <li>Volume path = the 2F three-level namespace on the file side: <code>/Volumes/&lt;catalog&gt;/&lt;schema&gt;/&lt;volume&gt;</code>. UI: <strong>Catalog &rarr; workspace &rarr; autoloader_lab &rarr; Volumes &rarr; landing</strong>.</li>
+      <li><code>dbutils.fs.put</code> only <strong>lands</strong> a file (like a source system dropping into S3) — it touches no table. Ingestion happens on the next stream run. Alternatives: <code>open()</code>/<code>pathlib</code> (volumes behave like a real filesystem), <code>%sh echo &gt;</code>, <code>spark.createDataFrame(...).write.json()</code> (writes a <em>directory</em> of part-files), or Catalog UI &rarr; Upload to this volume.</li>
+      <li><code>display()</code> is read-only — it renders <code>SELECT *</code>, it never inserts.</li>
+    </ul>
+  </div>
+</div>
+
+<div class="section">
+  <h2>2I Databricks Platform — Clusters, DBUs, Workflows vs Airflow, DABs, ai_query, Photon+UDFs (2026-07-20)</h2>
+  <p>Session unpaused mid-Meta-prep at her request (2H/2I were paused 2026-07-17 to protect 2J for the Meta modeling round). Small-steps format, all 5 topics covered.</p>
+
+  <div class="qa-block">
+    <div class="question">Q: All-Purpose Cluster vs Job Cluster — which costs more, and why?</div>
+    <p><strong>All-Purpose costs more per hour</strong> — higher DBU rate, because it has to support live, multi-user, ad-hoc work. Job clusters are single-purpose and ephemeral (created when the job starts, terminated the instant it ends) — no idle-billing failure mode is even possible.</p>
+    <p><span class="key">Second cost multiplier in practice:</span> All-Purpose clusters are often left running idle between sessions (forgot to detach / loose auto-termination) — paying the higher rate AND paying it for idle time.</p>
+    <p><strong>Rule:</strong> develop/debug on All-Purpose, point the scheduled job itself at a Job cluster config. Never run a production schedule on All-Purpose.</p>
+  </div>
+
+  <div class="qa-block">
+    <div class="question">Q: What does a DBU actually measure? (she initially guessed data volume — corrected)</div>
+    <p><strong>Compute processing capability consumed per hour</strong>, not data volume — like AWS EC2 instance pricing. A bigger/more powerful instance type burns more DBUs/hour regardless of whether it's processing 1 GB or 1 TB in that hour. Data volume drives cost <em>indirectly</em> (more data → more nodes/longer runtime needed) but the DBU itself is compute × time, not bytes.</p>
+    <p>Total cost = <strong>DBU rate</strong> (varies by workload type — All-Purpose/Jobs/SQL/Serverless) × <strong>DBUs consumed</strong> (instance type + cluster size) × <strong>hours running</strong>.</p>
+  </div>
+
+  <div class="qa-block">
+    <div class="question">Q: Does scaling 4 nodes → 8 nodes (same instance type), finishing in half the time, cost more, less, or the same? (she guessed "lower" — corrected)</div>
+    <p><strong>About the same</strong> — doubling nodes roughly doubles the DBU rate/hour, but the job finishes in half the time. Cost = rate × time → 2× rate × 0.5× time = 1× original cost.</p>
+    <p><span class="key">Counter-intuitive but important:</span> adding more compute to finish faster is often cost-neutral, not automatically more expensive — assuming linear scaling (shuffle overhead can break this assumption in real workloads).</p>
+  </div>
+
+  <div class="qa-block">
+    <div class="question">Q: Databricks Workflows vs Airflow — when does each apply?</div>
+    <ul>
+      <li><strong>Everything lives inside Databricks</strong> (notebooks, DLT, ML training, no external systems) → <strong>Workflows fully covers it</strong>, simpler, no extra infra.</li>
+      <li><strong>Need to coordinate across systems</strong> (e.g. Databricks pipeline → downstream AWS Lambda call) → need something like <strong>Airflow</strong> sitting above both, since Workflows can't reach outside Databricks.</li>
+      <li>Org-wide exception: some companies standardize on Airflow even for all-Databricks pipelines purely for centralized on-call visibility across teams — organizational reason, not technical necessity.</li>
+    </ul>
+  </div>
+
+  <div class="qa-block">
+    <div class="question">Q: DABs — does a runtime `bundle run --var` override a deploy-time `bundle deploy --var`? (her flagged DEA miss — passed this time)</div>
+    <p><strong>No — deploy-time wins.</strong> Variables are baked into the bundle at <code>bundle deploy --var=...</code>; the deployed job config is fixed at that point. <code>bundle run --var=...</code> triggers the job as it already exists — it can't retroactively override values already resolved at deploy.</p>
+    <p>For different values per environment: define separate <code>targets:</code> in <code>databricks.yml</code> (e.g. <code>dev</code>/<code>prod</code>), each with its own baked-in variables, and deploy to the target you need.</p>
+  </div>
+
+  <div class="qa-block">
+    <div class="question">Q: `--auto-approve` vs `--force` on `databricks bundle deploy` — what does each actually skip?</div>
+    <table>
+      <tr><th>Flag</th><th>Skips</th></tr>
+      <tr><td><code>--auto-approve</code></td><td>The interactive "are you sure?" confirmation prompt — needed for non-interactive CI/CD with no human to answer it.</td></tr>
+      <tr><td><code>--force</code></td><td>A <strong>Git-branch validation check</strong> (e.g. only <code>main</code> can deploy to <code>prod</code>, or blocks on uncommitted changes) — unrelated to the confirmation prompt.</td></tr>
+    </table>
+    <p>Confirmed independently: <code>--force</code> alone does NOT skip the confirmation prompt — only <code>--auto-approve</code> does. A prod CI/CD pipeline on merge-to-main typically needs <code>--auto-approve</code> but not <code>--force</code> (already deploying from the correct branch).</p>
+  </div>
+
+  <div class="qa-block">
+    <div class="question">Q: `ai_query()` — what's the actual DE benefit over extract → call LLM API in a script → load back?</div>
+    <p>Avoids a whole separate data-movement pipeline. The LLM call becomes <strong>just another column transformation</strong> inside the same Spark job — runs in parallel across partitions like anything else, plugs directly into an existing DLT pipeline or Workflow, and the data never has to leave the governed lakehouse (preserves Unity Catalog lineage/audit trail — the traditional round-trip breaks that).</p>
+    <p>Example fit: <code>SELECT *, ai_query('sentiment-model', ticket_text) AS sentiment FROM tickets_bronze</code> as a silver-layer DLT table definition — no separate step needed.</p>
+  </div>
+
+  <div class="qa-block">
+    <div class="question">Q: Does Photon accelerate a pipeline heavy on custom Python UDFs? (she guessed "a lot" — corrected, important gotcha)</div>
+    <p><strong>Not much at all.</strong> Photon (C++) can't execute arbitrary Python — a Python UDF forces Spark to serialize data, hop out to a separate Python process, run row-by-row (or batch-by-batch for pandas UDFs), then serialize back. That hop-out completely bypasses Photon's vectorized execution.</p>
+    <p><span class="key">Practical rule:</span> prefer built-in SQL/DataFrame functions (<code>when()</code>, <code>regexp_extract()</code>, native string funcs) over custom Python UDFs — not just readability, but staying on Photon's fast path. Rewriting UDF logic with built-ins re-enables Photon acceleration on that operator.</p>
+  </div>
+
+  <p class="muted">Retention note: cluster types, Workflows-vs-Airflow, DABs (both var-timing and --force/--auto-approve), and ai_query landed on first answer. Three needed correction: DBU-as-data-volume, node-scaling cost-neutrality, and Photon+UDFs — worth a from-blank redo on just those three another day rather than marking 2I fully retained.</p>
+</div>
+
+</body>
+</html>

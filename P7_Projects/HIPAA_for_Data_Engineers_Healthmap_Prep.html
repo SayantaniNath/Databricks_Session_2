@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>HIPAA for Data Engineers — Healthmap Solutions Prep</title>
+<style>
+  :root {
+    --bg: #ffffff;
+    --fg: #1f2328;
+    --muted: #57606a;
+    --accent: #0969da;
+    --border: #d0d7de;
+    --quote-bg: #f6f8fa;
+    --quote-border: #0969da;
+    --warn: #cf222e;
+    --ok: #1a7f37;
+    --highlight: #fff8c5;
+    --highlight-border: #d4a72c;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    color: var(--fg);
+    background: var(--bg);
+    max-width: 860px;
+    margin: 2rem auto;
+    padding: 0 1.5rem;
+    line-height: 1.6;
+    font-size: 16px;
+  }
+  h1 {
+    font-size: 1.9rem;
+    border-bottom: 2px solid var(--border);
+    padding-bottom: 0.5rem;
+    margin-top: 0;
+  }
+  h2 {
+    font-size: 1.4rem;
+    margin-top: 2.4rem;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 0.3rem;
+    color: var(--accent);
+  }
+  h3 {
+    font-size: 1.1rem;
+    margin-top: 1.6rem;
+    color: var(--fg);
+  }
+  .meta {
+    background: var(--quote-bg);
+    padding: 0.75rem 1rem;
+    border-radius: 6px;
+    margin-bottom: 1rem;
+    font-size: 0.95rem;
+  }
+  .meta p { margin: 0.2rem 0; }
+  code {
+    background: var(--quote-bg);
+    padding: 0.1rem 0.35rem;
+    border-radius: 4px;
+    font-size: 0.9em;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  pre {
+    background: var(--quote-bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 0.9rem 1rem;
+    overflow-x: auto;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.88em;
+    line-height: 1.5;
+  }
+  blockquote {
+    border-left: 4px solid var(--quote-border);
+    background: var(--quote-bg);
+    margin: 0.75rem 0;
+    padding: 0.6rem 1rem;
+    border-radius: 0 6px 6px 0;
+  }
+  blockquote p { margin: 0.4rem 0; }
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 1rem 0;
+    font-size: 0.92em;
+  }
+  th, td {
+    border: 1px solid var(--border);
+    padding: 0.45rem 0.7rem;
+    text-align: left;
+    vertical-align: top;
+  }
+  th {
+    background: var(--quote-bg);
+    font-weight: 600;
+  }
+  tr:nth-child(even) td { background: #fafbfc; }
+  hr {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 2rem 0;
+  }
+  ul, ol { padding-left: 1.5rem; }
+  li { margin: 0.35rem 0; }
+  .callout {
+    background: #ddf4ff;
+    border-left: 4px solid var(--accent);
+    padding: 0.75rem 1rem;
+    border-radius: 0 6px 6px 0;
+    margin: 1rem 0;
+  }
+  .highlight {
+    background: var(--highlight);
+    border-left: 4px solid var(--highlight-border);
+    padding: 0.75rem 1rem;
+    border-radius: 0 6px 6px 0;
+    margin: 1rem 0;
+  }
+  .warn {
+    background: #ffebe9;
+    border-left: 4px solid var(--warn);
+    padding: 0.75rem 1rem;
+    border-radius: 0 6px 6px 0;
+    margin: 1rem 0;
+  }
+  .ok {
+    background: #dafbe1;
+    border-left: 4px solid var(--ok);
+    padding: 0.75rem 1rem;
+    border-radius: 0 6px 6px 0;
+    margin: 1rem 0;
+  }
+  .no-list li { color: var(--warn); }
+  .no-list strong { color: var(--fg); }
+  .ok-list li { color: var(--ok); }
+  .ok-list strong { color: var(--fg); }
+  @media print {
+    body { max-width: 100%; margin: 0; padding: 1rem; font-size: 12pt; }
+    h2 { page-break-after: avoid; }
+    table, pre, .callout, .highlight, .warn, .ok { page-break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+
+<h1>HIPAA for Data Engineers — Healthmap Solutions Prep</h1>
+
+<div class="meta">
+  <p><strong>Created:</strong> 2026-05-27</p>
+  <p><strong>Purpose:</strong> Practical HIPAA reference for a Senior Data Engineer interview at Healthmap Solutions (kidney population health). Not a compliance officer's manual — focused on what a DE actually needs to discuss, claim honestly, and map to the JD's Databricks/Unity Catalog/AWS requirements.</p>
+  <p><strong>Companion docs:</strong> <code>~/Downloads/Recruiter_Call_Prep_Databricks_SDE_20260527.html</code></p>
+</div>
+
+<hr>
+
+<h2>HIPAA in 3 sentences</h2>
+
+<p>A 1996 US federal law that protects patient health information. It governs how PHI (Protected Health Information) is collected, stored, transmitted, and accessed by healthcare organizations and the companies that work with them. <strong>For a data engineer, HIPAA isn't a vague compliance vibe — it's a concrete list of technical and process requirements that shape how every pipeline, table, and access grant gets built.</strong></p>
+
+<hr>
+
+<h2>What counts as PHI — the 18 identifiers</h2>
+
+<p>Anything that ties health info to a specific person. Memorize the categories — interviewers test this:</p>
+
+<table>
+<tr><th>#</th><th>Identifier</th></tr>
+<tr><td>1</td><td>Names</td></tr>
+<tr><td>2</td><td>Geographic info smaller than a state (street, city, ZIP — except first 3 digits of ZIP for areas &gt;20K population)</td></tr>
+<tr><td>3</td><td>Dates more granular than year (birth, admission, discharge, death) — anything tied to an individual</td></tr>
+<tr><td>4</td><td>Phone numbers</td></tr>
+<tr><td>5</td><td>Fax numbers</td></tr>
+<tr><td>6</td><td>Email addresses</td></tr>
+<tr><td>7</td><td>Social Security Numbers</td></tr>
+<tr><td>8</td><td>Medical record numbers</td></tr>
+<tr><td>9</td><td>Health plan beneficiary numbers</td></tr>
+<tr><td>10</td><td>Account numbers</td></tr>
+<tr><td>11</td><td>Certificate / license numbers</td></tr>
+<tr><td>12</td><td>Vehicle identifiers (VIN, plates)</td></tr>
+<tr><td>13</td><td>Device identifiers / serial numbers</td></tr>
+<tr><td>14</td><td>URLs</td></tr>
+<tr><td>15</td><td>IP addresses</td></tr>
+<tr><td>16</td><td>Biometric identifiers (fingerprints, voice)</td></tr>
+<tr><td>17</td><td>Full-face photos / comparable images</td></tr>
+<tr><td>18</td><td>Any other unique identifying number, characteristic, or code</td></tr>
+</table>
+
+<div class="callout">
+<strong>Critical insight:</strong> PHI = health info <strong>+</strong> any identifier. A lab result alone is not PHI. A lab result + a name (or a record number, or an address) <strong>is</strong> PHI. This matters because it shapes how you de-identify data for analytics.
+</div>
+
+<hr>
+
+<h2>Covered Entity vs Business Associate — where Healthmap sits</h2>
+
+<table>
+<tr><th>Role</th><th>Who</th><th>HIPAA obligation</th></tr>
+<tr><td><strong>Covered Entity (CE)</strong></td><td>Health plans (insurers), healthcare providers (hospitals, clinics), healthcare clearinghouses</td><td>Full HIPAA compliance</td></tr>
+<tr><td><strong>Business Associate (BA)</strong></td><td>Anyone who handles PHI on behalf of a CE — analytics vendors, IT providers, billing services, <strong>population health managers</strong></td><td>Full HIPAA compliance via a contract (BAA) with the CE</td></tr>
+<tr><td><strong>Subcontractor</strong></td><td>A BA's vendor that also touches PHI</td><td>BAA chains downstream too</td></tr>
+</table>
+
+<div class="highlight">
+<strong>Healthmap = Business Associate.</strong> They contract with payers (CEs) under a <strong>Business Associate Agreement (BAA)</strong> to manage kidney patient populations. That BAA legally binds them to HIPAA's full ruleset — same obligations as the payer themselves.
+<br><br>
+<strong>IQVIA was also typically a Business Associate</strong> when working with pharma + payer data. That's where your exposure comes from.
+</div>
+
+<hr>
+
+<h2>The 3 rules — what a DE actually needs to know</h2>
+
+<h3>Privacy Rule</h3>
+<p>Governs <strong>who can see PHI and for what purpose</strong>.</p>
+<ul>
+  <li><strong>Minimum Necessary principle</strong> — only access the smallest amount of PHI needed for your task. This is why you'll see row-level / column-level access controls in healthcare lakehouses.</li>
+  <li><strong>Patient rights</strong> — patients can request access to their data, request corrections, request an audit of who accessed their record.</li>
+</ul>
+
+<h3>Security Rule</h3>
+<p>Governs <strong>how PHI is technically protected</strong>. This is the rule DEs touch every day. Three categories:</p>
+
+<table>
+<tr><th>Safeguard</th><th>Examples DEs touch</th></tr>
+<tr><td><strong>Administrative</strong></td><td>Access policies, role-based access, workforce training, incident response plans</td></tr>
+<tr><td><strong>Physical</strong></td><td>Data center security, workstation security, media disposal (mostly infra team, not DE)</td></tr>
+<tr><td><strong>Technical</strong></td><td><strong>Encryption at rest, encryption in transit, access controls, audit logs, integrity controls, transmission security</strong> ← this is your zone</td></tr>
+</table>
+
+<h3>Breach Notification Rule</h3>
+<p>If PHI is exposed, must notify affected individuals + HHS within 60 days. If &gt;500 individuals, also notify media. This is why every healthcare org has <strong>audit logs you can't disable</strong> — when a breach is investigated, regulators ask "who accessed what, when?" and you must have the answer.</p>
+
+<hr>
+
+<h2>How HIPAA shapes the Healthmap JD (concrete mapping)</h2>
+
+<p>Now the JD reads completely differently. Every Databricks/AWS requirement is a HIPAA control in disguise:</p>
+
+<table>
+<tr><th>JD item</th><th>HIPAA control it implements</th></tr>
+<tr><td><strong>Unity Catalog</strong> (three-level namespace, grants, lineage)</td><td>Privacy Rule's minimum necessary + Security Rule's access controls + audit trail</td></tr>
+<tr><td><strong>Delta Lake</strong> (transaction log, time travel)</td><td>Security Rule integrity controls + Breach Notification audit requirement</td></tr>
+<tr><td><strong>S3 + IAM</strong></td><td>Access controls (IAM roles, S3 bucket policies, server-side encryption with KMS)</td></tr>
+<tr><td><strong>Secrets Manager</strong></td><td>Security Rule — no plaintext credentials in code/configs</td></tr>
+<tr><td><strong>CI/CD across Dev/Staging/Prod workspaces</strong></td><td>Workforce access separation; PHI typically doesn't exist in Dev — synthetic or de-identified data only</td></tr>
+<tr><td><strong>Healthcare experience preferred</strong></td><td>They want someone who already understands all of the above without 6 months of ramp-up</td></tr>
+</table>
+
+<hr>
+
+<h2>De-identification — the analytics escape hatch</h2>
+
+<p>PHI can be transformed into non-PHI through formal <strong>de-identification</strong>, after which HIPAA stops applying. Two methods:</p>
+
+<ol>
+  <li><strong>Safe Harbor</strong> — strip all 18 identifiers AND have no actual knowledge that the result could re-identify someone. Mechanical, easy to verify, but lossy (you lose granular dates, ZIPs, etc.).</li>
+  <li><strong>Expert Determination</strong> — a qualified statistician certifies that re-identification risk is "very small." More flexible (can keep some identifiers if risk analysis supports it), but requires expert sign-off.</li>
+</ol>
+
+<div class="callout">
+<strong>Why DEs care:</strong> ML/analytics teams often work on de-identified copies. As a DE, you may build <strong>de-identification pipelines</strong> (hashing IDs, generalizing dates to year-only, suppressing rare ZIPs) — <em>Safe Harbor implementation</em> is real DE work and worth mentioning if it comes up.
+</div>
+
+<p><strong>Related concept — Limited Data Set:</strong> PHI with most identifiers stripped but dates and ZIPs retained. Used for research under a Data Use Agreement (DUA). Common in population health / claims analytics, including what Healthmap does.</p>
+
+<hr>
+
+<h2>What you can honestly say in interviews</h2>
+
+<div class="ok">
+<strong>✅ Safe to say:</strong>
+<ul class="ok-list">
+  <li><em>"At IQVIA I worked with patient-level and pharma trial data under HIPAA-aware data handling practices. PHI was handled under documented access controls, encrypted at rest and in transit, with audit trails on sensitive data access."</em></li>
+  <li><em>"I'm familiar with the distinction between Covered Entities and Business Associates, and the BAA framework that binds vendors like IQVIA — and Healthmap — to the same compliance posture as the payers and providers they serve."</em></li>
+  <li><em>"I understand the role of de-identification and Limited Data Sets in enabling analytics, including the Safe Harbor 18-identifier rule."</em></li>
+</ul>
+</div>
+
+<div class="warn">
+<strong>❌ Don't claim:</strong>
+<ul class="no-list">
+  <li>That you were a compliance officer, HIPAA auditor, or BAA lead.</li>
+  <li>That you "owned" HIPAA at IQVIA — you operated <em>within</em> it.</li>
+  <li>Specific incidents or audit findings (confidentiality).</li>
+  <li>Deep familiarity with HHS Office for Civil Rights enforcement details — that's not DE territory.</li>
+</ul>
+</div>
+
+<hr>
+
+<h2>What to be ready to discuss if pressed</h2>
+
+<table>
+<tr><th>Topic</th><th>What to say</th></tr>
+<tr><td>Encryption</td><td>"AES-256 at rest is standard; TLS 1.2+ in transit. On Databricks that maps to storage-level encryption + UC grants for column-level controls."</td></tr>
+<tr><td>Access controls</td><td>"Least privilege via role-based access. Unity Catalog's three-level namespace lets you grant at catalog, schema, or table — plus row/column filters for sensitive columns like SSN or DOB."</td></tr>
+<tr><td>Audit</td><td>"Every PHI access event needs to be logged immutably. Delta's transaction log + cluster audit logs + UC access logs form that chain."</td></tr>
+<tr><td>De-identification</td><td>"Safe Harbor is mechanical — strip the 18 identifiers. Expert determination is statistical and allows richer data but needs sign-off."</td></tr>
+<tr><td>Breach response</td><td>"Detection + 60-day notification window. As a DE, my role is making sure the audit logs exist and are queryable so the investigation can actually happen."</td></tr>
+</table>
+
+<hr>
+
+<h2>Quick reading (15–30 min total if going deeper before the call)</h2>
+
+<ul>
+  <li><strong>HHS HIPAA summary</strong> — <code>hhs.gov/hipaa</code> — official, plain language. Read the "Summary of the Privacy Rule" and "Summary of the Security Rule" pages.</li>
+  <li><strong>De-identification guidance</strong> — <code>hhs.gov/hipaa/for-professionals/privacy/special-topics/de-identification/</code> — the canonical reference for Safe Harbor.</li>
+  <li><strong>Databricks HIPAA compliance page</strong> — search "Databricks HIPAA" — shows how the platform supports compliance (relevant for "have you used Databricks for PHI?" follow-ups).</li>
+</ul>
+
+<hr>
+
+<h2>Cheat sheet — one-line version for last-minute review</h2>
+
+<div class="highlight">
+<ul>
+  <li>HIPAA protects PHI. PHI = health info + any of 18 identifiers.</li>
+  <li>Covered Entity = payer/provider. Business Associate = vendor handling PHI under a BAA. Healthmap is a BA. IQVIA was a BA.</li>
+  <li>Three rules: Privacy (who can see), Security (how it's protected — admin/physical/technical safeguards), Breach Notification (60-day window).</li>
+  <li>DE = Technical safeguards: encryption (AES-256 rest, TLS in transit), access control (UC grants, IAM), audit logs (immutable), integrity (Delta transaction log).</li>
+  <li>De-identification: Safe Harbor (strip 18 identifiers) or Expert Determination (statistical sign-off). Limited Data Set keeps dates/ZIPs under DUA.</li>
+  <li>Minimum Necessary — only the smallest slice of PHI needed for the task.</li>
+  <li>Healthmap's JD = HIPAA controls expressed in Databricks vocabulary. UC = access. Delta = audit. IAM/Secrets = credential protection. CI/CD = no PHI in Dev.</li>
+</ul>
+</div>
+
+</body>
+</html>

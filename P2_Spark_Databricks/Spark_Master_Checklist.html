@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Spark — Master Learning Checklist (FAANG/Top-Tier)</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; max-width: 960px; margin: 40px auto; padding: 0 24px; background: #f9f9f9; color: #1a1a1a; }
+  h1 { font-size: 1.8rem; border-bottom: 3px solid #2563eb; padding-bottom: 10px; }
+  h2 { font-size: 1.1rem; background: #2563eb; color: white; padding: 8px 14px; border-radius: 6px; margin-top: 32px; }
+  .block { background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px 20px; margin-bottom: 12px; }
+  .topic { font-weight: 600; font-size: 0.95rem; margin-bottom: 6px; }
+  ul { margin: 4px 0 0 18px; padding: 0; }
+  li { font-size: 0.88rem; line-height: 1.7; color: #374151; }
+  .done { color: #16a34a; font-weight: 700; }
+  .pending { color: #dc2626; font-weight: 700; }
+  .partial { color: #d97706; font-weight: 700; }
+  .tag { display: inline-block; font-size: 0.72rem; padding: 2px 8px; border-radius: 10px; margin-left: 8px; font-weight: 600; vertical-align: middle; }
+  .t-done { background: #dcfce7; color: #16a34a; }
+  .t-pending { background: #fef2f2; color: #dc2626; }
+  .t-partial { background: #fffbeb; color: #d97706; }
+  .t-critical { background: #fef2f2; color: #dc2626; border: 1px solid #dc2626; }
+  .meta { color: #64748b; font-size: 0.85rem; margin-bottom: 30px; }
+  .legend { display: flex; gap: 20px; margin-bottom: 24px; font-size: 0.85rem; }
+  .legend span { display: flex; align-items: center; gap: 6px; }
+  table { width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 0.85rem; }
+  th { background: #f1f5f9; padding: 7px 12px; text-align: left; border: 1px solid #e2e8f0; }
+  td { padding: 7px 12px; border: 1px solid #e2e8f0; }
+</style>
+</head>
+<body>
+
+<h1>Spark — Master Learning Checklist</h1>
+<p class="meta">Scope: FAANG + Databricks + Top-tier DE interviews &nbsp;|&nbsp; Starting from scratch &nbsp;|&nbsp; Updated: 2026-06-07</p>
+
+<div class="legend">
+  <span><span class="tag t-done">✅ Done</span> Taught in detail + exercises</span>
+  <span><span class="tag t-partial">🟡 Partial</span> In doc but not fully taught</span>
+  <span><span class="tag t-pending">⏳ Pending</span> Not yet covered</span>
+  <span><span class="tag t-critical">⭐ Critical</span> Highest interview weight</span>
+</div>
+
+<!-- ─────────────────────────────────────── -->
+<h2>Module 1 — Spark Architecture & Mental Model</h2>
+
+<div class="block">
+  <div class="topic">Core Architecture <span class="tag t-done">✅ Done</span></div>
+  <ul>
+    <li>Why Spark exists — scale-out vs scale-up</li>
+    <li>Driver, Executors, Cluster Manager — roles and communication</li>
+    <li>SparkSession as entry point</li>
+    <li>Distributed + lazy mental model</li>
+  </ul>
+</div>
+
+<div class="block">
+  <div class="topic">Lazy Evaluation <span class="tag t-done">✅ Done</span></div>
+  <ul>
+    <li>Transformations vs Actions</li>
+    <li>Why lazy eval exists — optimization window</li>
+    <li>Narrow vs Wide transformations</li>
+    <li>When execution actually triggers</li>
+  </ul>
+</div>
+
+<div class="block">
+  <div class="topic">DAG, Jobs, Stages, Tasks <span class="tag t-done">✅ Done</span></div>
+  <ul>
+    <li>Job → Stage → Task hierarchy</li>
+    <li>Stage boundary = shuffle boundary</li>
+    <li>Stage counting recipe</li>
+    <li>Partitions are per-stage, not summed</li>
+  </ul>
+</div>
+
+<div class="block">
+  <div class="topic">Catalyst Optimizer <span class="tag t-partial">🟡 Partial</span></div>
+  <ul>
+    <li>4 phases: Parse → Analyze → Optimize → Physical plan</li>
+    <li>Predicate pushdown</li>
+    <li>Column pruning / projection pushdown</li>
+    <li>Constant folding</li>
+    <li>Cost-based join selection</li>
+    <li><strong>Missing:</strong> ANALYZE TABLE, statistics collection, explain() deep-dive</li>
+  </ul>
+</div>
+
+<div class="block">
+  <div class="topic">Tungsten Execution Engine <span class="tag t-partial">🟡 Partial</span></div>
+  <ul>
+    <li>Off-heap memory management</li>
+    <li>Cache-aware columnar processing</li>
+    <li>Whole-stage code generation (WSCG)</li>
+    <li><strong>Missing:</strong> Reading WSCG in explain() output, * notation</li>
+  </ul>
+</div>
+
+<!-- ─────────────────────────────────────── -->
+<h2>Module 2 — Partitioning & Shuffles</h2>
+
+<div class="block">
+  <div class="topic">Partitions <span class="tag t-done">✅ Done</span></div>
+  <ul>
+    <li>Partition = unit of parallelism, one task per partition</li>
+    <li>How partitions are set at read time (maxPartitionBytes = 128MB)</li>
+    <li>spark.sql.shuffle.partitions (default 200)</li>
+    <li>Checking partition count: df.rdd.getNumPartitions()</li>
+  </ul>
+</div>
+
+<div class="block">
+  <div class="topic">repartition vs coalesce <span class="tag t-done">✅ Done</span></div>
+  <ul>
+    <li>repartition — full shuffle, can increase or decrease, even distribution</li>
+    <li>coalesce — no shuffle, decrease only, merge locally</li>
+    <li>repartition(n, col) — partition by column key</li>
+    <li>When to use each</li>
+  </ul>
+</div>
+
+<div class="block">
+  <div class="topic">Shuffles <span class="tag t-done">✅ Done</span></div>
+  <ul>
+    <li>Map side (shuffle write) → network transfer → reduce side (shuffle read)</li>
+    <li>Why expensive: disk I/O + network I/O + stage barrier</li>
+    <li>What triggers shuffles: groupBy, join, orderBy, distinct</li>
+    <li>How to reduce shuffle cost</li>
+  </ul>
+</div>
+
+<div class="block">
+  <div class="topic">Bucketing <span class="tag t-pending">⏳ Pending</span> <span class="tag t-critical">⭐ Critical</span></div>
+  <ul>
+    <li>Pre-partitioning tables by a join key at write time</li>
+    <li>Eliminates shuffle on joins when both tables bucketed on same key</li>
+    <li>saveAsTable with bucketBy + sortBy</li>
+    <li>When to use bucketing vs repartition</li>
+    <li>Limitations: only works with Hive-style tables</li>
+  </ul>
+</div>
+
+<div class="block">
+  <div class="topic">Dynamic Partition Pruning (DPP) <span class="tag t-pending">⏳ Pending</span></div>
+  <ul>
+    <li>Runtime pruning of partitions based on join filter</li>
+    <li>Broadcasts filter from one join side to prune the other</li>
+    <li>Transparent — no code changes needed</li>
+    <li>Works on partitioned tables only</li>
+  </ul>
+</div>
+
+<!-- ─────────────────────────────────────── -->
+<h2>Module 3 — Join Strategies</h2>
+
+<div class="block">
+  <div class="topic">Broadcast Hash Join (BHJ) <span class="tag t-done">✅ Done</span></div>
+  <ul>
+    <li>Small table broadcast to every executor — no shuffle</li>
+    <li>Default threshold: 10MB (autoBroadcastJoinThreshold)</li>
+    <li>Why no shuffle — match is always local</li>
+    <li>Force with F.broadcast() hint</li>
+    <li>1 stage only</li>
+  </ul>
+</div>
+
+<div class="block">
+  <div class="topic">Sort-Merge Join (SMJ) <span class="tag t-done">✅ Done</span></div>
+  <ul>
+    <li>Both sides shuffled + sorted on join key</li>
+    <li>3+ stages (2 pre-shuffle + 1 merge)</li>
+    <li>Default for large-large joins</li>
+  </ul>
+</div>
+
+<div class="block">
+  <div class="topic">Shuffle Hash Join (SHJ) <span class="tag t-done">✅ Done</span></div>
+  <ul>
+    <li>One side shuffled into hash map, other side streams through</li>
+    <li>Middle ground between BHJ and SMJ</li>
+  </ul>
+</div>
+
+<div class="block">
+  <div class="topic">Join Hints & Cost-Based Selection <span class="tag t-partial">🟡 Partial</span></div>
+  <ul>
+    <li>F.broadcast() hint covered</li>
+    <li><strong>Missing:</strong> SQL hint syntax /*+ BROADCAST(t) */, MERGE hint, SHUFFLE_HASH hint</li>
+    <li><strong>Missing:</strong> How Spark selects join strategy from statistics</li>
+    <li><strong>Missing:</strong> Storage Partition Join (SPJ) for bucketed tables</li>
+  </ul>
+</div>
+
+<!-- ─────────────────────────────────────── -->
+<h2>Module 4 — Performance Tuning</h2>
+
+<div class="block">
+  <div class="topic">AQE (Adaptive Query Execution) <span class="tag t-done">✅ Done</span></div>
+  <ul>
+    <li>Runtime re-optimization after each shuffle</li>
+    <li>Coalescing small shuffle partitions</li>
+    <li>Switching join strategy at runtime</li>
+    <li>Skew join handling (split fat partitions)</li>
+    <li>On by default in Spark 3+</li>
+  </ul>
+</div>
+
+<div class="block">
+  <div class="topic">Caching <span class="tag t-done">✅ Done</span></div>
+  <ul>
+    <li>cache() = persist(MEMORY_AND_DISK)</li>
+    <li>Lazy — data cached on first action</li>
+    <li>Storage levels: MEMORY_ONLY, MEMORY_AND_DISK, DISK_ONLY, MEMORY_ONLY_SER</li>
+    <li>When to cache vs not</li>
+    <li>Always unpersist when done</li>
+  </ul>
+</div>
+
+<div class="block">
+  <div class="topic">Salting — Data Skew Fix <span class="tag t-done">✅ Done</span></div>
+  <ul>
+    <li>Detect skew: Spark UI Max vs Median partition size</li>
+    <li>Join salting: salt large table + explode small table</li>
+    <li>groupBy salting: salt + two-pass aggregation</li>
+    <li>Bucket sizing: Max / 200MB or Max / Median ratio</li>
+    <li>Salting vs AQE skew handling</li>
+  </ul>
+</div>
+
+<div class="block">
+  <div class="topic">Memory Management <span class="tag t-pending">⏳ Pending</span> <span class="tag t-critical">⭐ Critical</span></div>
+  <ul>
+    <li>Executor memory: heap vs off-heap</li>
+    <li>Storage memory vs execution memory (unified memory model)</li>
+    <li>Memory spill to disk — when it happens, how to fix</li>
+    <li>GC overhead — when JVM GC hurts Spark jobs</li>
+    <li>PySpark overhead: Python worker memory on top of JVM</li>
+    <li>OOM errors — diagnosis and fix</li>
+  </ul>
+</div>
+
+<div class="block">
+  <div class="topic">UDFs & Performance <span class="tag t-pending">⏳ Pending</span></div>
+  <ul>
+    <li>Python UDF vs Spark SQL built-in functions — why UDFs are slow</li>
+    <li>Pandas UDFs (vectorized UDFs) — Arrow serialization</li>
+    <li>When to use UDFs vs rewriting in native Spark functions</li>
+  </ul>
+</div>
+
+<!-- ─────────────────────────────────────── -->
+<h2>Module 5 — Spark UI</h2>
+
+<div class="block">
+  <div class="topic">Spark UI — Reading Execution Plans <span class="tag t-partial">🟡 Partial</span></div>
+  <ul>
+    <li>Jobs / Stages / Tasks tabs — covered conceptually</li>
+    <li>BroadcastHashJoin confirmed live (2026-05-29 session)</li>
+    <li><strong>Missing:</strong> Reading Summary Metrics table (Min/Median/Max/P75) hands-on</li>
+    <li><strong>Missing:</strong> Shuffle read/write bytes diagnosis</li>
+    <li><strong>Missing:</strong> GC time, task duration distribution</li>
+    <li><strong>Missing:</strong> Identifying spill in Spark UI</li>
+    <li><strong>Missing:</strong> SQL tab — DAG visualization, reading explain() output fully</li>
+  </ul>
+</div>
+
+<!-- ─────────────────────────────────────── -->
+<h2>Module 6 — Delta Lake ⭐</h2>
+
+<div class="block">
+  <div class="topic">Delta Lake Fundamentals <span class="tag t-pending">⏳ Pending</span> <span class="tag t-critical">⭐ Critical</span></div>
+  <ul>
+    <li>What Delta Lake is — ACID on top of Parquet files</li>
+    <li>Transaction log (_delta_log) — single source of truth</li>
+    <li>How every write is recorded as a JSON commit entry</li>
+    <li>Optimistic concurrency control</li>
+    <li>Append-only architecture — files never modified</li>
+  </ul>
+</div>
+
+<div class="block">
+  <div class="topic">Time Travel <span class="tag t-pending">⏳ Pending</span> <span class="tag t-critical">⭐ Critical</span></div>
+  <ul>
+    <li>Query by version: VERSION AS OF n</li>
+    <li>Query by timestamp: TIMESTAMP AS OF '2024-01-01'</li>
+    <li>RESTORE TABLE to previous version</li>
+    <li>How the transaction log enables time travel</li>
+    <li>Retention period and VACUUM interaction</li>
+  </ul>
+</div>
+
+<div class="block">
+  <div class="topic">MERGE (Upsert) <span class="tag t-pending">⏳ Pending</span> <span class="tag t-critical">⭐ Critical</span></div>
+  <ul>
+    <li>MERGE INTO syntax — matched/not matched clauses</li>
+    <li>Upsert pattern (update if exists, insert if not)</li>
+    <li>Delete within MERGE</li>
+    <li>Idempotent MERGE for exactly-once writes</li>
+    <li>Performance considerations of MERGE</li>
+  </ul>
+</div>
+
+<div class="block">
+  <div class="topic">OPTIMIZE + Z-ORDER <span class="tag t-pending">⏳ Pending</span> <span class="tag t-critical">⭐ Critical</span></div>
+  <ul>
+    <li>OPTIMIZE — compacts small files into larger ones (bin packing)</li>
+    <li>Why small files accumulate (streaming, frequent writes)</li>
+    <li>Z-ORDER — co-locates related data using space-filling curves</li>
+    <li>Z-ORDER BY multiple columns — trade-offs</li>
+    <li>Data skipping enabled by Z-ORDER</li>
+    <li>OPTIMIZE vs VACUUM — different purposes</li>
+  </ul>
+</div>
+
+<div class="block">
+  <div class="topic">VACUUM <span class="tag t-pending">⏳ Pending</span></div>
+  <ul>
+    <li>Removes old files no longer in transaction log</li>
+    <li>Default retention: 7 days</li>
+    <li>Trade-off: VACUUM removes time travel history</li>
+    <li>Safety checks before running VACUUM</li>
+  </ul>
+</div>
+
+<div class="block">
+  <div class="topic">Schema Evolution <span class="tag t-pending">⏳ Pending</span></div>
+  <ul>
+    <li>mergeSchema — additive column changes</li>
+    <li>Type widening (int → long, float → double)</li>
+    <li>What's NOT supported (narrowing, removing columns)</li>
+    <li>Schema enforcement (rejects mismatched writes by default)</li>
+  </ul>
+</div>
+
+<!-- ─────────────────────────────────────── -->
+<h2>Module 7 — Structured Streaming ⭐</h2>
+
+<div class="block">
+  <div class="topic">Streaming Fundamentals <span class="tag t-pending">⏳ Pending</span> <span class="tag t-critical">⭐ Critical</span></div>
+  <ul>
+    <li>Micro-batch model — how Spark processes streams in small batches</li>
+    <li>Trigger modes: default, fixed interval, once, continuous</li>
+    <li>readStream vs read — streaming vs batch DataFrames</li>
+    <li>Output modes: Append, Update, Complete</li>
+    <li>Sources: Kafka, file sources, Delta</li>
+    <li>Sinks: Kafka, Delta Lake, foreach/foreachBatch</li>
+  </ul>
+</div>
+
+<div class="block">
+  <div class="topic">Watermarks <span class="tag t-pending">⏳ Pending</span> <span class="tag t-critical">⭐ Critical</span></div>
+  <ul>
+    <li>What a watermark is — late data threshold</li>
+    <li>withWatermark(eventTime, "10 minutes")</li>
+    <li>How watermarks determine when windows finalize</li>
+    <li>State cleanup — watermark controls how long state is kept</li>
+    <li>Multi-stream watermarks (minimum used as global)</li>
+  </ul>
+</div>
+
+<div class="block">
+  <div class="topic">Exactly-Once Semantics <span class="tag t-pending">⏳ Pending</span> <span class="tag t-critical">⭐ Critical</span></div>
+  <ul>
+    <li>At-most-once vs at-least-once vs exactly-once</li>
+    <li>Replayable sources (Kafka offset tracking)</li>
+    <li>Idempotent sinks (Delta Lake transaction IDs)</li>
+    <li>Checkpointing for fault tolerance</li>
+    <li>Write-ahead logs (WALs)</li>
+  </ul>
+</div>
+
+<div class="block">
+  <div class="topic">Checkpoints <span class="tag t-pending">⏳ Pending</span></div>
+  <ul>
+    <li>What checkpoints store (offsets + state)</li>
+    <li>Unique checkpoint per query — never share</li>
+    <li>Recovery from checkpoint on restart</li>
+    <li>Checkpoint location on cloud storage</li>
+  </ul>
+</div>
+
+<div class="block">
+  <div class="topic">Stateful Operations <span class="tag t-pending">⏳ Pending</span></div>
+  <ul>
+    <li>Stateful aggregations (groupBy + window)</li>
+    <li>Deduplication using state stores</li>
+    <li>State size management and cleanup</li>
+    <li>mapGroupsWithState / flatMapGroupsWithState (advanced)</li>
+  </ul>
+</div>
+
+<!-- ─────────────────────────────────────── -->
+<h2>Module 8 — Delta Live Tables (DLT) ⭐</h2>
+
+<div class="block">
+  <div class="topic">DLT Fundamentals <span class="tag t-partial">🟡 Partial</span></div>
+  <ul>
+    <li>Lakeflow Designer intro done (2026-05-21)</li>
+    <li><strong>Missing:</strong> @dlt.table and @dlt.view decorators in Python</li>
+    <li><strong>Missing:</strong> Materialized views vs Streaming tables vs Views</li>
+    <li><strong>Missing:</strong> Automatic dependency resolution and DAG</li>
+    <li><strong>Missing:</strong> Incremental vs full refresh</li>
+  </ul>
+</div>
+
+<div class="block">
+  <div class="topic">Expectations (Data Quality) <span class="tag t-pending">⏳ Pending</span> <span class="tag t-critical">⭐ Critical</span></div>
+  <ul>
+    <li>@dlt.expect — log failures, continue pipeline</li>
+    <li>@dlt.expect_or_drop — drop bad rows</li>
+    <li>@dlt.expect_or_fail — halt pipeline on violation</li>
+    <li>Metrics tracking (passed/failed/dropped counts)</li>
+    <li>Data quality dashboards</li>
+  </ul>
+</div>
+
+<div class="block">
+  <div class="topic">Pipeline Management <span class="tag t-pending">⏳ Pending</span></div>
+  <ul>
+    <li>Development vs Production mode</li>
+    <li>Auto-scaling clusters in DLT</li>
+    <li>Error handling and retries</li>
+    <li>Monitoring lineage visualization in UI</li>
+  </ul>
+</div>
+
+<!-- ─────────────────────────────────────── -->
+<h2>Module 9 — Unity Catalog ⭐</h2>
+
+<div class="block">
+  <div class="topic">Unity Catalog Architecture <span class="tag t-pending">⏳ Pending</span> <span class="tag t-critical">⭐ Critical</span></div>
+  <ul>
+    <li>Three-level namespace: catalog.schema.table</li>
+    <li>Metastore as top-level governance unit</li>
+    <li>Workspace-level vs metastore-level scopes</li>
+    <li>Securable objects: tables, views, volumes, UDFs, models</li>
+  </ul>
+</div>
+
+<div class="block">
+  <div class="topic">Access Control & Grants <span class="tag t-pending">⏳ Pending</span></div>
+  <ul>
+    <li>GRANT / REVOKE syntax</li>
+    <li>Catalog → Schema → Table permission hierarchy</li>
+    <li>Role-based access control (RBAC)</li>
+    <li>Row-level and column-level security</li>
+  </ul>
+</div>
+
+<div class="block">
+  <div class="topic">Lineage & Governance <span class="tag t-pending">⏳ Pending</span></div>
+  <ul>
+    <li>Automatic data lineage tracking</li>
+    <li>Column-level lineage</li>
+    <li>Tags and classifications (PII, PHI)</li>
+    <li>Audit logging</li>
+  </ul>
+</div>
+
+<!-- ─────────────────────────────────────── -->
+<h2>Module 10 — Data Modeling for Spark</h2>
+
+<div class="block">
+  <div class="topic">Star Schema & Dimensional Modeling <span class="tag t-pending">⏳ Pending</span> <span class="tag t-critical">⭐ Critical</span></div>
+  <ul>
+    <li>Fact tables — transactional data, foreign keys, grain definition</li>
+    <li>Dimension tables — context, attributes, SCD handling</li>
+    <li>Star vs snowflake schema — when to use each</li>
+    <li>Conformed dimensions for reusability</li>
+    <li>Degenerate dimensions</li>
+  </ul>
+</div>
+
+<div class="block">
+  <div class="topic">Slowly Changing Dimensions (SCDs) <span class="tag t-pending">⏳ Pending</span> <span class="tag t-critical">⭐ Critical</span></div>
+  <ul>
+    <li>Type 1 — Overwrite (no history)</li>
+    <li>Type 2 — Add new row with effective_from / effective_to dates</li>
+    <li>Type 3 — Add historical column (current + previous value)</li>
+    <li>Implementing SCD Type 2 with Delta MERGE</li>
+    <li>Grain definition — what one row represents</li>
+  </ul>
+</div>
+
+<div class="block">
+  <div class="topic">Medallion Architecture <span class="tag t-pending">⏳ Pending</span> <span class="tag t-critical">⭐ Critical</span></div>
+  <ul>
+    <li>Bronze → Silver → Gold layers</li>
+    <li>Bronze: raw ingestion, no transformation</li>
+    <li>Silver: cleaned, deduplicated, typed</li>
+    <li>Gold: aggregated, business-ready, star schema</li>
+    <li>When to use Delta tables at each layer</li>
+  </ul>
+</div>
+
+<!-- ─────────────────────────────────────── -->
+<h2>Module 11 — DataFrame API Deep-Dive</h2>
+
+<div class="block">
+  <div class="topic">Core DataFrame Operations <span class="tag t-done">✅ Done</span></div>
+  <ul>
+    <li>select, filter, withColumn, groupBy, agg, join, orderBy</li>
+    <li>createOrReplaceTempView + spark.sql()</li>
+    <li>show() vs display()</li>
+    <li>explain(True) — reading physical plans</li>
+  </ul>
+</div>
+
+<div class="block">
+  <div class="topic">Window Functions <span class="tag t-partial">🟡 Partial</span></div>
+  <ul>
+    <li>NTILE, PERCENT_RANK covered (2026-05-27 dailysql.com session)</li>
+    <li><strong>Missing (PySpark):</strong> Window.partitionBy().orderBy(), F.row_number(), F.rank(), F.dense_rank()</li>
+    <li><strong>Missing:</strong> LAG / LEAD in PySpark</li>
+    <li><strong>Missing:</strong> Running totals, moving averages</li>
+    <li><strong>Missing:</strong> Frame specification (ROWS BETWEEN ...)</li>
+  </ul>
+</div>
+
+<div class="block">
+  <div class="topic">Complex Types <span class="tag t-partial">🟡 Partial</span></div>
+  <ul>
+    <li>explode() covered in salting context</li>
+    <li><strong>Missing:</strong> array(), struct(), map() column types</li>
+    <li><strong>Missing:</strong> F.from_json() / F.to_json() for nested data</li>
+    <li><strong>Missing:</strong> flatten(), array_contains(), array_distinct()</li>
+  </ul>
+</div>
+
+<div class="block">
+  <div class="topic">Schema Management <span class="tag t-pending">⏳ Pending</span></div>
+  <ul>
+    <li>StructType / StructField for explicit schema definition</li>
+    <li>Schema inference vs explicit schema (performance implications)</li>
+    <li>printSchema() reading</li>
+    <li>Schema evolution with mergeSchema</li>
+  </ul>
+</div>
+
+<!-- ─────────────────────────────────────── -->
+<h2>Module 12 — Databricks-Specific</h2>
+
+<div class="block">
+  <div class="topic">Auto Loader <span class="tag t-pending">⏳ Pending</span> <span class="tag t-critical">⭐ Critical</span></div>
+  <ul>
+    <li>Incremental file ingestion from cloud storage</li>
+    <li>Automatic schema inference and evolution</li>
+    <li>File notification vs directory listing mode</li>
+    <li>checkpoint location for tracking processed files</li>
+    <li>Use case: Bronze layer ingestion pattern</li>
+  </ul>
+</div>
+
+<div class="block">
+  <div class="topic">Photon Engine <span class="tag t-pending">⏳ Pending</span></div>
+  <ul>
+    <li>Native C++ vectorized query engine</li>
+    <li>Replaces JVM-based execution for eligible operators</li>
+    <li>2–8× speedups on average, 12× on benchmarks</li>
+    <li>When Photon helps vs when it doesn't</li>
+    <li>Cost implications (Photon DBU pricing)</li>
+  </ul>
+</div>
+
+<div class="block">
+  <div class="topic">Databricks Workflows / Jobs <span class="tag t-pending">⏳ Pending</span></div>
+  <ul>
+    <li>Multi-task job orchestration</li>
+    <li>Task dependencies and DAG</li>
+    <li>Job clusters vs all-purpose clusters</li>
+    <li>Retries, alerts, notifications</li>
+  </ul>
+</div>
+
+<!-- ─────────────────────────────────────── -->
+<h2>Module 13 — Open Lakehouse Formats</h2>
+
+<div class="block">
+  <div class="topic">Delta vs Iceberg vs Hudi <span class="tag t-partial">🟡 Partial</span></div>
+  <ul>
+    <li>Overview + comparison table saved in PySpark_QA_Log.html ✅</li>
+    <li><strong>Missing deep-dive:</strong> Iceberg hidden partitioning internals</li>
+    <li><strong>Missing deep-dive:</strong> Hudi COW vs MOR storage types</li>
+    <li><strong>Missing:</strong> When to choose each at a real company</li>
+    <li><strong>Missing:</strong> Apache Iceberg with Spark — table API</li>
+  </ul>
+</div>
+
+<!-- ─────────────────────────────────────── -->
+<h2>Summary — What's Left</h2>
+
+<div class="block">
+  <table>
+    <tr><th>Module</th><th>Status</th><th>Priority</th></tr>
+    <tr><td>1. Architecture & Mental Model</td><td>🟡 Mostly done, Catalyst/Tungsten partial</td><td>Medium</td></tr>
+    <tr><td>2. Partitioning & Shuffles</td><td>✅ Done — Bucketing + DPP missing</td><td>High</td></tr>
+    <tr><td>3. Join Strategies</td><td>✅ Done — SQL hints missing</td><td>Low</td></tr>
+    <tr><td>4. Performance Tuning</td><td>🟡 AQE/Caching/Salting done — Memory mgmt missing</td><td>High</td></tr>
+    <tr><td>5. Spark UI</td><td>🟡 Conceptual only — hands-on missing</td><td>High</td></tr>
+    <tr><td>6. Delta Lake</td><td>⏳ Not started</td><td>⭐ Critical</td></tr>
+    <tr><td>7. Structured Streaming</td><td>⏳ Not started</td><td>⭐ Critical</td></tr>
+    <tr><td>8. Delta Live Tables</td><td>🟡 Lakeflow intro only</td><td>⭐ Critical</td></tr>
+    <tr><td>9. Unity Catalog</td><td>⏳ Not started</td><td>⭐ Critical</td></tr>
+    <tr><td>10. Data Modeling</td><td>⏳ Not started</td><td>⭐ Critical</td></tr>
+    <tr><td>11. DataFrame API</td><td>🟡 Core done — Window fns + complex types missing</td><td>Medium</td></tr>
+    <tr><td>12. Databricks-Specific</td><td>⏳ Auto Loader / Photon / Workflows missing</td><td>High</td></tr>
+    <tr><td>13. Lakehouse Formats</td><td>🟡 Overview done — deep-dive missing</td><td>Medium</td></tr>
+  </table>
+</div>
+
+</body>
+</html>

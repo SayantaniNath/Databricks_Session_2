@@ -1,0 +1,712 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Data Modelling Practice — Method + Worked Models</title>
+<style>
+  :root{
+    --bg:#0f1115; --panel:#171a21; --panel2:#1d212a; --ink:#e7eaf0; --muted:#9aa4b2;
+    --line:#2a303c; --accent:#7aa2f7; --good:#7ee787; --warn:#f0b429; --bad:#f4796b;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+       font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;}
+  .wrap{max-width:1040px;margin:0 auto;padding:48px 24px 96px}
+  h1{font-size:32px;line-height:1.2;margin:0 0 8px}
+  h2{font-size:24px;margin:56px 0 12px;padding-bottom:8px;border-bottom:1px solid var(--line)}
+  h3{font-size:18px;margin:32px 0 8px;color:var(--accent)}
+  h4{font-size:15px;margin:20px 0 6px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+  p{margin:10px 0}
+  .sub{color:var(--muted);margin-bottom:28px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:18px 20px;margin:16px 0}
+  .rule{background:var(--panel2);border-left:3px solid var(--accent);border-radius:0 8px 8px 0;
+        padding:14px 18px;margin:18px 0}
+  .rule strong{color:var(--accent)}
+  .trap{background:var(--panel2);border-left:3px solid var(--bad);border-radius:0 8px 8px 0;padding:14px 18px;margin:18px 0}
+  .trap strong{color:var(--bad)}
+  .win{background:var(--panel2);border-left:3px solid var(--good);border-radius:0 8px 8px 0;padding:14px 18px;margin:18px 0}
+  .win strong{color:var(--good)}
+  table{width:100%;border-collapse:collapse;margin:14px 0;font-size:14.5px;display:block;overflow-x:auto}
+  th,td{border:1px solid var(--line);padding:9px 11px;text-align:left;vertical-align:top}
+  th{background:var(--panel2);color:var(--muted);font-weight:600;white-space:nowrap}
+  code{background:#232833;padding:1px 6px;border-radius:4px;font-size:13.5px;
+       font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:#d7e3ff}
+  ol,ul{margin:10px 0;padding-left:22px}
+  li{margin:5px 0}
+  .steps{counter-reset:s;list-style:none;padding-left:0}
+  .steps li{counter-increment:s;position:relative;padding-left:38px;margin:12px 0}
+  .steps li::before{content:counter(s);position:absolute;left:0;top:1px;width:26px;height:26px;
+    background:var(--accent);color:#0f1115;border-radius:50%;display:grid;place-items:center;
+    font-weight:700;font-size:13px}
+  .sentence{background:#232833;border-radius:8px;padding:14px 18px;margin:12px 0;font-style:italic;color:#d7e3ff}
+  .tag{display:inline-block;font-size:11px;letter-spacing:.05em;text-transform:uppercase;
+       padding:2px 8px;border-radius:99px;border:1px solid var(--line);color:var(--muted);margin-left:6px}
+  .t-txn{border-color:#3b5bdb;color:#8fa8ff}
+  .t-acc{border-color:#b5850b;color:#f0b429}
+  .t-per{border-color:#2f855a;color:#7ee787}
+  .t-evt{border-color:#7a3b8f;color:#d09fe8}
+  hr{border:0;border-top:1px solid var(--line);margin:40px 0}
+  .foot{color:var(--muted);font-size:13.5px;margin-top:56px;border-top:1px solid var(--line);padding-top:16px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>Data Modelling Practice</h1>
+<p class="sub">Method + worked models — E-commerce and Ride-sharing. Built 2026-07-28. Companion to <code>Meta_Data_Modeling_Prep.html</code>; that one holds the Kimball theory and the six mock rounds, this one holds the <em>repeatable procedure</em> and two full designs.</p>
+
+<div class="card">
+<strong>Why this exists:</strong> the framework steps (processes → grain → dimensions → facts) were already known, but the <em>decision rules inside each step</em> weren't. This document is those rules, written to be mechanical enough to run under interview pressure without improvising.
+</div>
+
+<h2>Part 1 — The Method</h2>
+
+<h3>Step 0 — Don't draw anything yet</h3>
+<p>The most common failure in a modelling round is sketching tables before asking questions. Three questions first:</p>
+<ul>
+  <li>Who consumes this, and what decisions do they make with it? (finance ≠ merchandising ≠ ops)</li>
+  <li>What time resolution do they need — sub-day, or is daily fine?</li>
+  <li>Roughly what scale, and batch or near-real-time?</li>
+</ul>
+<p>Those three answers determine the grain, and the grain determines everything downstream.</p>
+
+<h3>Step 1 — Business processes, not tables</h3>
+<p>List <strong>verbs</strong>. What actually <em>happens</em>? Each real business event is a candidate fact table.</p>
+
+<div class="rule">
+<strong>Naming rule.</strong> A fact table is named after <em>an event that happens</em> — never after a number you compute (<code>FactRevenue</code>, <code>FactCustomerValue</code>) and never after a thing that merely exists (<code>FactShowtime</code>, <code>FactProduct</code>).
+</div>
+
+<div class="rule">
+<strong>The timestamp test — process vs dimension.</strong> Does it have a timestamp of its own? An order is <em>placed</em> at 14:32. A payment is <em>captured</em> at 14:33. A customer doesn't happen at a time — a customer just <em>is</em>. Date is never a process; it's the spine every fact hangs off.
+</div>
+
+<div class="rule">
+<strong>The "same entity, later" test — process vs milestone.</strong> If a candidate can be phrased as <em>"the same order, later"</em>, it's a milestone and belongs as a date column on an existing fact. A genuinely new process has a <strong>different grain</strong>: different actor, different cardinality, or it can happen zero-to-many times independently.
+</div>
+
+<div class="card">
+<p><strong>Worked contrast — why returns is a fact and packing is a column:</strong></p>
+<table>
+<tr><th></th><th>Customer returns an item</th><th>Order is packed at warehouse</th></tr>
+<tr><td>Times per order line</td><td>0, 1, or many</td><td>Exactly once</td></tr>
+<tr><td>Timing</td><td>Independent — days or weeks later</td><td>Fixed position in a sequence</td></tr>
+<tr><td>Own measures?</td><td>Yes — refund amount, reason code</td><td>No</td></tr>
+<tr><td><strong>Verdict</strong></td><td><strong>Its own fact table</strong></td><td><strong>A date column</strong></td></tr>
+</table>
+</div>
+
+<div class="rule">
+<strong>Carry this one sentence:</strong> a new fact table needs a <em>different grain</em>, not a <em>later timestamp</em>.
+</div>
+
+<h3>Step 2 — Declaring the grain</h3>
+<p>Three things decide it:</p>
+<ol class="steps">
+  <li><strong>What is the atomic event?</strong> Go to the lowest level the process naturally occurs at. Kimball's rule: declare the grain at the lowest atomic level available. You can always aggregate up; you can never recover detail you didn't store.</li>
+  <li><strong>What must you slice by?</strong> Every dimension you need to filter or group by must be identifiable at the grain. If it isn't, that question becomes permanently unanswerable.</li>
+  <li><strong>The unique key test.</strong> Name the combination of columns that makes a row unique. That combination <em>is</em> the grain. If you can't name it, you haven't declared one.</li>
+</ol>
+
+<div class="rule">
+<strong>The asymmetry that makes the call easy.</strong> Too coarse destroys information permanently. Too fine only costs storage. <em>When unsure, go finer.</em>
+</div>
+
+<p><strong>Say these three sentences out loud for every fact table:</strong></p>
+<div class="sentence">
+"The atomic event here is ______."<br>
+"One row is uniquely identified by ______."<br>
+"That means one row per ______."
+</div>
+<p>If sentence 2 gives you trouble, that's the signal to ask a clarifying question — not to guess.</p>
+
+<h3>Step 3 &amp; 4 — The sentence test</h3>
+<p>Write the business event as plain English with a verb:</p>
+<div class="sentence">Who did what to what, when, where, how — and how much?</div>
+
+<table>
+<tr><th>Part of the sentence</th><th>Becomes</th></tr>
+<tr><td>The <strong>verb</strong></td><td>The fact table name</td></tr>
+<tr><td><strong>Who / what / when / where / how</strong></td><td>Dimensions</td></tr>
+<tr><td><strong>How much / how many</strong></td><td>Facts (measures)</td></tr>
+</table>
+
+<h4>Deciding facts — two tests</h4>
+<p><strong>Test 1 — would you add it up?</strong> Every number is a candidate; ask what you'd actually do with it.</p>
+<ul>
+  <li>SUM or AVG across rows → <strong>fact</strong> (<code>quantity</code>, <code>fare_amount</code>, <code>duration_min</code>)</li>
+  <li>Filter or GROUP BY → <strong>dimension attribute</strong> (<code>shoe_size</code>, <code>age_band</code>, <code>vehicle_capacity</code>) — numbers, but they describe rather than measure</li>
+</ul>
+
+<div class="trap">
+<strong>Test 2 — is it true at the grain?</strong> This is the one people fail. Put <code>order_total</code> on a line-grain fact and every 3-line order counts its total three times. Silent double-counting, and the single most common modelling bug in production. <code>line_revenue</code> belongs at line grain; <code>order_total</code> is derived by summing lines.
+</div>
+
+<h4>Additivity</h4>
+<table>
+<tr><th>Type</th><th>Rule</th><th>Examples</th></tr>
+<tr><td><strong>Fully additive</strong></td><td>Sum across every dimension</td><td><code>quantity</code>, <code>revenue</code>, <code>fare_amount</code></td></tr>
+<tr><td><strong>Semi-additive</strong></td><td>Sum across some dimensions, never across time</td><td><code>quantity_on_hand</code>, account balance, drivers online</td></tr>
+<tr><td><strong>Non-additive</strong></td><td>Never sum</td><td><code>unit_price</code>, <code>surge_multiplier</code>, any ratio or %</td></tr>
+</table>
+
+<div class="rule">
+<strong>Never store a ratio — store its numerator and denominator.</strong> Store <code>refunds</code> and <code>orders</code>, not <code>refund_rate</code>. Ratios don't survive aggregation: you cannot average daily rates to get a monthly rate.
+</div>
+
+<h4>Deciding dimensions — four questions each</h4>
+<ol class="steps">
+  <li><strong>Does it have attributes I'd slice by?</strong> Yes → dimension table. No, it's a bare identifier → <strong>degenerate dimension</strong>, keep as a column on the fact (<code>order_id</code>, <code>trip_id</code>).</li>
+  <li><strong>Do its attributes change, and do I care about history?</strong> No → SCD Type 1 (overwrite). Yes → <strong>SCD Type 2</strong>: new row per change with <code>effective_from</code> / <code>effective_to</code> / <code>is_current</code>. The old fact rows keep pointing at the old row, so March revenue is computed against March's price.</li>
+  <li><strong>Is it shared across fact tables?</strong> Yes → <strong>conformed dimension</strong>, build it once. That's the bus matrix, and it's what makes "returns as % of sales" one join instead of a reconciliation project.</li>
+  <li><strong>Does it play more than one role?</strong> <code>order_date</code> and <code>ship_date</code> both point at <code>DimDate</code> → <strong>role-playing dimension</strong>: one table, multiple views.</li>
+</ol>
+
+<div class="rule">
+<strong>Shortcut for finding dimensions fast:</strong> listen for the word <em>"by"</em>. "Revenue <em>by</em> category <em>by</em> region <em>by</em> month" — every "by" is a dimension, and it must exist at or above your grain.
+</div>
+
+<h3>The whole recipe</h3>
+<div class="card">
+<ol class="steps">
+  <li>Write the event as a sentence with a verb</li>
+  <li>Verb → fact table name</li>
+  <li>Nouns / when / where / how → dimensions</li>
+  <li>Numbers → candidate facts; <strong>drop any not true at the grain</strong></li>
+  <li>Classify additivity; replace ratios with their components</li>
+  <li>Per dimension: attributes? → table or degenerate · history? → SCD type · shared? → conformed · multiple roles? → role-playing</li>
+</ol>
+<p style="margin-bottom:0">Six steps, any domain, every time.</p>
+</div>
+
+<hr>
+
+<h2>Part 2 — Worked Model: E-commerce</h2>
+
+<h4>Step 0 — assumptions stated out loud</h4>
+<p>Analytics for merchandising, finance, and ops. Daily reporting is sufficient but order-level detail must be preserved. ~10M orders/year.</p>
+
+<h4>Step 1 — processes → facts</h4>
+<table>
+<tr><th>Business process</th><th>Fact table</th><th>Type</th></tr>
+<tr><td>A customer buys an item</td><td><code>FactOrderLine</code></td><td><span class="tag t-txn">Transaction</span></td></tr>
+<tr><td>An order moves cart → delivered</td><td><code>FactOrderFulfillment</code></td><td><span class="tag t-acc">Accumulating snapshot</span></td></tr>
+<tr><td>A customer returns an item</td><td><code>FactReturn</code></td><td><span class="tag t-txn">Transaction</span></td></tr>
+<tr><td>Stock level at a point in time</td><td><code>FactInventorySnapshot</code></td><td><span class="tag t-per">Periodic snapshot</span></td></tr>
+</table>
+<p><code>cart</code>, <code>checkout</code>, <code>payment</code>, <code>processed</code>, <code>shipped</code>, <code>delivered</code> all collapse into row 2 — they are milestones <em>inside</em> fulfillment, not four separate processes. All three Kimball fact types appear in this one domain, which is why e-commerce is such a common prompt.</p>
+
+<h4>Step 2 — grain</h4>
+<table>
+<tr><th>Fact</th><th>Grain</th><th>Unique key</th></tr>
+<tr><td><code>FactOrderLine</code></td><td>One row per product per order</td><td><code>(order_id, product_id)</code></td></tr>
+<tr><td><code>FactOrderFulfillment</code></td><td>One row per order, updated in place</td><td><code>(order_id)</code></td></tr>
+<tr><td><code>FactReturn</code></td><td>One row per returned item per return event</td><td><code>(return_id, order_line_id)</code></td></tr>
+<tr><td><code>FactInventorySnapshot</code></td><td>One row per product per warehouse per day</td><td><code>(product_id, warehouse_id, date_key)</code></td></tr>
+</table>
+
+<div class="card">
+<p><strong>Why not one row per order on <code>FactOrderLine</code>?</strong> "Which product category drives the most revenue?" becomes permanently unanswerable — you cannot split $180 back into the shirt and the shoes.</p>
+<p><strong>Why not one row per unit?</strong> Nothing you'd slice by differs between unit 1 and unit 2, so you'd triple storage for zero gain. <em>Exception:</em> serialized goods (phones with IMEIs, per-unit warranties) — there the units <em>are</em> distinguishable and per-unit is correct.</p>
+<p><strong>Why <code>return_id</code> in the key?</strong> Someone can return 1 of 3 shirts in March and another in April. Drop it and the second return overwrites the first.</p>
+<p style="margin-bottom:0"><strong>Clarifying question worth asking:</strong> can an order ship in multiple parcels? If yes, fulfillment grain drops to <em>one row per shipment</em> — two parcels have two <code>shipped_ts</code> values and one row can't hold both. Split shipments are the norm at scale and interviewers plant this.</p>
+</div>
+
+<h4>Step 3 — dimensions</h4>
+<p><code>DimCustomer</code> (SCD2) · <code>DimProduct</code> (SCD2) · <code>DimDate</code> · <code>DimWarehouse</code> · <code>DimShipMethod</code> · <code>DimPromotion</code> · <code>DimReturnReason</code></p>
+<ul>
+  <li><strong>Degenerate:</strong> <code>order_id</code>, <code>order_line_id</code> — identifiers with no attributes worth a table.</li>
+  <li><strong>Conformed:</strong> <code>DimProduct</code>, <code>DimCustomer</code>, <code>DimDate</code> shared across all four facts — the bus matrix.</li>
+  <li><strong>SCD2 on <code>DimProduct</code></strong> because price and category change, and March revenue must be computed against March's price.</li>
+</ul>
+
+<h4>Step 4 — measures</h4>
+<table>
+<tr><th>Fact</th><th>Measures</th><th>Additivity</th></tr>
+<tr><td><code>FactOrderLine</code></td><td><code>quantity</code>, <code>unit_price</code>, <code>discount_amount</code>, <code>line_revenue</code>, <code>cost_of_goods</code></td><td>Additive (except <code>unit_price</code> — non-additive)</td></tr>
+<tr><td><code>FactOrderFulfillment</code></td><td><code>cart_created_ts</code>, <code>checkout_started_ts</code>, <code>payment_captured_ts</code>, <code>order_placed_ts</code>, <code>packed_ts</code>, <code>shipped_ts</code>, <code>delivered_ts</code>, <code>hours_to_ship</code>, <code>hours_to_deliver</code></td><td>Lags additive via AVG</td></tr>
+<tr><td><code>FactReturn</code></td><td><code>quantity_returned</code>, <code>refund_amount</code></td><td>Fully additive</td></tr>
+<tr><td><code>FactInventorySnapshot</code></td><td><code>quantity_on_hand</code></td><td><strong>Semi-additive</strong> — sum across products, never across days</td></tr>
+</table>
+<p>The fulfillment table is what answers "where do customers abandon?" and "is our delivery SLA slipping?"</p>
+
+<h4>The Staff layer</h4>
+<ul>
+  <li>Partition <code>FactOrderLine</code> by order date, cluster on product — the dominant query pattern.</li>
+  <li><code>FactOrderFulfillment</code> is <strong>mutable</strong> → MERGE-based upserts and a defined late-arrival window. The others are append-only.</li>
+  <li>Data quality gates: every order line joins to a valid product; refund amount never exceeds original line revenue.</li>
+  <li>Retention: raw cart events are huge and low-value after ~90 days — raise that decision with the team, don't make it silently.</li>
+</ul>
+
+<hr>
+
+<h2>Part 3 — Worked Model: Ride-sharing</h2>
+
+<h4>Step 0 — assumptions</h4>
+<p>Analytics for ops (supply/demand balancing), finance (revenue and driver payouts), and product (funnel, cancellations). <strong>Sub-day resolution is required</strong> — surge and dispatch analysis are meaningless at daily grain. ~100M trips/year.</p>
+
+<h4>Step 1 — the sentence</h4>
+<div class="sentence">"Driver D picked up Rider R in Zone Z on Jan 14 at 18:40 in an UberXL, drove 8.2 km for 23 minutes, fare ₹420."</div>
+<p>Verb → <code>FactTrip</code>. Nouns → <code>DimDriver</code>, <code>DimRider</code>, <code>DimZone</code>, <code>DimDate</code>, <code>DimTime</code>, <code>DimVehicleType</code>. Numbers → <code>distance_km</code>, <code>duration_min</code>, <code>fare_amount</code>.</p>
+
+<table>
+<tr><th>Business process</th><th>Fact table</th><th>Type</th></tr>
+<tr><td>A rider requests a ride and it runs to completion or cancellation</td><td><code>FactTrip</code></td><td><span class="tag t-acc">Accumulating snapshot</span></td></tr>
+<tr><td>A driver's device emits a GPS ping</td><td><code>FactDriverLocation</code></td><td><span class="tag t-evt">Event stream</span></td></tr>
+<tr><td>A driver goes online and works a session</td><td><code>FactDriverShift</code></td><td><span class="tag t-acc">Accumulating snapshot</span></td></tr>
+<tr><td>A rating is submitted after a trip</td><td><code>FactRating</code></td><td><span class="tag t-txn">Transaction</span></td></tr>
+<tr><td>Driver availability per zone per interval</td><td><code>FactDriverAvailability</code></td><td><span class="tag t-per">Periodic snapshot</span></td></tr>
+</table>
+
+<div class="win">
+<strong>The split that earns the round.</strong> <code>FactDriverLocation</code> must be <em>separate</em> from <code>FactTrip</code> — a frequency mismatch, not a modelling preference. GPS pings arrive per-second per-driver whether or not a trip exists; trips arrive per-trip. Forcing them into one table means either exploding trip rows or losing location resolution. Most candidates miss this.
+</div>
+
+<h4>Step 2 — grain</h4>
+<table>
+<tr><th>Fact</th><th>Grain</th><th>Unique key</th></tr>
+<tr><td><code>FactTrip</code></td><td>One row per trip request — <em>including ones that never became trips</em></td><td><code>(trip_request_id)</code></td></tr>
+<tr><td><code>FactDriverLocation</code></td><td>One row per driver per GPS ping</td><td><code>(driver_id, ping_ts)</code></td></tr>
+<tr><td><code>FactDriverShift</code></td><td>One row per driver per online session</td><td><code>(driver_id, shift_start_ts)</code></td></tr>
+<tr><td><code>FactRating</code></td><td>One row per trip <strong>per direction</strong></td><td><code>(trip_id, rating_direction)</code></td></tr>
+<tr><td><code>FactDriverAvailability</code></td><td>One row per zone per 5-minute interval</td><td><code>(zone_id, interval_ts)</code></td></tr>
+</table>
+
+<div class="card">
+<p><strong>Why <code>FactTrip</code> is grained on the <em>request</em>, not the completed trip:</strong> cancellations are the business question. Grain it on completed trips and you permanently lose "what % of requests never find a driver, and in which zones?" — the single most important supply/demand metric. Cancelled requests carry null milestones and a <code>trip_status</code>.</p>
+<p style="margin-bottom:0"><strong>Why <code>rating_direction</code> is in the key:</strong> riders rate drivers and drivers rate riders. Same trip, two ratings. Leave direction out and one silently overwrites the other.</p>
+</div>
+
+<h4>Step 3 — dimensions</h4>
+<p><code>DimDriver</code> (SCD2) · <code>DimRider</code> (SCD2) · <code>DimVehicle</code> (SCD2) · <code>DimVehicleType</code> · <code>DimDate</code> · <code>DimTime</code> · <code>DimZone</code> · <code>DimCancellationReason</code> · <code>DimPaymentMethod</code></p>
+<ul>
+  <li><strong><code>DimTime</code> separate from <code>DimDate</code></strong> — time-of-day is the primary surge dimension. Rush hour vs 3am is the analysis; burying it in a timestamp makes it unslicable.</li>
+  <li><strong>Role-playing:</strong> <code>DimZone</code> plays <code>pickup_zone</code> and <code>dropoff_zone</code>; <code>DimDate</code> plays request/start/end. One table, multiple views.</li>
+  <li><strong>Degenerate:</strong> <code>trip_id</code>, <code>trip_request_id</code>.</li>
+  <li><strong>Conformed:</strong> <code>DimDriver</code>, <code>DimZone</code>, <code>DimDate</code> shared across trips, shifts, ratings and availability — that's what lets you ask "driver earnings per online hour by zone" in one join.</li>
+  <li><strong>SCD2 on <code>DimDriver</code></strong> — vehicle changes, tier changes, city transfers. A trip in March must attribute to the vehicle driven in March.</li>
+</ul>
+
+<h4>Step 4 — measures</h4>
+<table>
+<tr><th>Fact</th><th>Measures</th><th>Notes</th></tr>
+<tr><td><code>FactTrip</code></td><td>Milestones: <code>requested_ts</code>, <code>matched_ts</code>, <code>driver_arrived_ts</code>, <code>started_ts</code>, <code>ended_ts</code>, <code>cancelled_ts</code>. Measures: <code>distance_km</code>, <code>duration_min</code>, <code>wait_time_sec</code>, <code>base_fare</code>, <code>surge_multiplier</code>, <code>total_fare</code>, <code>driver_payout</code>, <code>platform_commission</code>, <code>tip_amount</code></td><td>Fares additive; <strong><code>surge_multiplier</code> is non-additive</strong> — store <code>base_fare</code> and <code>total_fare</code> and derive it, never sum or average it naively</td></tr>
+<tr><td><code>FactDriverLocation</code></td><td><code>lat</code>, <code>lon</code>, <code>speed_kmh</code>, <code>heading</code></td><td>Coordinates are not additive at all — they're positional</td></tr>
+<tr><td><code>FactDriverShift</code></td><td><code>online_minutes</code>, <code>idle_minutes</code>, <code>trips_completed</code>, <code>gross_earnings</code></td><td>Fully additive. Powers driver utilisation</td></tr>
+<tr><td><code>FactRating</code></td><td><code>rating_value</code> (1–5)</td><td>Non-additive — average it, never sum</td></tr>
+<tr><td><code>FactDriverAvailability</code></td><td><code>drivers_online</code>, <code>drivers_on_trip</code>, <code>open_requests</code></td><td><strong>Semi-additive</strong> — sum across zones, never across intervals. 40 drivers at 18:00 and 40 at 18:05 is 40 drivers, twice</td></tr>
+</table>
+
+<h4>The Staff layer</h4>
+<ul>
+  <li><strong>Partition <code>FactTrip</code> by request date, cluster by pickup zone</strong> — date is the dominant filter, zone the dominant group-by. Zone as a second key also bounds hotspot size (one city's data doesn't land in one partition).</li>
+  <li><strong><code>FactDriverLocation</code> does not belong in the warehouse.</strong> Per-second pings across hundreds of thousands of drivers is a time-series problem. Keep raw pings in object storage with short retention (7–30 days), and land <em>zone-minute rollups</em> in the warehouse. Raise the retention window as a team decision.</li>
+  <li><strong><code>FactTrip</code> and <code>FactDriverShift</code> are mutable</strong> (rows update as milestones land) → MERGE upserts, defined late-arrival window, and idempotent reprocessing. <code>FactRating</code> and <code>FactDriverLocation</code> are append-only.</li>
+  <li><strong>Data quality gates:</strong> completed trips must have a non-null fare and a non-null end timestamp; <code>driver_payout + platform_commission</code> must reconcile to <code>total_fare</code>; <code>ended_ts</code> must be after <code>started_ts</code>.</li>
+  <li><strong>SLA:</strong> ops dashboards need trip data within ~15 minutes, so fulfillment/trip ingestion is streaming; finance aggregates can be daily batch. Different SLAs on the same table is a legitimate design conversation.</li>
+</ul>
+
+<hr>
+
+<h2>Part 4 — Self-check before any modelling round</h2>
+<div class="card">
+<ul>
+  <li>Did I ask the three Step 0 questions before drawing anything?</li>
+  <li>Is every fact table named after a <strong>verb / event</strong>?</li>
+  <li>Can I state each grain as one sentence, and name its unique key?</li>
+  <li>Did I check every candidate process against <em>"same entity, later?"</em> before giving it its own table?</li>
+  <li>Is every measure <strong>true at the grain</strong> — no order totals on line-grain facts?</li>
+  <li>Did I classify each measure additive / semi-additive / non-additive, and replace ratios with components?</li>
+  <li>Did I name the conformed dimensions and the SCD type on anything that changes?</li>
+  <li>Did I add the Staff layer — partitioning, mutability, data quality, SLA, retention?</li>
+</ul>
+</div>
+
+<hr>
+
+<h2>Part 5 — Concept Q&amp;A (2026-07-29)</h2>
+<p class="sub">Questions asked during the session, with the answers as delivered. These are the <em>why</em> behind the method in Part 1.</p>
+
+<h3>Q1. Why is normalization required for OLTP data models?</h3>
+<div class="card">
+<p>Because OLTP is optimized for <strong>writes</strong>, and redundancy is what makes writes go wrong.</p>
+<p>In a transactional system the dominant operation is a small, concurrent, single-entity change — one customer updates an address, one order is placed. If a customer's address is copied into 400 order rows, that one logical change becomes 400 physical writes, and any row you miss is now a contradiction the database cannot detect. Normalization stores each fact <strong>in exactly one place</strong>, so a change is one write and correctness is structural rather than dependent on application code doing it right.</p>
+<p>Two supporting reasons that matter operationally:</p>
+<ul>
+  <li><strong>Concurrency.</strong> Narrower tables mean narrower row locks and less contention. A wide denormalized row makes unrelated transactions fight over the same page.</li>
+  <li><strong>Enforcement.</strong> Foreign keys, unique constraints and NOT NULL only work when a fact has one home. Denormalize and enforcement moves into application code, where it silently rots.</li>
+</ul>
+</div>
+
+<div class="rule">
+<strong>The architect layer.</strong> Normalization is a <strong>write-time optimization, paid for at read time in joins</strong>. That's a reasonable trade for OLTP, where reads are point lookups by key, not aggregations across millions of rows. OLAP inverts every assumption — data is historical and effectively immutable, so update anomalies cannot occur, and reads are wide scans where joins are the dominant cost. Same data, opposite optimization target, because the workload is opposite.
+</div>
+
+<p>Practical stopping point: <strong>3NF</strong>. BCNF and beyond buy diminishing correctness for real complexity. In high-scale OLTP teams <em>do</em> selectively denormalize back — a cached counter, a materialized read model — but as a deliberate, owned exception with a defined refresh path, not as the default.</p>
+
+<h3>Q2. The three anomalies, worked</h3>
+<p>One badly designed table — everything crammed into orders:</p>
+<table>
+<tr><th>order_id</th><th>customer_id</th><th>cust_name</th><th>cust_email</th><th>product_id</th><th>product_name</th><th>price</th></tr>
+<tr><td>1001</td><td>C-1</td><td>Priya</td><td>priya@x.com</td><td>P-9</td><td>Keyboard</td><td>2500</td></tr>
+<tr><td>1002</td><td>C-1</td><td>Priya</td><td>priya@x.com</td><td>P-7</td><td>Mouse</td><td>800</td></tr>
+<tr><td>1003</td><td>C-2</td><td>Arjun</td><td>arjun@x.com</td><td>P-9</td><td>Keyboard</td><td>2500</td></tr>
+</table>
+<p>Priya's email appears twice; the keyboard's name and price appear twice. Neither fact is <em>about an order</em> — they're about a customer and a product. That's the design error, and all three anomalies fall out of it.</p>
+
+<table>
+<tr><th>Anomaly</th><th>What happens here</th><th>Normalized fix</th></tr>
+<tr>
+  <td><strong>Update</strong></td>
+  <td>Priya changes her email. It lives in rows 1001 and 1002. Update only 1001 and the table now says Priya has two different emails — with no way for the DB to flag it, since those are just two rows that happen to disagree.</td>
+  <td>Email lives once, in <code>customers</code>. One update, no possible disagreement.</td>
+</tr>
+<tr>
+  <td><strong>Insert</strong></td>
+  <td>You want to add product P-12 (a monitor) before anyone buys it. The only table is orders, so you'd invent a fake order or insert a row with <code>order_id</code> NULL. The product exists in the real world but the schema has nowhere to put it. Same for a registered customer who hasn't ordered.</td>
+  <td><code>products</code> and <code>customers</code> are their own tables. A product exists independently of whether it ever sold.</td>
+</tr>
+<tr>
+  <td><strong>Delete</strong></td>
+  <td>Arjun cancels order 1003, his only order. Delete the row and Arjun is gone entirely — name, email, the fact he's a customer. If that had been the last P-9 order, the keyboard's price goes with it.</td>
+  <td>Deleting from <code>orders</code> touches only the order. Arjun stays in <code>customers</code>.</td>
+</tr>
+</table>
+
+<div class="rule">
+<strong>The pattern under all three:</strong> each happens because a fact about <em>entity A</em> is stored inside a row about <em>entity B</em>. Normalization is the discipline of giving every fact exactly one home, so its lifecycle is independent of anything else's.
+</div>
+
+<h3>Q3. In what case does denormalization help in OLAP?</h3>
+<p>Start with the bridge case — <code>price</code> on an order row. It looks like redundancy but it's <strong>defensible, arguably required</strong>: it's the price <em>at the time of sale</em>. Normalize it away and read the current price from <code>products</code>, and a price change silently rewrites the revenue of every historical order. The value is a snapshot of a moment, not a live copy, so it genuinely belongs to the order.</p>
+
+<div class="sentence">Duplicating immutable, historical values is safe, because every anomaly requires the value to change.</div>
+
+<h4>The worked example</h4>
+<p>Normalized OLTP side:</p>
+<pre><code>orders → order_lines → products → categories → departments
+                    ↘ customers → cities → states → countries</code></pre>
+<p>Analyst question: <em>"total revenue by product category by state, last 3 years."</em> Normalized, that's a 7-table join over hundreds of millions of order lines. Every join is a shuffle, and none carry business value — they exist only because normalization scattered the attributes.</p>
+<p>Denormalized into a star:</p>
+<pre><code>FactSales (500M rows)
+  date_key, product_key, customer_key, store_key,
+  quantity, revenue, discount
+
+DimProduct (50K rows)
+  product_key, product_name, category, department, brand, supplier
+       ↑ category and department REPEATED on every product row
+
+DimCustomer (2M rows)
+  customer_key, name, city, state, country, segment
+       ↑ state and country REPEATED on every customer row</code></pre>
+<p>Same query is now a 3-table join, and the dimensions are small enough to broadcast — the difference between a broadcast hash join and a series of shuffles.</p>
+
+<div class="win">
+<strong>Why the anomalies don't apply.</strong>
+<ul>
+  <li><strong>Update?</strong> <code>category = 'Peripherals'</code> is duplicated across thousands of rows, but nobody UPDATEs a dimension in place — a category change is a Type 2 insert or a controlled full reload. One write path, owned by ETL, not thousands of concurrent application writes.</li>
+  <li><strong>Insert?</strong> Doesn't arise. Dimensions load independently of facts — a product can have zero sales.</li>
+  <li><strong>Delete?</strong> Warehouses don't delete. That's the point of the historical record.</li>
+</ul>
+</div>
+
+<div class="trap">
+<strong>The architect layer.</strong> Denormalize the <em>dimensions</em>, never the <em>grain</em>. Flattening product hierarchy into DimProduct is free. Pre-aggregating FactSales to daily totals to "make it faster" destroys everything below that grain — that's a mistake, not a trade-off.
+</div>
+
+<h3>Q4. Should you snowflake <code>state</code>/<code>country</code> out of a 2M-row DimCustomer?</h3>
+<p><strong>No — not for storage.</strong> Size is the right axis but the threshold matters: <code>state</code> and <code>country</code> are ~20 bytes per row, so 2M × 20 ≈ 40 MB before columnar compression crushes repeated strings like 'California' to almost nothing. Against a 500M-row fact table that's a rounding error, and you've added a join to every geography query forever.</p>
+<p>The real test is the <strong>ratio</strong> — dimension size relative to the fact table — and the <strong>width of what's actually repeated</strong>. Two short strings on 2M rows never justifies it. Fifty columns of address, demographic and firmographic text on 200M rows might.</p>
+<div class="card">
+<p><strong>What would actually justify a DimGeography</strong> — none of which is row count:</p>
+<ol>
+  <li><strong>It's conformed.</strong> DimCustomer, DimStore and DimSupplier all carry geography, so you're maintaining the same hierarchy three times and they will drift. One shared table is a <em>governance</em> win. Strongest argument by far.</li>
+  <li><strong>The hierarchy has its own attributes and lifecycle</strong> — population, timezone, sales region, tax jurisdiction — with its own owner and refresh cadence.</li>
+  <li><strong>The repeated block is genuinely wide</strong>, not two columns.</li>
+</ol>
+</div>
+<div class="rule">
+<strong>The reusable rule:</strong> snowflake for <em>governance and conformance</em>, essentially never for <em>storage</em>. Storage is the argument everyone reaches for and it's almost always the weakest one.
+</div>
+
+<h3>Q5. What is an outrigger dimension?</h3>
+<p>A dimension table that joins to <strong>another dimension</strong>, not directly to the fact.</p>
+<pre><code>FactSales → DimCustomer → DimGeography
+                 ↑              ↑
+          joins to fact    joins to DimCustomer, not the fact</code></pre>
+<p><code>DimCustomer</code> carries a <code>geography_key</code>; <code>DimGeography</code> holds the full hierarchy — city, state, country, region, timezone, tax jurisdiction.</p>
+
+<div class="win">
+<strong>Outrigger vs snowflake.</strong> Snowflaking is systematic: normalize the whole hierarchy out and <em>remove</em> the attributes from the primary dimension. An outrigger is targeted and additive — you <strong>keep</strong> the common attributes denormalized on <code>DimCustomer</code> (<code>state</code>, <code>country</code> stay right there for the 90% query) <em>and</em> add the key for cases needing the full hierarchy. Fast path preserved, shared reference data available. It's the answer that refuses the star-vs-snowflake binary.
+</div>
+
+<p><strong>When it earns its place:</strong></p>
+<ul>
+  <li>The hierarchy is <strong>shared across several dimensions</strong> and would otherwise be maintained multiple times.</li>
+  <li>The secondary table has its own <strong>attributes and refresh cadence</strong>, owned by someone else.</li>
+  <li>A <strong>date attribute inside a dimension</strong> needs real date semantics — <code>DimProduct.introduction_date_key → DimDate</code> lets you ask "products introduced in Q3 of a fiscal year" without reimplementing the fiscal calendar.</li>
+</ul>
+
+<div class="trap">
+<strong>Kimball's position, worth quoting:</strong> outriggers are permitted but should be used <em>sparingly</em>. Every one adds a join and makes the model harder for BI tools and analysts to navigate. Five outriggers means you've snowflaked by accident.
+</div>
+
+<hr>
+
+<h2>Part 6 — The conceptual-model formula (2026-07-29)</h2>
+
+<h3>The sentence parse</h3>
+<div class="sentence">"A &lt;who&gt; &lt;does what&gt; to a &lt;what&gt; at a &lt;where&gt;, on a &lt;when&gt;, via a &lt;how&gt;, because of &lt;why&gt; — for &lt;how much&gt;."</div>
+
+<p>Every part of speech maps to exactly one structure:</p>
+<table>
+<tr><th>Question</th><th>Grammatical role</th><th>Becomes</th></tr>
+<tr><td><strong>Does what</strong></td><td>the <strong>verb</strong></td><td>the <strong>fact table name</strong></td></tr>
+<tr><td><strong>Who</strong></td><td>actor noun</td><td>dimension (<code>DimCustomer</code>, <code>DimDriver</code>)</td></tr>
+<tr><td><strong>What</strong></td><td>object noun</td><td>dimension (<code>DimProduct</code>, <code>DimAccount</code>)</td></tr>
+<tr><td><strong>Where</strong></td><td>location noun</td><td>dimension (<code>DimStore</code>, <code>DimZone</code>)</td></tr>
+<tr><td><strong>When</strong></td><td>time</td><td><code>DimDate</code> + <code>DimTime</code> — never a process, always the spine</td></tr>
+<tr><td><strong>How</strong></td><td>method/channel noun</td><td>dimension (<code>DimPaymentMethod</code>, <code>DimDevice</code>)</td></tr>
+<tr><td><strong>To whom</strong></td><td>second actor</td><td>second dimension role, or role-playing dimension</td></tr>
+<tr><td><strong>Why</strong></td><td>reason noun</td><td>dimension (<code>DimCancellationReason</code>)</td></tr>
+<tr><td><strong>How much / how many</strong></td><td>the <strong>numbers</strong></td><td><strong>measures</strong> on the fact</td></tr>
+</table>
+
+<p>Worked: <em>"A <strong>customer</strong> <strong>purchases</strong> a <strong>product</strong> at a <strong>store</strong> on <strong>2026-07-29</strong> via <strong>credit card</strong> for ₹2,500."</em> → <code>FactSale</code>; dimensions Customer, Product, Store, Date, PaymentMethod; measure <code>sale_amount</code>.</p>
+
+<h4>Four rules that make it mechanical</h4>
+<ol class="steps">
+  <li><strong>The verb is the fact table name — always.</strong> If the name isn't verb-derived, it's a measure (<code>FactRevenue</code>) or a noun (<code>FactShowtime</code>). Reread the sentence, take the verb.</li>
+  <li><strong>The grain is the sentence made singular and precise.</strong> Not "customers buy products" but <em>"one row per product per order."</em> If you can't say it with the word "one" in it, you don't have a grain.</li>
+  <li><strong>A noun becomes a dimension only if it has attributes you'd filter or group by.</strong> A bare identifier with nothing hanging off it is a <strong>degenerate dimension</strong> — stays on the fact, gets no table.</li>
+  <li><strong>A number is a measure only if it's true at the grain.</strong> Order total on a line-grain fact double-counts on every aggregation. Ratios: store numerator and denominator, because ratios don't sum.</li>
+</ol>
+
+<div class="rule">
+<strong>Three questions the sentence can't answer</strong> — the shape comes from the parse, the correctness from these:
+<ul>
+  <li><strong>Does this repeat, or happen once?</strong> Repeatable → transaction fact. Fixed ordered stages, once each → <strong>accumulating snapshot</strong> (milestones become columns, not tables). Measured at intervals → <strong>periodic snapshot</strong>.</li>
+  <li><strong>Does any dimension attribute change over time, and does history matter?</strong> → SCD type.</li>
+  <li><strong>Is this the same entity later, or a genuinely different grain?</strong> → <em>a new fact table needs a different grain, not a later timestamp.</em></li>
+</ul>
+</div>
+
+<h3>Layer boundaries — where most people lose the round</h3>
+<div class="trap">
+A conceptual model has <strong>no attributes, no keys, no datatypes, no fact/dimension labels.</strong> Entities and relationships in business language, readable by a stakeholder. The moment you write <code>customer_key BIGINT</code> you've left the conceptual layer. Interviewers ask for conceptual specifically to see whether you can <em>stay</em> there.
+</div>
+
+<table>
+<tr><th>Layer</th><th>Contains</th><th>Audience</th></tr>
+<tr><td><strong>Conceptual</strong></td><td>Entities, relationships, cardinality. Business nouns and verbs.</td><td>Business stakeholders</td></tr>
+<tr><td><strong>Logical</strong></td><td>Attributes, keys, normalization or star structure. Platform-agnostic.</td><td>Data teams</td></tr>
+<tr><td><strong>Physical</strong></td><td>Datatypes, partitioning, clustering, indexes, file format.</td><td>The engine</td></tr>
+</table>
+
+<h3>The six-step procedure</h3>
+<ol class="steps">
+  <li><strong>Capture decisions, not data.</strong> Who consumes this, and what decision do they make? Finance, merchandising and ops want three different models of the same business.</li>
+  <li><strong>List the verbs.</strong> Every real business event. Filter with the timestamp test.</li>
+  <li><strong>List the nouns.</strong> Things the business talks about across <em>multiple</em> processes. A noun in one process only is usually not a core entity.</li>
+  <li><strong>Draw relationships, name every one with a verb.</strong> <code>Customer ——places——&lt; Order</code> tells you something; an unnamed line tells you nothing. Naming forces you to know what the relationship is.</li>
+  <li><strong>Constrain the size — 10–20 boxes.</strong> At 60 you're modeling tables, not concepts.</li>
+  <li><strong>Validate by narration.</strong> Trace each Step-1 business question as a path through the diagram, out loud. No path → something's missing. A box on no path → it doesn't belong.</li>
+</ol>
+
+<h3>The artifact differs by target</h3>
+<div class="win">
+<strong>OLTP</strong> → an <strong>ER diagram</strong>: entities, named relationships, crow's-foot cardinality. Normalization comes later, at the logical layer.<br><br>
+<strong>Analytics</strong> → a <strong>bus matrix</strong>, and this is the point most candidates miss: <em>the conceptual model of a warehouse <strong>is</strong> the bus matrix.</em> Rows are the verbs, columns are the nouns, checkmarks are the relationships. Shared columns are the conformed dimensions, visible at a glance — the artifact that makes a data-mesh conversation possible, since it shows which domains must agree on what.
+</div>
+
+<h3>Where the formula breaks</h3>
+<ul>
+  <li><strong>Graph domains</strong> (social networks, fraud rings, supply-chain traversal) — the <em>relationship</em> is the primary object. ER modeling inverts badly; use a property graph.</li>
+  <li><strong>Document/hierarchical</strong> (clinical notes, nested catalogs, event payloads) — the shape is a tree. Forcing it into boxes destroys the nesting that carries meaning.</li>
+  <li><strong>Continuous time-series</strong> (sensor telemetry, wearable readings) — no meaningful entity; the grain is a continuous measurement stream. Lives outside the dimensional model, referenced by business key.</li>
+</ul>
+<div class="rule">
+Saying "this domain doesn't fit the formula, and here's why" is a stronger signal than forcing every domain into a star.
+</div>
+
+<hr>
+
+<h2>Part 7 — Worked Model: Ride-sharing, conceptual → logical → physical (2026-07-29)</h2>
+<p class="sub">Supersedes the thinner Part 3 treatment. Same facts and dimensions where those were right; adds the layer progression and the physical design.</p>
+
+<h3>CONCEPTUAL</h3>
+<h4>Step 1 — consumers and decisions</h4>
+<table>
+<tr><th>Consumer</th><th>Decisions</th><th>Implication</th></tr>
+<tr><td>Marketplace ops</td><td>Where to incentivize drivers, why requests go unfilled</td><td>Needs <em>unfilled</em> requests, not just completed trips</td></tr>
+<tr><td>Finance</td><td>Revenue, commission, payouts, tax by jurisdiction</td><td>Money at legal-entity and city grain</td></tr>
+<tr><td>Pricing</td><td>Surge multipliers by zone and time</td><td>Zone-interval supply/demand</td></tr>
+<tr><td>Driver ops</td><td>Utilization, earnings, churn</td><td>Online time, not just trip time</td></tr>
+<tr><td>Trust &amp; safety</td><td>Rating patterns, incident follow-up</td><td>Both rating directions</td></tr>
+</table>
+<div class="rule">The first row shapes everything: <strong>ops needs failed requests</strong>, which forces the trip grain onto the <em>request</em>, not the completed ride.</div>
+
+<h4>Step 2 — the verbs</h4>
+<p><strong>Genuine processes:</strong> rider requests a ride · driver goes online/offline · payment is charged · driver is paid out · rating is submitted · surge is priced for a zone-interval</p>
+<p><strong>Not processes — milestones on the trip:</strong> driver matched · driver arrived · trip started · trip ended · trip cancelled</p>
+<div class="trap">"Driver arrived" is the same trip, later — a timestamp column, not a fact table. The carry rule doing its work.</div>
+
+<h4>Step 3 — the nouns</h4>
+<p>Rider · Driver · Vehicle · Zone · City/Market · Payment Method · Promotion · Cancellation Reason · Vehicle Class · Date · Time</p>
+
+<h4>Step 4 — relationships, every line named</h4>
+<pre><code>Rider ──requests──&lt; Trip &gt;──fulfilled by── Driver ──operates──&lt; Vehicle
+                      │                        │
+              originates in                 works
+                      │                        │
+                    Zone ──belongs to── City   └──&lt; Shift
+
+Trip ──settled by──&lt; Payment ──uses── Payment Method
+Trip ──receives──&lt; Rating
+Zone ──priced by──&lt; Surge Interval</code></pre>
+
+<h4>Step 5 — the bus matrix</h4>
+<table>
+<tr><th>Process ↓ / Dimension →</th><th>Date</th><th>Time</th><th>Rider</th><th>Driver</th><th>Vehicle</th><th>Zone</th><th>City</th><th>Pay Method</th><th>Reason</th></tr>
+<tr><td><strong>Ride requested</strong></td><td>✓</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td></tr>
+<tr><td><strong>Payment charged</strong></td><td>✓</td><td>✓</td><td>✓</td><td></td><td></td><td></td><td>✓</td><td>✓</td><td></td></tr>
+<tr><td><strong>Driver paid out</strong></td><td>✓</td><td></td><td></td><td>✓</td><td></td><td></td><td>✓</td><td></td><td></td></tr>
+<tr><td><strong>Rating submitted</strong></td><td>✓</td><td></td><td>✓</td><td>✓</td><td></td><td></td><td></td><td></td><td></td></tr>
+<tr><td><strong>Driver shift</strong></td><td>✓</td><td>✓</td><td></td><td>✓</td><td>✓</td><td>✓</td><td>✓</td><td></td><td></td></tr>
+<tr><td><strong>Zone priced</strong></td><td>✓</td><td>✓</td><td></td><td></td><td></td><td>✓</td><td>✓</td><td></td><td></td></tr>
+</table>
+<div class="win">Conformed dimensions fall out visually: <strong>Date, Driver, Zone, City</strong> span nearly everything — the four needing central governance, and in a data-mesh org the cross-domain contract.</div>
+
+<h3>LOGICAL</h3>
+<table>
+<tr><th>Fact</th><th>Grain (one row per…)</th><th>Type</th><th>Why</th></tr>
+<tr><td><code>FactTripRequest</code></td><td><strong>request</strong> — filled or not</td><td>Accumulating snapshot</td><td>Grain on completed trips permanently loses "% of requests unfilled, by zone" — ops' primary metric</td></tr>
+<tr><td><code>FactPayment</code></td><td>payment <strong>event</strong> per trip</td><td>Transaction</td><td>Zero-to-many per trip: charge, refund, tip, promo credit, split fare</td></tr>
+<tr><td><code>FactDriverPayout</code></td><td>payout <strong>line</strong> per driver per period</td><td>Transaction</td><td>Weekly settlement, different actor, different timing</td></tr>
+<tr><td><code>FactRating</code></td><td>trip <strong>per direction</strong></td><td>Transaction</td><td>Rider rates driver <em>and</em> driver rates rider — leave direction out of the key and one silently overwrites the other</td></tr>
+<tr><td><code>FactDriverShift</code></td><td>driver <strong>online session</strong></td><td>Accumulating snapshot</td><td>Utilization denominator; cannot be computed from trips</td></tr>
+<tr><td><code>FactZoneInterval</code></td><td>zone <strong>per 5-min interval</strong></td><td>Periodic snapshot</td><td>Supply/demand state for pricing</td></tr>
+</table>
+
+<div class="rule">
+<strong>Why <code>FactPayment</code> is separate but "driver arrived" is not</strong> — the test both times is <em>cardinality</em>, not chronology. A payment happens 0/1/many times per trip and carries its own measures. An arrival happens exactly once, in a fixed position, with no measures. Different grain → different table; later timestamp → column.
+</div>
+
+<h4><code>FactTripRequest</code> detail</h4>
+<pre><code>Keys        request_id (DD), rider_key, driver_key, vehicle_key,
+            pickup_zone_key, dropoff_zone_key, city_key,
+            request_date_key, request_time_key, cancellation_reason_key,
+            promotion_key, vehicle_class_key
+Milestones  requested_ts, matched_ts, driver_arrived_ts,
+            started_ts, ended_ts, cancelled_ts
+Measures    wait_time_sec, time_to_match_sec, distance_km, duration_min,
+            base_fare, surge_multiplier, total_fare,
+            driver_payout, platform_commission, tip_amount, promo_discount
+Status      trip_status, cancelled_by</code></pre>
+<ul>
+  <li><strong><code>surge_multiplier</code> is non-additive.</strong> Store <code>base_fare</code> and <code>total_fare</code>, derive it. The average of ratios is not the ratio of averages.</li>
+  <li><strong>Unmatched requests carry NULL driver_key</strong> → point at a "Not Assigned" dimension row, not NULL, so joins don't silently drop your most important rows.</li>
+</ul>
+
+<h4>Dimensions</h4>
+<table>
+<tr><th>Dimension</th><th>SCD</th><th>Note</th></tr>
+<tr><td><code>DimDriver</code></td><td><strong>Type 2</strong></td><td>Tier, city, status, vehicle change over time</td></tr>
+<tr><td><code>DimRider</code></td><td><strong>Type 2</strong></td><td>Segment and city change; loyalty tier at trip time matters</td></tr>
+<tr><td><code>DimVehicle</code></td><td><strong>Type 2</strong></td><td>Ownership and class change</td></tr>
+<tr><td><code>DimZone</code></td><td><strong>Type 2</strong></td><td>Zone boundaries get redrawn — under-modeled real problem; silently breaks YoY comparison unless versioned</td></tr>
+<tr><td><code>DimCity</code></td><td>Type 1</td><td>Effectively static</td></tr>
+<tr><td><code>DimVehicleClass</code></td><td>Type 1</td><td>UberX / XL / Black</td></tr>
+<tr><td><code>DimPaymentMethod</code></td><td>Type 1</td><td></td></tr>
+<tr><td><code>DimCancellationReason</code></td><td>Type 1</td><td></td></tr>
+<tr><td><code>DimPromotion</code></td><td><strong>Type 2</strong></td><td>Terms change</td></tr>
+<tr><td><code>DimDate</code> / <code>DimTime</code></td><td>static</td><td></td></tr>
+</table>
+<p><strong>Role-playing:</strong> <code>DimZone</code> plays pickup/dropoff; <code>DimDate</code> plays request/start/end. <strong>Degenerate:</strong> <code>request_id</code>, <code>trip_id</code>, <code>payment_id</code>. <strong><code>DimTime</code> separate from <code>DimDate</code></strong> because time-of-day <em>is</em> the analysis — rush hour vs 3am is the entire surge question.</p>
+
+<h3>PHYSICAL</h3>
+<div class="trap">
+<strong>First decision: what does not go in the warehouse.</strong> Driver GPS pings — hundreds of thousands of drivers at 1-second resolution — do not belong in the dimensional model. Billions of rows/day of positional data nobody aggregates.
+</div>
+<pre><code>Raw pings → Kafka → object storage, Iceberg/Delta
+            partitioned by (event_date, hour), 7–30 day retention
+Rollups   → zone-minute aggregates → FactZoneInterval in the warehouse</code></pre>
+<div class="win">Naming this unprompted is the strongest signal in a ride-share design round — same reasoning as wearable telemetry at Ōura.</div>
+
+<h4>Databricks / Delta</h4>
+<pre><code>CREATE TABLE gold.fact_trip_request (
+  request_id            STRING    NOT NULL,
+  rider_key             BIGINT    NOT NULL,
+  driver_key            BIGINT,
+  pickup_zone_key       BIGINT    NOT NULL,
+  dropoff_zone_key      BIGINT,
+  request_date_key      INT       NOT NULL,
+  requested_ts          TIMESTAMP NOT NULL,   -- UTC
+  requested_ts_local    TIMESTAMP,            -- city-local
+  matched_ts            TIMESTAMP,
+  driver_arrived_ts     TIMESTAMP,
+  started_ts            TIMESTAMP,
+  ended_ts              TIMESTAMP,
+  cancelled_ts          TIMESTAMP,
+  trip_status           STRING    NOT NULL,
+  distance_km           DECIMAL(8,3),
+  base_fare             DECIMAL(12,2),        -- never FLOAT
+  surge_multiplier      DECIMAL(4,2),
+  total_fare            DECIMAL(12,2),
+  driver_payout         DECIMAL(12,2),
+  platform_commission   DECIMAL(12,2),
+  currency_code         STRING    NOT NULL
+)
+USING DELTA
+PARTITIONED BY (request_date_key)
+CLUSTER BY (pickup_zone_key, city_key);</code></pre>
+<ul>
+  <li><strong><code>DECIMAL</code>, never <code>FLOAT</code>, for money.</strong> Floating-point money fails reconciliation — payouts and commission won't sum to fare. Caught in audits; interviewers ask.</li>
+  <li><strong>UTC plus city-local timestamps.</strong> A 2am local trip three timezones away lands on the wrong date in UTC and quietly corrupts every daily metric. Store both, derive <code>date_key</code> from local.</li>
+  <li><strong>Partition on date, cluster on zone</strong> — date is the dominant filter, zone the dominant group-by, and zone bounds hotspot size.</li>
+  <li><strong><code>FactTripRequest</code> is mutable</strong> — a request lands, then milestones fill in over minutes → <code>MERGE</code> upserts, late-arrival window, idempotent reprocessing. <code>FactRating</code> and <code>FactPayment</code> are append-only.</li>
+</ul>
+
+<h4>Snowflake equivalent</h4>
+<pre><code>CREATE TABLE gold.fact_trip_request (
+  request_id          VARCHAR       NOT NULL,
+  rider_key           NUMBER(38,0)  NOT NULL,
+  base_fare           NUMBER(12,2),
+  requested_ts        TIMESTAMP_NTZ NOT NULL,
+  CONSTRAINT pk_ftr PRIMARY KEY (request_id) RELY
+)
+CLUSTER BY (request_date_key, pickup_zone_key);</code></pre>
+<p>No explicit partitioning — micro-partitions are automatic and <code>CLUSTER BY</code> is a maintained background service you pay for. Constraints aren't enforced, but <code>RELY</code> enables optimizer join elimination. CDC is <code>Streams + Tasks</code> rather than Delta CDF.</p>
+
+<h4>Ingestion and SLA</h4>
+<p>Different consumers, different freshness, one table — a legitimate design conversation, not a flaw:</p>
+<table>
+<tr><th>Consumer</th><th>Freshness</th><th>Path</th></tr>
+<tr><td>Ops dashboards</td><td>~2–15 min</td><td>Kafka → Structured Streaming → Delta MERGE</td></tr>
+<tr><td>Pricing</td><td>~1–5 min</td><td>Zone-interval rollups from the stream</td></tr>
+<tr><td>Finance</td><td>Daily, reconciled</td><td>Batch T+1, after settlement closes</td></tr>
+</table>
+
+<h4>Data quality gates</h4>
+<ul>
+  <li>Completed trips must have non-null <code>ended_ts</code> and <code>total_fare</code></li>
+  <li><code>driver_payout + platform_commission + promo_discount</code> reconciles to <code>total_fare</code></li>
+  <li><code>ended_ts &gt; started_ts &gt; matched_ts &gt; requested_ts</code> — monotonic milestones</li>
+  <li>Every <code>pickup_zone_key</code> resolves to a live <code>DimZone</code> version</li>
+  <li>Cancelled trips must carry a <code>cancellation_reason_key</code></li>
+</ul>
+
+<div class="sentence">The 30-second summary: grain on the <em>request</em> so unfilled demand survives · milestones as columns not tables · payments split out on cardinality · GPS telemetry outside the warehouse entirely · money in DECIMAL with dual-timezone timestamps.</div>
+
+<hr>
+
+<p class="foot">
+Sayantani Nath · Data Modelling Practice · created 2026-07-28 · Parts 5–7 added 2026-07-29<br>
+Companions: <code>Meta_Data_Modeling_Prep.html</code> (Kimball theory + 6 mock rounds) · <code>Meta_DE_Question_Bank.html</code> · <code>Interview_Story_Bank.html</code><br>
+Directly reusable for the Ōura Senior Data Architect loop — a data-mesh shop will ask you to model a domain.
+</p>
+
+</div>
+</body>
+</html>
