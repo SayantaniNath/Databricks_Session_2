@@ -53,8 +53,13 @@
 
 <p>Meta's words on the loop: <em>“Your interview process will include four 45-minute interviews; each interview will leave a few minutes at the end for your questions.”</em> Total process 4–6 weeks.</p>
 
+<div class="win">
+<strong>CONFIRMED 2026-08-04: Sep 4 is the FIRST round — i.e. the technical screen.</strong> Single 45–60 min: SQL in CoderPad + a light product/metrics discussion. The four-round full loop lands ~2–4 weeks later, only on a pass. <strong>Prep is weighted accordingly — see §6.</strong>
+</div>
+
 <div class="rule">
-<strong>Confirm with Revathi:</strong> is Sep 4 the <em>technical screen</em> or the <em>full loop</em>? The prep weighting differs a lot. Default assumption in this doc: <strong>technical screen</strong> (single 45–60 min, SQL-heavy + light product sense), with the loop landing ~2–4 weeks later. Ask her also: which product/org, and can she send the official Full Loop guide + confirm the SQL dialect (Presto).
+<strong>Still to confirm with Revathi:</strong> which product/org · can she send the official Full Loop guide · SQL dialect (Presto?) · exact IST time.
+<br><br><strong>Collision to watch:</strong> if the screen passes, the full loop lands mid-to-late September — on top of the AWS CCP + DEA + SnowPro window she just moved to <strong>Sep 8–21</strong>. Decide which yields <em>before</em> the loop gets scheduled, not during.
 </div>
 
 <h2>2. What each round actually scores — Meta's words</h2>
@@ -260,38 +265,42 @@
 
 <h2>6. Day-by-day plan — Aug 4 → Sep 3</h2>
 
-<p class="meta">Assumes ~1 hr weekdays + ~3 hr Saturdays, Sundays rest. Aug 25–29 is shared with the P7 hands-on + Kafka block (build work in the Mon/Wed/Fri hour, Meta drills stay daily). Certification exams moved to Sep 8–21, i.e. <em>after</em> the interview.</p>
+<p class="meta">Assumes ~1 hr weekdays + ~3 hr Saturdays, Sundays rest. Aug 25–29 is shared with the P7 hands-on + Kafka block (build work in the Mon/Wed/Fri hour, Meta drills stay daily). Certification exams moved to Sep 8–21, i.e. <em>after</em> the screen.</p>
 
-<h3>Week 1 (Aug 4–9) — Stats from zero + SQL back on the clock</h3>
+<div class="rule">
+<strong>Weighting, now that Sep 4 is confirmed as the FIRST round:</strong> the screen is <strong>SQL + light product/metrics discussion</strong>. So Aug is <strong>SQL-first, product-sense-second</strong>. Deep probability/Bayes, A/B test design and the behavioral story bank belong to the <em>full loop</em> — they get a light touch now (enough to hold a metrics conversation) and a proper block after Sep 4. Building the full stats syllabus before the screen would be optimising for a round you haven't earned yet.
+</div>
+
+<h3>Week 1 (Aug 4–9) — SQL back on the clock, analytics patterns</h3>
 <table>
 <tr><th>Day</th><th>Session</th></tr>
-<tr><td class="day">Tue 8/5</td><td><strong>Stats 1:</strong> descriptive stats on skewed real data, distributions (binomial, normal), LLN, CLT. + 2 timed SQL from blank.</td></tr>
-<tr><td class="day">Wed 8/6</td><td><strong>Stats 2:</strong> conditional probability + Bayes, worked base-rate problems. + 2 timed SQL.</td></tr>
-<tr><td class="day">Thu 8/7</td><td><strong>Stats 3:</strong> hypothesis testing, p-value, CI, Type I/II, power, multiple testing. + 2 timed SQL.</td></tr>
-<tr><td class="day">Fri 8/8</td><td><strong>SQL block:</strong> retention + cohort patterns, 3 complete queries from blank, 8-min clock each.</td></tr>
-<tr><td class="day">Sat 8/9</td><td><strong>3 hr:</strong> Stats recap cold (no notes) → first <strong>full mock technical screen</strong>: 45 min, 2 SQL + 1 product-metrics discussion.</td></tr>
+<tr><td class="day">Tue 8/5</td><td><strong>SQL 1 — retention:</strong> D1/D7/D28, classic vs rolling. 3 complete queries from blank, 8-min clock each.</td></tr>
+<tr><td class="day">Wed 8/6</td><td><strong>SQL 2 — cohorts + DAU/WAU/MAU:</strong> date spines, stickiness, cohort grids. 3 from blank.</td></tr>
+<tr><td class="day">Thu 8/7</td><td><strong>SQL 3 — funnels:</strong> conditional aggregation, step conversion, drop-off. 3 from blank.</td></tr>
+<tr><td class="day">Fri 8/8</td><td><strong>Product sense 1:</strong> the metric-change diagnostic (§4.1). 2 live reps — DAU drop, bounce-rate spike.</td></tr>
+<tr><td class="day">Sat 8/9</td><td><strong>3 hr:</strong> <strong>Mock technical screen #1</strong> — 45 min, 2 SQL + 1 product-metrics discussion → debrief → patch whatever broke.</td></tr>
 </table>
 
-<h3>Week 2 (Aug 10–16) — Experimentation + product sense frameworks</h3>
+<h3>Week 2 (Aug 10–16) — Harder SQL + metric definition</h3>
 <table>
 <tr><th>Day</th><th>Session</th></tr>
-<tr><td class="day">Mon 8/10</td><td><strong>A/B testing 1:</strong> hypothesis, randomisation unit, network effects, primary/guardrail metrics. + 2 timed SQL.</td></tr>
-<tr><td class="day">Tue 8/11</td><td><strong>A/B testing 2:</strong> power, MDE, sample size, duration, novelty/primacy. + 2 timed SQL.</td></tr>
-<tr><td class="day">Wed 8/12</td><td><strong>A/B testing 3:</strong> validity threats — SRM, interference, peeking, multiple testing. 2 design reps out loud.</td></tr>
-<tr><td class="day">Thu 8/13</td><td><strong>Product sense 1:</strong> the metric-change diagnostic. 2 live reps (DAU drop; bounce-rate spike).</td></tr>
-<tr><td class="day">Fri 8/14</td><td><strong>SQL block:</strong> funnels + sessionisation + gaps-and-islands, from blank, timed. Re-ask the “why is date − row_number constant” question cold.</td></tr>
-<tr><td class="day">Sat 8/16</td><td><strong>3 hr:</strong> <strong>Analytical Execution mock</strong> (45 min, stats + quant tradeoff) → debrief → <strong>Analytical Reasoning mock</strong> (45 min, product sense).</td></tr>
+<tr><td class="day">Mon 8/10</td><td><strong>SQL 4 — sessionisation:</strong> LAG + gap flag + cumulative sum, built manually (no magic functions). 3 from blank.</td></tr>
+<tr><td class="day">Tue 8/11</td><td><strong>SQL 5 — gaps-and-islands + churn:</strong> re-ask cold “why is date − row_number constant”. 3 from blank.</td></tr>
+<tr><td class="day">Wed 8/12</td><td><strong>Product sense 2:</strong> goal/success-metric definition (§4.2). 2 reps. Counter-metric named every time.</td></tr>
+<tr><td class="day">Thu 8/13</td><td><strong>SQL 6 — top-N per group, MoM change, dedup:</strong> RANK vs DENSE_RANK vs ROW_NUMBER from the wording. 4 from blank.</td></tr>
+<tr><td class="day">Fri 8/14</td><td><strong>Stats — light pass only:</strong> descriptive stats on skewed data, why medians/percentiles, what a p-value and a CI mean in one business sentence. Enough to hold the conversation, no probability drilling.</td></tr>
+<tr><td class="day">Sat 8/16</td><td><strong>3 hr:</strong> <strong>Mock technical screen #2</strong> (CoderPad-style, no notes) → debrief → 4 rapid product-sense reps.</td></tr>
 </table>
 
-<h3>Week 3 (Aug 17–23) — Product sense volume + behavioral build</h3>
+<h3>Week 3 (Aug 17–23) — Mixed reps at screen tempo</h3>
 <table>
 <tr><th>Day</th><th>Session</th></tr>
-<tr><td class="day">Mon 8/17</td><td><strong>Product sense 2:</strong> goal/success-metric definition framework. 2 reps (event notifications; accessibility on FB Live).</td></tr>
-<tr><td class="day">Tue 8/18</td><td><strong>Product sense 3:</strong> tradeoff/launch decisions (2% DAU up, 3% time down). + 2 timed SQL.</td></tr>
-<tr><td class="day">Wed 8/19</td><td><strong>Product sense 4:</strong> opportunity sizing + ecosystem metrics (Meta Shopping; ad load). + 2 timed SQL.</td></tr>
-<tr><td class="day">Thu 8/20</td><td><strong>Behavioral 1:</strong> build 3 STAR stories — ambiguity, influencing a resistant peer, failure + what changed. Meta's 5 focus areas as the checklist.</td></tr>
-<tr><td class="day">Fri 8/21</td><td><strong>Behavioral 2:</strong> build 3 more — hard feedback, moving fast with incomplete data, cross-functional partnering. Map every story to ≥2 focus areas.</td></tr>
-<tr><td class="day">Sat 8/23</td><td><strong>3 hr:</strong> <strong>Full technical-screen mock #2</strong> under real conditions (CoderPad-style, no notes) → debrief → 4 rapid product-sense reps.</td></tr>
+<tr><td class="day">Mon 8/17</td><td><strong>SQL speed set:</strong> 5 queries, mixed patterns, from blank, 8 min each.</td></tr>
+<tr><td class="day">Tue 8/18</td><td><strong>Product sense 3:</strong> tradeoff / launch decisions (2% DAU up, 3% time down). + 2 timed SQL.</td></tr>
+<tr><td class="day">Wed 8/19</td><td><strong>SQL — edge cases &amp; the pivot:</strong> NULLs, ties, duplicate events, and the “now change this constraint” follow-up Meta uses. 3 from blank + 2 live mutations.</td></tr>
+<tr><td class="day">Thu 8/20</td><td><strong>Product sense 4:</strong> opportunity sizing + ecosystem metrics (Meta Shopping; Instagram ad load). + 2 timed SQL.</td></tr>
+<tr><td class="day">Fri 8/21</td><td><strong>A/B testing — light pass:</strong> §4.3 framework end-to-end, once, out loud. Enough to answer “how would you test that?” credibly. Depth deferred to post-screen.</td></tr>
+<tr><td class="day">Sat 8/23</td><td><strong>3 hr:</strong> <strong>Mock technical screen #3</strong>, hardest set → debrief → 2 product-sense reps on unseen prompts.</td></tr>
 </table>
 
 <h3>Week 4 (Aug 24–30) — Shared week: P7/Kafka builds + Meta drills</h3>
@@ -300,10 +309,13 @@
 <tr><td class="day">Mon 8/24</td><td>Meta: SQL timed set (4 queries, from blank).</td></tr>
 <tr><td class="day">Tue 8/25</td><td><strong>P7/Kafka hands-on</strong> (Redpanda via Docker + <code>kafka-python</code> produce/consume) + 20-min Meta SQL drill.</td></tr>
 <tr><td class="day">Wed 8/26</td><td><strong>P7/Kafka hands-on</strong> (Kafka Connect / Debezium taste) + 20-min product-sense rep.</td></tr>
-<tr><td class="day">Thu 8/27</td><td><strong>P7 project hands-on</strong> + 20-min stats cold recall.</td></tr>
-<tr><td class="day">Fri 8/28</td><td><strong>P7 project hands-on</strong> + 20-min behavioral retell (2 stories, out loud, timed).</td></tr>
-<tr><td class="day">Sat 8/30</td><td><strong>3 hr:</strong> <strong>Behavioral mock</strong> (45 min, full) → <strong>Analytical Reasoning mock #2</strong> → close out P7/Kafka.</td></tr>
+<tr><td class="day">Thu 8/27</td><td><strong>P7 project hands-on</strong> + 20-min Meta SQL drill.</td></tr>
+<tr><td class="day">Fri 8/28</td><td><strong>P7 project hands-on</strong> + 20-min product-sense rep.</td></tr>
+<tr><td class="day">Sat 8/30</td><td><strong>3 hr:</strong> <strong>Mock technical screen #4</strong> (full dress rehearsal conditions) → close out P7/Kafka.</td></tr>
 </table>
+
+<h3>Post-screen (Sep 5 onward) — only if the screen passes</h3>
+<p>The full loop needs the three blocks deliberately deferred above: <strong>the complete stats syllabus</strong> (§4.4), <strong>A/B testing depth</strong> (§4.3), and <strong>6 STAR stories</strong> mapped to Meta's 5 behavioral focus areas. Budget ~2 weeks. <strong>This collides with the Sep 8–21 exam window</strong> — settle that tradeoff when the loop date arrives.</p>
 
 <h3>Week 5 (Aug 31 – Sep 3) — Taper</h3>
 <table>
