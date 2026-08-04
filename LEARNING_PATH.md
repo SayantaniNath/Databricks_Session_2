@@ -1,12 +1,36 @@
 # DE Interview Prep — Full Learning Path
 
-**Sayantani Nath | Updated: 2026-07-28**
+**Sayantani Nath | Updated: 2026-08-04**
 **Goal:** Job-ready for FAANG / Databricks DE roles by Oct 1, 2026
 **Base:** Strong SQL, Python, Snowflake/Redshift production, AWS CCP in progress
 
 ---
 
-## ⚡ CURRENT PLAN — rebuilt 2026-07-28
+## ⚡⚡ CURRENT PLAN — rebuilt 2026-08-04 (supersedes the Jul 28 plan below)
+
+**Meta interview CONFIRMED: Friday 2026-09-04 — and the role changed to `Data Scientist, Product Analytics` (IC5).**
+This is a different loop from the DE one prepped in June–July: four 45-min rounds — **Technical Skills · Analytical Execution · Analytical Reasoning · Behavioral**. There is **no data modeling round**, and no DSA/LeetCode round. Stats/probability, A/B testing and product sense — none of which were in this plan — are now the bulk of the grade.
+
+➡️ **Full round-by-round breakdown, gap analysis, frameworks, question bank, and the day-by-day Aug 4 → Sep 3 schedule live in [`P9_Meta_DS_Product_Analytics/P9_Meta_DS_Product_Analytics_Prep.html`](P9_Meta_DS_Product_Analytics/P9_Meta_DS_Product_Analytics_Prep.html).**
+
+**Calendar changes made 2026-08-04:**
+
+| Item | Was | Now |
+|---|---|---|
+| Aug 4 → Sep 3 | Aug 1–21 P4+P7 push | **Meta DS Product Analytics prep** (primary track) |
+| P7 project hands-on + Kafka hands-on | Aug 1–21, spread | **Aug 25–29** (one shared week; Meta drills continue daily) |
+| AWS CCP exam | Sep 1–6 | **Sep 8–21** |
+| Databricks DEA exam | Sep 1–6 | **Sep 8–21** |
+| SnowPro Core exam | Sep 2026, TBD | **Sep 8–21** |
+| Snowflake 4C · dbt 4D · Airflow 4B | Aug 1–21 | **Unscheduled** — Oura material, and Oura has no date yet |
+
+**Weekly shape Aug 4 → Sep 3:** Tue–Fri 1 hr Meta track (stats → A/B testing → product sense → behavioral, in that order), Sat ~3 hr mock rounds, Sun rest. Week of Aug 25–29 shares the hour with P7/Kafka builds.
+
+**Standing rule for the whole window:** every SQL rep is a **complete, runnable query typed from blank on a clock**. Meta's own candidate guide states pseudo-code is not acceptable — fragment mode is a scored failure.
+
+---
+
+## ⚡ PREVIOUS PLAN — rebuilt 2026-07-28 (kept for the Oura track)
 
 **Two live interview loops:**
 - **Ōura — Senior Data Architect (SF).** Recruiter reached out Jul 28 to move ahead. JD stack: Snowflake, dbt, Iceberg, Databricks/BigQuery, Kafka/Kinesis, Airflow/Dagster, Fivetran, data mesh + federated governance, MDM, HIPAA/PHI, vector/RAG architecture. 8+ yrs, $172.5–203K, in-office SF.
