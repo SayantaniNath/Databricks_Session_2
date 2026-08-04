@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>P9 — Meta Data Scientist, Product Analytics (IC5) — Full Prep</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+         max-width: 940px; margin: 2rem auto; padding: 0 1.25rem; line-height: 1.6; color: #1c1e21; }
+  h1 { border-bottom: 3px solid #0b5fff; padding-bottom: .4rem; }
+  h2 { margin-top: 2.4rem; border-bottom: 1px solid #d8dbdf; padding-bottom: .3rem; }
+  h3 { margin-top: 1.6rem; color: #0b3d91; }
+  h4 { margin-top: 1.2rem; margin-bottom: .3rem; color: #333; }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: .94rem; }
+  th, td { border: 1px solid #d8dbdf; padding: .5rem .65rem; text-align: left; vertical-align: top; }
+  th { background: #f1f4f9; }
+  code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  code { background: #f1f4f9; padding: .1rem .3rem; border-radius: 3px; font-size: .9em; }
+  pre { background: #f6f8fa; border: 1px solid #d8dbdf; border-radius: 6px; padding: .8rem; overflow-x: auto; font-size: .87rem; }
+  .rule { background: #fff8e1; border-left: 4px solid #f0a500; padding: .8rem 1rem; margin: 1.2rem 0; }
+  .gap { background: #ffeceb; border-left: 4px solid #d93025; padding: .8rem 1rem; margin: 1.2rem 0; }
+  .win { background: #e9f7ef; border-left: 4px solid #1e8e3e; padding: .8rem 1rem; margin: 1.2rem 0; }
+  .src { background: #eef3ff; border-left: 4px solid #0b5fff; padding: .8rem 1rem; margin: 1.2rem 0; font-size: .93rem; }
+  .meta { color: #5f6368; font-size: .9rem; }
+  ul { margin-top: .4rem; }
+  .day { font-weight: 600; white-space: nowrap; }
+</style>
+</head>
+<body>
+
+<h1>Meta — Data Scientist, Product Analytics (IC5)</h1>
+<p class="meta">Interview confirmed: <strong>Friday 2026-09-04</strong> · Prep window: Aug 4 → Sep 3 (31 days) · Built 2026-08-04</p>
+
+<div class="src">
+<strong>Primary source:</strong> Meta's own candidate-facing <em>“Data Scientist, Product Analytics — Full Loop Interview Guide”</em> (the PDF recruiters distribute). Everything in §1–§2 marked <em>“Meta's words”</em> is verbatim from that guide, not from a prep vendor. Secondary sources (reported questions, timings): IGotAnOffer, DataLemur, Exponent, InterviewQuery, Blind threads.
+</div>
+
+<div class="gap">
+<strong>The single most important thing to internalise about this role change.</strong> You spent June–July preparing a <em>Data Engineer</em> loop, where <strong>data modeling carried the most weight</strong>. This loop has <strong>no data modeling round at all</strong>. Your best-prepared asset is now worth roughly zero points. In exchange, three things you have <em>never</em> studied — statistics/probability, experimentation/A-B testing, and product sense as a graded skill — are now <strong>2.5 of the 4 rounds</strong>. This document is built around that reallocation.
+</div>
+
+<h2>1. The loop — confirmed structure</h2>
+
+<table>
+<tr><th>Stage</th><th>Length</th><th>Content</th></tr>
+<tr><td>Recruiter screen</td><td>30–45 min</td><td>✅ Already done 2026-07-24 (Revathi)</td></tr>
+<tr><td><strong>Technical screen</strong></td><td>45–60 min</td><td>SQL in CoderPad + a light product/metrics discussion. Run by a working Meta DS. <strong>This is the Sep 4 round.</strong></td></tr>
+<tr><td>Full loop — Technical Skills</td><td>45 min</td><td>SQL/coding on an open-ended data problem</td></tr>
+<tr><td>Full loop — Analytical Execution</td><td>45 min</td><td>Stats, probability, quantitative tradeoffs</td></tr>
+<tr><td>Full loop — Analytical Reasoning</td><td>45 min</td><td>Product sense, experiment design, storytelling</td></tr>
+<tr><td>Full loop — Behavioral</td><td>45 min</td><td>STAR, 5 named focus areas</td></tr>
+</table>
+
+<p>Meta's words on the loop: <em>“Your interview process will include four 45-minute interviews; each interview will leave a few minutes at the end for your questions.”</em> Total process 4–6 weeks.</p>
+
+<div class="rule">
+<strong>Confirm with Revathi:</strong> is Sep 4 the <em>technical screen</em> or the <em>full loop</em>? The prep weighting differs a lot. Default assumption in this doc: <strong>technical screen</strong> (single 45–60 min, SQL-heavy + light product sense), with the loop landing ~2–4 weeks later. Ask her also: which product/org, and can she send the official Full Loop guide + confirm the SQL dialect (Presto).
+</div>
+
+<h2>2. What each round actually scores — Meta's words</h2>
+
+<h3>2.1 Technical Skills</h3>
+<p>Four focus areas, verbatim:</p>
+<ul>
+<li><strong>Programming</strong> — “Develops a solution to complex data problems using programming and scripting languages”</li>
+<li><strong>Communicating Effectively</strong> — “Provides timely, clear, concise information … adjusts communications to be appropriate for the audience”</li>
+<li><strong>Data Analysis</strong> — “Leverages methods ranging from descriptive stats to measurement models to answer exploratory and hypothesis-based questions”</li>
+<li><strong>Determining Goals &amp; Success Metrics</strong> — “Identifies metrics that reflect operational success and inform business objectives”</li>
+</ul>
+<p>Meta's stated aspects of the questions: structuring and articulating a solution to an <em>open-ended</em> problem before coding · coding an executable solution · identifying and addressing <strong>edge cases</strong> · adapting code when they change the constraints mid-round · mindfulness of efficiency.</p>
+
+<div class="rule">
+<strong>Four rules straight from the guide, worth obeying literally:</strong>
+<ol>
+<li>You are <strong>not</strong> graded on dialect. “Any type of SQL is acceptable.” Tell the recruiter your preference. <em>Use Presto if you're comfortable, otherwise say “I'll write ANSI-standard SQL” and move on.</em></li>
+<li>Most questions are <strong>designed with SQL in mind</strong> — you may use another language, but SQL is the expected medium.</li>
+<li><strong>No “magic” functions</strong> that trivially solve the problem. If a built-in collapses the whole question, they will make you do it the long way. Know the manual construction of retention, sessionisation, and dedup.</li>
+<li><strong>Pseudo-code is explicitly not acceptable.</strong> Minor syntax slips are forgiven; hand-waving is not. — <em>This is your known weak spot: you answer in fragments and freeze on a blank editor. It is a scored failure mode here.</em></li>
+</ol>
+</div>
+
+<h3>2.2 Analytical Execution — the stats round</h3>
+<p>Four focus areas: <strong>Creating Hypotheses</strong> · <strong>Quantitative Analysis</strong> · <strong>Determining Goals &amp; Success Metrics</strong> · <strong>Demonstrating Agility</strong>.</p>
+
+<p><strong>Meta tells you the exact syllabus.</strong> In scope:</p>
+<ul>
+<li>Hypotheses for launching new features</li>
+<li>Considering and <strong>quantifying tradeoffs</strong> of a feature in terms of metrics</li>
+<li>Descriptive stats: mean/expected value, median, mode, percentiles</li>
+<li>Common distributions: <strong>binomial, normal</strong></li>
+<li>The profile of real-world data (skew, long tails, outliers)</li>
+<li><strong>Law of Large Numbers, Central Limit Theorem, Linear Regression</strong></li>
+<li><strong>Conditional probability, including Bayes' Theorem</strong></li>
+</ul>
+<p>Explicitly <strong>out</strong> of scope (do not waste a minute here): calculus, advanced statistical/ML models, exotic distributions (exponential, Weibull, Beta), and brain-teaser estimation (“how many golf balls fit in a 747”).</p>
+
+<div class="win">That out-of-scope list is a gift. The syllabus is roughly one good week of study — this is the most closeable of your three gaps.</div>
+
+<h3>2.3 Analytical Reasoning — the product sense round</h3>
+<p>Five focus areas: <strong>Research Design</strong> · <strong>Analytical Design</strong> · <strong>Storytelling Through Data</strong> · <strong>Setting Goals &amp; Success Metrics</strong> · <strong>Data Visualization</strong>.</p>
+<p>Meta's stated aspects:</p>
+<ul>
+<li>Framing <strong>ambiguous</strong> product questions</li>
+<li>Designing experiments to test hypotheses</li>
+<li>Choosing which datasets best answer a product question</li>
+<li>Understanding the <strong>downsides of your own proposed methodology</strong>, and identifying biases to correct for</li>
+<li>Drawing inferences from a dataset; combining multiple signals into one data-informed statement</li>
+<li>Mapping analytical insight back to <strong>product impact</strong></li>
+<li>Communicating decision-making via metrics</li>
+</ul>
+<p>There is usually <strong>no single right answer</strong> and little math. It's a long back-and-forth. The graded behaviour is <em>how you structure ambiguity out loud</em>.</p>
+
+<h3>2.4 Behavioral</h3>
+<p>Five focus areas: <strong>Demonstrating Agility</strong> · <strong>Growing Continuously</strong> · <strong>Partnering</strong> · <strong>Building Inclusion</strong> · <strong>Communicating Effectively</strong>. Meta asks for <strong>S.T.A.R.</strong> explicitly, and names what your stories must show:</p>
+<ul>
+<li>Operating in ambiguous, undefined projects</li>
+<li>Moving quickly and resourcefully</li>
+<li>Being <strong>open about failures</strong> and what you learned</li>
+<li>Building relationships across direct and partner teams</li>
+<li>Influencing and getting buy-in from <strong>peers who resist your goals</strong></li>
+<li>Introspection and self-awareness</li>
+</ul>
+<p>Also from the guide: expect <strong>hypothetical</strong> questions (“what would you do if…”), not only past-experience ones.</p>
+
+<h2>3. Honest gap analysis</h2>
+
+<table>
+<tr><th>Skill</th><th>Weight in this loop</th><th>Your state today</th><th>Verdict</th></tr>
+<tr><td>SQL — analytics flavour (retention, funnels, cohorts, DAU/MAU, sessionisation)</td><td>🔴 Very high — the screen <em>is</em> this</td><td>Strong vocabulary (window fns, CTEs, gaps-and-islands). Weak at <strong>assembling a full query from blank, under time</strong>. StrataScratch free-tier hard Postgres exhausted.</td><td><strong>Closeable — and the highest-ROI item.</strong> Needs volume + timed from-blank reps, not new concepts.</td></tr>
+<tr><td>Statistics &amp; probability</td><td>🔴 High (a full round)</td><td><strong>Zero.</strong> Not in the learning plan at any pillar.</td><td>Closeable — syllabus is small and Meta published it.</td></tr>
+<tr><td>Experimentation / A-B testing</td><td>🔴 High (spans Execution + Reasoning)</td><td><strong>Zero.</strong></td><td>Closeable — ~3 sessions of concepts + reps.</td></tr>
+<tr><td>Product sense / metric definition</td><td>🔴 High (a full round)</td><td>One data point, and it was good: the 7/23 Instagram metric-drop mock was your <strong>strongest round of that day</strong> — you led with the right clarifying question, picked 3 substantive follow-ups over a decoy, and found the schema gap yourself.</td><td>Real foundation exists. Needs a repeatable framework + ~10 reps.</td></tr>
+<tr><td>Behavioral (STAR, 5 focus areas)</td><td>🟠 One full round</td><td>Pillar 8 = ⏳ zero built. Some raw material in <code>Interview_Story_Bank.html</code>.</td><td>Closeable — 6 stories, but must be <em>built</em>, not improvised.</td></tr>
+<tr><td>Dimensional data modeling</td><td>⚪ <strong>Not tested</strong></td><td>✅ Very strong (2J complete, 6 mocks)</td><td>Stop spending time here. Keep it only as project-story material.</td></tr>
+<tr><td>Python (DSA / LeetCode)</td><td>⚪ Not tested</td><td>Weak</td><td>Ignore entirely. SQL is the medium.</td></tr>
+<tr><td>Spark / Kafka / Databricks / dbt</td><td>⚪ Not tested</td><td>Strong-ish</td><td>Irrelevant to Meta. Keep for Oura only.</td></tr>
+</table>
+
+<div class="gap">
+<strong>Your #1 behavioural risk, carried over from every drill log since 7/23:</strong> you answer in fragments and avoid producing a complete artefact from blank — full SQL queries, and named concepts under cold recall. Meta's guide names this exact failure: <em>“pseudo-code that allows you to gloss over details is not acceptable.”</em> Every SQL rep between now and Sep 4 must be <strong>a complete, runnable query, typed from blank, on a clock.</strong> No fragment mode.
+</div>
+
+<div class="win">
+<strong>Your #1 asset, also from the logs:</strong> every nudge lands immediately, and your reasoning is never wrong once you actually run it. In this loop that's worth more than in a DE loop, because Analytical Reasoning grades <em>reasoning out loud under back-and-forth</em> — which is exactly the mode where you perform best. The fix is the same behavior as before: <strong>say the structure out loud before answering.</strong>
+</div>
+
+<h2>4. Frameworks to have reflexive by Sep 4</h2>
+
+<h3>4.1 The metric-change diagnostic (“DAU dropped 5% — why?”)</h3>
+<p>The most-asked product-sense shape at Meta. Never start guessing causes. Run this order out loud:</p>
+<ol>
+<li><strong>Clarify the metric &amp; the change.</strong> What exactly is DAU here — logged-in? any-surface? What's the magnitude, over what window, is it a step-drop or a gradual slide?</li>
+<li><strong>Is it real?</strong> Logging/instrumentation change, pipeline failure, bot filtering change, definition change, duplicate or missing data. <em>Always ask this first — half of real drops are not real.</em></li>
+<li><strong>Is it expected?</strong> Seasonality, day-of-week, holiday, school term, prior-year comparison.</li>
+<li><strong>Segment.</strong> Cut by platform/OS, country, app version, new vs existing users, tenure cohort, device. Find where the drop concentrates — a drop that is uniform across all cuts means something different from one concentrated in Android.</li>
+<li><strong>Internal causes.</strong> Product launches, A/B test rollouts, ranking model changes, latency/crash regressions.</li>
+<li><strong>External causes.</strong> Competitor launch, news event, outage, regulation, app-store change.</li>
+<li><strong>Decompose the metric.</strong> DAU = new + retained + resurrected − churned. Which term moved? This converts a vague question into a countable one.</li>
+<li><strong>State next step and what data would confirm it.</strong></li>
+</ol>
+<div class="rule">Say step 7 out loud at some point in every one of these. Metric decomposition is the single move that separates a DS answer from an analyst answer.</div>
+
+<h3>4.2 Goal / success-metric definition (“How would you measure success of X?”)</h3>
+<ol>
+<li><strong>What is the product trying to do?</strong> State the user value in one sentence.</li>
+<li><strong>One North Star</strong> — the metric that only moves if real value was delivered.</li>
+<li><strong>Supporting metrics</strong> — the drivers that decompose the North Star.</li>
+<li><strong>Guardrail / counter-metrics</strong> — what could this break? (time spent elsewhere, report rate, latency, ad revenue, sessions per user). Meta weights this heavily; a candidate who names no counter-metric is scored down.</li>
+<li><strong>Ecosystem metrics</strong> — effect on the other side of the market (creators vs viewers, buyers vs sellers).</li>
+<li><strong>Say the tradeoff explicitly:</strong> “I'd ship on North Star X even at a small cost to Y, because…”</li>
+</ol>
+
+<h3>4.3 A/B test design</h3>
+<ol>
+<li><strong>Hypothesis</strong> — stated as a falsifiable sentence with a direction and a metric.</li>
+<li><strong>Unit of randomisation</strong> — user / session / device / cluster. <em>Ask whether there are network effects</em> (Facebook/Instagram almost always have them → user-level randomisation leaks; you may need cluster or geo-based).</li>
+<li><strong>Primary metric, secondary, guardrails.</strong></li>
+<li><strong>Power &amp; sizing</strong> — MDE, α = 0.05, power = 0.8, baseline rate and variance → sample size → runtime. You don't need the exact formula, but you must say these five words.</li>
+<li><strong>Duration</strong> — at least one full weekly cycle; long enough to clear <strong>novelty</strong> and <strong>primacy</strong> effects.</li>
+<li><strong>Validity threats</strong> — sample ratio mismatch, interference/spillover, selection bias, seasonality, multiple-testing inflation, peeking.</li>
+<li><strong>Read-out &amp; decision rule</strong> — decided <em>before</em> the test, not after.</li>
+</ol>
+
+<h3>4.4 Stats cheat sheet (the whole in-scope syllabus)</h3>
+<table>
+<tr><th>Concept</th><th>What you must be able to say in 30 seconds</th></tr>
+<tr><td>Mean / median / mode / percentiles</td><td>Which to use on skewed real-world data (time-spent, revenue → median/percentiles, never mean alone).</td></tr>
+<tr><td>Binomial</td><td>n independent trials, fixed p. Mean = np, variance = np(1−p). Use for conversion/click/completion counts.</td></tr>
+<tr><td>Normal</td><td>68/95/99.7. Why sample means go normal even when the data isn't.</td></tr>
+<tr><td>Law of Large Numbers</td><td>Sample mean → true mean as n grows. Why small A/B cells swing wildly.</td></tr>
+<tr><td>Central Limit Theorem</td><td>The <em>sampling distribution of the mean</em> is normal regardless of the population's shape, given enough n. This is why we can t-test skewed metrics.</td></tr>
+<tr><td>Conditional probability / Bayes</td><td>P(A|B) = P(B|A)P(A)/P(B). Rehearse the false-positive/base-rate classic — Meta asks this shape (“model flags a user as likely to convert; what's P(actually converts)?”).</td></tr>
+<tr><td>Hypothesis testing</td><td>H₀ / H₁, test statistic, p-value = P(data this extreme | H₀ true). <strong>Not</strong> the probability the hypothesis is true.</td></tr>
+<tr><td>Type I / Type II</td><td>I = false positive = α = ship something that does nothing. II = false negative = 1−power = kill something that worked.</td></tr>
+<tr><td>Confidence interval</td><td>Over repeated samples, 95% of such intervals contain the true value. Say it in a business sentence too.</td></tr>
+<tr><td>Power</td><td>P(detect a real effect of size MDE). Driven by n, effect size, variance, α.</td></tr>
+<tr><td>Multiple testing</td><td>20 metrics at α=0.05 → ~1 false positive by chance. Bonferroni / FDR, or pre-register one primary metric.</td></tr>
+<tr><td>Linear regression</td><td>What the coefficients mean, why correlation ≠ causation, confounders, and when you'd use regression to <em>adjust</em> rather than predict.</td></tr>
+<tr><td>Real-world data profile</td><td>Heavy right skew, zero-inflation, bots, power users dominating totals → why you cap/winsorise and report medians.</td></tr>
+</table>
+
+<h3>4.5 SQL patterns that actually show up (analytics flavour, not DE flavour)</h3>
+<ul>
+<li><strong>Retention / N-day return</strong> — self-join on user with a date offset, or <code>DATE_DIFF</code> bucketing. Know D1/D7/D28 and rolling vs classic definitions.</li>
+<li><strong>Cohort tables</strong> — signup-week cohort × weeks-since-signup grid.</li>
+<li><strong>Funnel conversion</strong> — step counts per user, conversion between steps, drop-off rate, using conditional aggregation (<code>COUNT(DISTINCT CASE WHEN step='x' THEN user_id END)</code>).</li>
+<li><strong>DAU / WAU / MAU and stickiness</strong> (DAU÷MAU), rolling windows with a date spine.</li>
+<li><strong>Sessionisation</strong> — <code>LAG</code> on timestamp, flag gap &gt; 30 min, cumulative sum to make session ids. Classic “no magic function” question.</li>
+<li><strong>Gaps-and-islands / consecutive days</strong> — date − <code>ROW_NUMBER()</code> is constant within a streak. <em>You have failed the “why is it constant” retention check twice. Fix it: because inside a run both sides increment by 1, so the difference cannot change; a missing day skips a date but not a row number, so the difference jumps.</em></li>
+<li><strong>Top-N per group</strong> — <code>ROW_NUMBER</code> vs <code>RANK</code> vs <code>DENSE_RANK</code>, and which the wording implies.</li>
+<li><strong>Month-over-month change</strong> — <code>LAG</code> + the <code>100.0</code> placement to avoid integer division.</li>
+<li><strong>Churn</strong> — “no activity in the last 28 days” style definitions, anti-joins / <code>NOT EXISTS</code>.</li>
+<li><strong>Dedup</strong> — <code>ROW_NUMBER() … QUALIFY</code>, and the manual version when <code>QUALIFY</code> isn't allowed.</li>
+</ul>
+
+<h2>5. Reported question bank</h2>
+
+<h4>SQL / technical</h4>
+<ul>
+<li>Find Facebook pages with zero likes, sorted ascending.</li>
+<li>Weekly churn rate for June — users with no activity for &gt;28 days after signup.</li>
+<li>Given an events table, compute D7 retention by signup cohort.</li>
+<li>Build a funnel from an events log and report step-to-step conversion.</li>
+<li>Evaluate an email campaign: define the metrics first, then write the SQL that tracks them over time.</li>
+</ul>
+
+<h4>Analytical Execution (stats / quant)</h4>
+<ul>
+<li>Instagram story completion probability (binomial setup).</li>
+<li>Probability of two consecutive sixes in three rolls.</li>
+<li>Explain p-values and confidence intervals to a non-technical PM.</li>
+<li>Type I vs Type II error — and which is worse for <em>this</em> product decision.</li>
+<li>Covariance vs correlation.</li>
+<li>Bayes: the model flagged a user as likely to convert — what's P(they actually convert)?</li>
+<li>Quantify the tradeoff: feature raises DAU 2% but cuts time-spent 3%. Ship or not?</li>
+</ul>
+
+<h4>Analytical Reasoning (product sense)</h4>
+<ul>
+<li>Engagement dropped after the close-friends Reels launch — investigate.</li>
+<li>Bounce rate up and session duration down — diagnose.</li>
+<li>How would you size the revenue opportunity for Meta Shopping with no beta test?</li>
+<li>Success metrics for “a friend is attending this event” notifications.</li>
+<li>Should Instagram double its ad load? How would you find the optimum?</li>
+<li>How would you assess product-market fit for a new video feature aimed at young adults?</li>
+<li>Design an RCT for a new privacy feature.</li>
+<li>How would you quantify algorithmic bias in News Feed recommendations?</li>
+<li>Accessibility improvements for deaf users on Facebook Live — how would you measure success?</li>
+</ul>
+
+<h4>Behavioral</h4>
+<ul>
+<li>A time you operated with an undefined problem and no clear owner.</li>
+<li>A time you influenced a peer or stakeholder who resisted your goal.</li>
+<li>A failure, what you learned, what you changed afterwards.</li>
+<li>A time you received hard feedback.</li>
+<li>A time you had to move fast with incomplete data.</li>
+<li>Hypothetical: your analysis contradicts what the PM already announced to leadership. What do you do?</li>
+</ul>
+
+<h2>6. Day-by-day plan — Aug 4 → Sep 3</h2>
+
+<p class="meta">Assumes ~1 hr weekdays + ~3 hr Saturdays, Sundays rest. Aug 25–29 is shared with the P7 hands-on + Kafka block (build work in the Mon/Wed/Fri hour, Meta drills stay daily). Certification exams moved to Sep 8–21, i.e. <em>after</em> the interview.</p>
+
+<h3>Week 1 (Aug 4–9) — Stats from zero + SQL back on the clock</h3>
+<table>
+<tr><th>Day</th><th>Session</th></tr>
+<tr><td class="day">Tue 8/5</td><td><strong>Stats 1:</strong> descriptive stats on skewed real data, distributions (binomial, normal), LLN, CLT. + 2 timed SQL from blank.</td></tr>
+<tr><td class="day">Wed 8/6</td><td><strong>Stats 2:</strong> conditional probability + Bayes, worked base-rate problems. + 2 timed SQL.</td></tr>
+<tr><td class="day">Thu 8/7</td><td><strong>Stats 3:</strong> hypothesis testing, p-value, CI, Type I/II, power, multiple testing. + 2 timed SQL.</td></tr>
+<tr><td class="day">Fri 8/8</td><td><strong>SQL block:</strong> retention + cohort patterns, 3 complete queries from blank, 8-min clock each.</td></tr>
+<tr><td class="day">Sat 8/9</td><td><strong>3 hr:</strong> Stats recap cold (no notes) → first <strong>full mock technical screen</strong>: 45 min, 2 SQL + 1 product-metrics discussion.</td></tr>
+</table>
+
+<h3>Week 2 (Aug 10–16) — Experimentation + product sense frameworks</h3>
+<table>
+<tr><th>Day</th><th>Session</th></tr>
+<tr><td class="day">Mon 8/10</td><td><strong>A/B testing 1:</strong> hypothesis, randomisation unit, network effects, primary/guardrail metrics. + 2 timed SQL.</td></tr>
+<tr><td class="day">Tue 8/11</td><td><strong>A/B testing 2:</strong> power, MDE, sample size, duration, novelty/primacy. + 2 timed SQL.</td></tr>
+<tr><td class="day">Wed 8/12</td><td><strong>A/B testing 3:</strong> validity threats — SRM, interference, peeking, multiple testing. 2 design reps out loud.</td></tr>
+<tr><td class="day">Thu 8/13</td><td><strong>Product sense 1:</strong> the metric-change diagnostic. 2 live reps (DAU drop; bounce-rate spike).</td></tr>
+<tr><td class="day">Fri 8/14</td><td><strong>SQL block:</strong> funnels + sessionisation + gaps-and-islands, from blank, timed. Re-ask the “why is date − row_number constant” question cold.</td></tr>
+<tr><td class="day">Sat 8/16</td><td><strong>3 hr:</strong> <strong>Analytical Execution mock</strong> (45 min, stats + quant tradeoff) → debrief → <strong>Analytical Reasoning mock</strong> (45 min, product sense).</td></tr>
+</table>
+
+<h3>Week 3 (Aug 17–23) — Product sense volume + behavioral build</h3>
+<table>
+<tr><th>Day</th><th>Session</th></tr>
+<tr><td class="day">Mon 8/17</td><td><strong>Product sense 2:</strong> goal/success-metric definition framework. 2 reps (event notifications; accessibility on FB Live).</td></tr>
+<tr><td class="day">Tue 8/18</td><td><strong>Product sense 3:</strong> tradeoff/launch decisions (2% DAU up, 3% time down). + 2 timed SQL.</td></tr>
+<tr><td class="day">Wed 8/19</td><td><strong>Product sense 4:</strong> opportunity sizing + ecosystem metrics (Meta Shopping; ad load). + 2 timed SQL.</td></tr>
+<tr><td class="day">Thu 8/20</td><td><strong>Behavioral 1:</strong> build 3 STAR stories — ambiguity, influencing a resistant peer, failure + what changed. Meta's 5 focus areas as the checklist.</td></tr>
+<tr><td class="day">Fri 8/21</td><td><strong>Behavioral 2:</strong> build 3 more — hard feedback, moving fast with incomplete data, cross-functional partnering. Map every story to ≥2 focus areas.</td></tr>
+<tr><td class="day">Sat 8/23</td><td><strong>3 hr:</strong> <strong>Full technical-screen mock #2</strong> under real conditions (CoderPad-style, no notes) → debrief → 4 rapid product-sense reps.</td></tr>
+</table>
+
+<h3>Week 4 (Aug 24–30) — Shared week: P7/Kafka builds + Meta drills</h3>
+<table>
+<tr><th>Day</th><th>Session</th></tr>
+<tr><td class="day">Mon 8/24</td><td>Meta: SQL timed set (4 queries, from blank).</td></tr>
+<tr><td class="day">Tue 8/25</td><td><strong>P7/Kafka hands-on</strong> (Redpanda via Docker + <code>kafka-python</code> produce/consume) + 20-min Meta SQL drill.</td></tr>
+<tr><td class="day">Wed 8/26</td><td><strong>P7/Kafka hands-on</strong> (Kafka Connect / Debezium taste) + 20-min product-sense rep.</td></tr>
+<tr><td class="day">Thu 8/27</td><td><strong>P7 project hands-on</strong> + 20-min stats cold recall.</td></tr>
+<tr><td class="day">Fri 8/28</td><td><strong>P7 project hands-on</strong> + 20-min behavioral retell (2 stories, out loud, timed).</td></tr>
+<tr><td class="day">Sat 8/30</td><td><strong>3 hr:</strong> <strong>Behavioral mock</strong> (45 min, full) → <strong>Analytical Reasoning mock #2</strong> → close out P7/Kafka.</td></tr>
+</table>
+
+<h3>Week 5 (Aug 31 – Sep 3) — Taper</h3>
+<table>
+<tr><th>Day</th><th>Session</th></tr>
+<tr><td class="day">Mon 8/31</td><td><strong>Full dress-rehearsal technical screen</strong> — 45 min, cold, no warm-up, exactly as it will run.</td></tr>
+<tr><td class="day">Tue 9/1</td><td>Debrief + patch only what broke on Monday. Nothing new.</td></tr>
+<tr><td class="day">Wed 9/2</td><td>Stats + framework cold recall (30 min). Your 6 STAR stories out loud (30 min). Questions to ask them — finalise 4.</td></tr>
+<tr><td class="day">Thu 9/3</td><td><strong>Light.</strong> Re-read this doc's §4 frameworks once. Two easy SQL warm-ups. Sleep. Confirm timezone/link/backup connection.</td></tr>
+<tr><td class="day">Fri 9/4</td><td><strong>Interview.</strong> 10-min warm-up: one SQL from blank + say the metric-change framework out loud once.</td></tr>
+</table>
+
+<h2>7. Things to fix that aren't content</h2>
+<ul>
+<li><strong>Type complete queries.</strong> Every SQL rep from now to Sep 4 is a full query from a blank editor on a clock. Fragment mode is banned — Meta's guide bans it explicitly.</li>
+<li><strong>Narrate structure before answering.</strong> Same behaviour that fixed the Kimball drills: two sentences of structure out loud before the substance. In Analytical Reasoning this <em>is</em> the score.</li>
+<li><strong>Name a counter-metric every single time</strong> you propose a success metric. Reflex, not an afterthought.</li>
+<li><strong>Say “I'm not sure — here's how I'd find out.”</strong> Meta's guide says out loud: <em>“it's ok if you don't know… you're encouraged to ask clarifying questions and be upfront if there are topics you have less experience with.”</em> Your freeze pattern is worse than admitting a gap. Admitting it and proposing a method is a scored positive.</li>
+<li><strong>Reframe your background deliberately.</strong> You are a DE interviewing for a DS role. Lead with the analytics half of your work — Tableau/BI for 200+ users, metric definitions, stakeholder decisions — not the pipeline half. The pipeline depth is a differentiator (“I can get my own data”), not the headline.</li>
+<li><strong>Timezone.</strong> India → PT. Confirm the exact local time with Revathi in writing and again 24 h before.</li>
+</ul>
+
+<h2>8. Questions to ask them</h2>
+<ul>
+<li>Which product surface does this team support, and what's the current top question the team is being asked?</li>
+<li>How is a DS's impact measured here — shipped experiments, metric movement, or decisions influenced?</li>
+<li>What's the split between recurring measurement work and open-ended investigation?</li>
+<li>How much of the data foundation does the DS team own vs consume from DE partners? <em>(A good place to surface your engineering background as an asset.)</em></li>
+</ul>
+
+<h2>Sources</h2>
+<ul>
+<li>Meta, <em>Data Scientist, Product Analytics — Full Loop Interview Guide</em> (official candidate PDF) — §1, §2, and all quoted focus areas</li>
+<li>IGotAnOffer, DataLemur, Exponent, InterviewQuery, Prepfully — reported questions, timings, screen format</li>
+<li>Blind threads on Meta DS Product Analytics loops</li>
+</ul>
+
+</body>
+</html>
