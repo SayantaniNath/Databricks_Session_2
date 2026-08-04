@@ -165,6 +165,17 @@
 </ol>
 <div class="rule">Say step 7 out loud at some point in every one of these. Metric decomposition is the single move that separates a DS answer from an analyst answer.</div>
 
+<h4>Build metric trees in advance</h4>
+<p>The highest-leverage version of step 7 is to have the decomposition <em>pre-built</em> for Meta's main surfaces, so you're recalling a tree rather than inventing one under pressure. Do one page each for <strong>Feed</strong>, <strong>Reels</strong>, <strong>Notifications</strong>, <strong>Messaging</strong> and <strong>Search</strong>. Shape:</p>
+<pre>Engagement (top metric)
+├── Reach        = DAU × % who see the surface
+├── Depth        = sessions/user × items/session
+├── Quality      = like/comment/share rate, dwell time, completion rate
+└── Retention    = D1/D7/D28, resurrection rate
+Guardrails: time spent on OTHER surfaces · report/hide rate · notification
+            opt-out rate · latency · creator-side supply</pre>
+<p>Two payoffs: you can always answer "where would you look next?", and every branch is a candidate metric when they ask you to define success.</p>
+
 <h3>4.2 Goal / success-metric definition (“How would you measure success of X?”)</h3>
 <ol>
 <li><strong>What is the product trying to do?</strong> State the user value in one sentence.</li>
@@ -220,11 +231,17 @@
 
 <h2>5. Reported question bank</h2>
 
-<h4>SQL / technical</h4>
+<h4>SQL / technical — the screen</h4>
+<p class="meta">Note the consistent shape: two tables, a product question, one query. Joins + date arithmetic + conditional aggregation + a window or self-join. The difficulty is speed and completeness, not concept depth.</p>
 <ul>
-<li>Find Facebook pages with zero likes, sorted ascending.</li>
+<li>Given <code>attendance_events(student_id, attendance)</code> and <code>students(student_id, school_id, grade_level, date_of_birth, hometown)</code> — <strong>what percentage of students attend school on their birthday?</strong></li>
+<li><strong>Which grade level had the largest drop in attendance</strong> between yesterday and today?</li>
+<li>Find Facebook pages with <strong>zero</strong> likes, sorted ascending.</li>
 <li>Weekly churn rate for June — users with no activity for &gt;28 days after signup.</li>
-<li>Given an events table, compute D7 retention by signup cohort.</li>
+<li>Authors who have published <strong>at least 5</strong> books.</li>
+<li>Percentage of total sales completed on the <strong>same day</strong> the customer registered.</li>
+<li>Customers who purchased on <strong>both</strong> the first and the last day of the sale.</li>
+<li>Compute D7 retention by signup cohort from an events table.</li>
 <li>Build a funnel from an events log and report step-to-step conversion.</li>
 <li>Evaluate an email campaign: define the metrics first, then write the SQL that tracks them over time.</li>
 </ul>
@@ -271,17 +288,16 @@
 <strong>Weighting, now that Sep 4 is confirmed as the FIRST round:</strong> the screen is <strong>SQL + light product/metrics discussion</strong>. So Aug is <strong>SQL-first, product-sense-second</strong>. Deep probability/Bayes, A/B test design and the behavioral story bank belong to the <em>full loop</em> — they get a light touch now (enough to hold a metrics conversation) and a proper block after Sep 4. Building the full stats syllabus before the screen would be optimising for a round you haven't earned yet.
 </div>
 
-<h3>Week 1 (Aug 4–9) — SQL back on the clock, analytics patterns</h3>
+<h3>Week 1 (Aug 5–8) — SQL back on the clock, analytics patterns</h3>
 <table>
 <tr><th>Day</th><th>Session</th></tr>
-<tr><td class="day">Tue 8/5</td><td><strong>SQL 1 — retention:</strong> D1/D7/D28, classic vs rolling. 3 complete queries from blank, 8-min clock each.</td></tr>
-<tr><td class="day">Wed 8/6</td><td><strong>SQL 2 — cohorts + DAU/WAU/MAU:</strong> date spines, stickiness, cohort grids. 3 from blank.</td></tr>
-<tr><td class="day">Thu 8/7</td><td><strong>SQL 3 — funnels:</strong> conditional aggregation, step conversion, drop-off. 3 from blank.</td></tr>
-<tr><td class="day">Fri 8/8</td><td><strong>Product sense 1:</strong> the metric-change diagnostic (§4.1). 2 live reps — DAU drop, bounce-rate spike.</td></tr>
-<tr><td class="day">Sat 8/9</td><td><strong>3 hr:</strong> <strong>Mock technical screen #1</strong> — 45 min, 2 SQL + 1 product-metrics discussion → debrief → patch whatever broke.</td></tr>
+<tr><td class="day">Wed 8/5</td><td><strong>SQL 1 — retention:</strong> D1/D7/D28, classic vs rolling, censoring. 3 from blank — drill built: <code>P9_Meta_SQL_Drill_01_Retention.html</code></td></tr>
+<tr><td class="day">Thu 8/6</td><td><strong>SQL 2 — cohorts + DAU/WAU/MAU:</strong> date spines, stickiness, cohort grids. 3 from blank.</td></tr>
+<tr><td class="day">Fri 8/7</td><td><strong>SQL 3 — funnels:</strong> conditional aggregation, step conversion, drop-off. 3 from blank.</td></tr>
+<tr><td class="day">Sat 8/8</td><td><strong>3 hr:</strong> product-sense framework (§4.1) + 2 reps → <strong>Mock technical screen #1</strong> — 45 min, 2 SQL + 1 product-metrics discussion.</td></tr>
 </table>
 
-<h3>Week 2 (Aug 10–16) — Harder SQL + metric definition</h3>
+<h3>Week 2 (Aug 10–15) — Harder SQL + metric definition</h3>
 <table>
 <tr><th>Day</th><th>Session</th></tr>
 <tr><td class="day">Mon 8/10</td><td><strong>SQL 4 — sessionisation:</strong> LAG + gap flag + cumulative sum, built manually (no magic functions). 3 from blank.</td></tr>
@@ -289,10 +305,10 @@
 <tr><td class="day">Wed 8/12</td><td><strong>Product sense 2:</strong> goal/success-metric definition (§4.2). 2 reps. Counter-metric named every time.</td></tr>
 <tr><td class="day">Thu 8/13</td><td><strong>SQL 6 — top-N per group, MoM change, dedup:</strong> RANK vs DENSE_RANK vs ROW_NUMBER from the wording. 4 from blank.</td></tr>
 <tr><td class="day">Fri 8/14</td><td><strong>Stats — light pass only:</strong> descriptive stats on skewed data, why medians/percentiles, what a p-value and a CI mean in one business sentence. Enough to hold the conversation, no probability drilling.</td></tr>
-<tr><td class="day">Sat 8/16</td><td><strong>3 hr:</strong> <strong>Mock technical screen #2</strong> (CoderPad-style, no notes) → debrief → 4 rapid product-sense reps.</td></tr>
+<tr><td class="day">Sat 8/15</td><td><strong>3 hr:</strong> <strong>Mock technical screen #2</strong> (CoderPad-style, no notes) → debrief → 4 rapid product-sense reps.</td></tr>
 </table>
 
-<h3>Week 3 (Aug 17–23) — Mixed reps at screen tempo</h3>
+<h3>Week 3 (Aug 17–22) — Mixed reps at screen tempo</h3>
 <table>
 <tr><th>Day</th><th>Session</th></tr>
 <tr><td class="day">Mon 8/17</td><td><strong>SQL speed set:</strong> 5 queries, mixed patterns, from blank, 8 min each.</td></tr>
@@ -300,10 +316,10 @@
 <tr><td class="day">Wed 8/19</td><td><strong>SQL — edge cases &amp; the pivot:</strong> NULLs, ties, duplicate events, and the “now change this constraint” follow-up Meta uses. 3 from blank + 2 live mutations.</td></tr>
 <tr><td class="day">Thu 8/20</td><td><strong>Product sense 4:</strong> opportunity sizing + ecosystem metrics (Meta Shopping; Instagram ad load). + 2 timed SQL.</td></tr>
 <tr><td class="day">Fri 8/21</td><td><strong>A/B testing — light pass:</strong> §4.3 framework end-to-end, once, out loud. Enough to answer “how would you test that?” credibly. Depth deferred to post-screen.</td></tr>
-<tr><td class="day">Sat 8/23</td><td><strong>3 hr:</strong> <strong>Mock technical screen #3</strong>, hardest set → debrief → 2 product-sense reps on unseen prompts.</td></tr>
+<tr><td class="day">Sat 8/22</td><td><strong>3 hr:</strong> <strong>Mock technical screen #3</strong>, hardest set → debrief → 2 product-sense reps on unseen prompts.</td></tr>
 </table>
 
-<h3>Week 4 (Aug 24–30) — Shared week: P7/Kafka builds + Meta drills</h3>
+<h3>Week 4 (Aug 24–29) — Shared week: P7/Kafka builds + Meta drills</h3>
 <table>
 <tr><th>Day</th><th>Session</th></tr>
 <tr><td class="day">Mon 8/24</td><td>Meta: SQL timed set (4 queries, from blank).</td></tr>
@@ -311,7 +327,7 @@
 <tr><td class="day">Wed 8/26</td><td><strong>P7/Kafka hands-on</strong> (Kafka Connect / Debezium taste) + 20-min product-sense rep.</td></tr>
 <tr><td class="day">Thu 8/27</td><td><strong>P7 project hands-on</strong> + 20-min Meta SQL drill.</td></tr>
 <tr><td class="day">Fri 8/28</td><td><strong>P7 project hands-on</strong> + 20-min product-sense rep.</td></tr>
-<tr><td class="day">Sat 8/30</td><td><strong>3 hr:</strong> <strong>Mock technical screen #4</strong> (full dress rehearsal conditions) → close out P7/Kafka.</td></tr>
+<tr><td class="day">Sat 8/29</td><td><strong>3 hr:</strong> <strong>Mock technical screen #4</strong> (full dress rehearsal conditions) → close out P7/Kafka.</td></tr>
 </table>
 
 <h3>Post-screen (Sep 5 onward) — only if the screen passes</h3>
