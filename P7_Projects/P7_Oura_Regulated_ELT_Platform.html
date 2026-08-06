@@ -171,6 +171,56 @@ COPY lineitem TO 's3://.../lineitem/' (FORMAT parquet, PARTITION_BY (l_shipdate)
 <tr><td>Vector architectures / RAG for LLMs?</td><td>Phase 3.3 + Claude Code</td></tr>
 </table>
 
+<h2>5a. SPRINT — Sat 8/08 → Tue 8/11 (her decision 2026-08-06: Salesforce off Mon/Tue)</h2>
+
+<div class="gap">
+<strong>Domain changed to healthcare.</strong> Ōura is a health company and she has genuine IQVIA + ClinicalFlow credibility — healthcare beats the financial framing for this loop. <strong>Label every artifact "Reference Architecture — design exercise" on page one.</strong> Designing <em>for</em> petabyte scale is legitimate and normal architect work; claiming <em>delivered</em> scale is not. She may size for 35 markets / 200M patients / 2B scripts a year as a <em>design target</em>. She may not say she led a platform that served them.
+</div>
+
+<p><strong>~10 hours: Sat 3 · Sun 3 · Mon 2 · Tue 2.</strong> Design-weighted, because design is what an architect round grades and what fits the time. dbt, the Snowflake experiments, and MDM implementation stay in the Aug 14–23 block below.</p>
+
+<div class="rule"><strong>Do this Saturday morning before anything else:</strong> kick off Synthea generation in the background — the CSVs were deleted and only <code>~/Downloads/clinicalflow/synthea.jar</code> survives. It needs to be finished by Monday. Everything else on Sat/Sun is design and needs no data.</div>
+
+<h3>Saturday 8/08 — 3 hrs · Discovery + enterprise model</h3>
+<ul>
+<li><strong>45 min — Discovery.</strong> Business capabilities, stakeholders, KPIs, functional vs non-functional requirements, HIPAA/PHI and data-residency constraints, source-system inventory (EMR, claims, labs, CRM, device telemetry, files, APIs).</li>
+<li><strong>1 hr 45 — Enterprise data model, conceptual → logical → physical.</strong> Domains: Patient, Provider, Drug, Prescription, Claims, Encounter, Geography, Payer, Calendar. Grain statements for every fact.</li>
+<li><strong>30 min — Standardization.</strong> MDM (golden patient/provider), reference data (RDM), canonical models, surrogate vs business keys, <strong>SCD Type 2</strong>. <em>Doubles as her SCD2 re-test — say the mechanism cold before opening notes.</em></li>
+</ul>
+<p><strong>Out:</strong> capability map · source inventory · enterprise ER diagram · data dictionary v1</p>
+
+<h3>Sunday 8/09 — 3 hrs · Architecture, ADRs, cost &amp; performance</h3>
+<ul>
+<li><strong>1 hr 15 — Platform architecture.</strong> Medallion lakehouse end to end; then the mesh overlay — domains as data products with owners, contracts, SLAs, and federated computational governance. Where the platform team's responsibility ends and the domain's begins.</li>
+<li><strong>1 hr — Eight ADRs.</strong> Why Databricks · why Snowflake alongside it · Delta vs Iceberg · ELT over ETL · why dbt · why data mesh over a central warehouse · why SCD2 here · partitioning strategy. <em>Format: context → options considered → decision → consequences (including the bad ones).</em></li>
+<li><strong>45 min — Cost &amp; performance guide.</strong> Databricks DBUs and cluster choice; Snowflake credits and warehouse sizing; partitioning, clustering/Z-order, file compaction, broadcast joins, predicate pushdown, incremental processing; storage tiering. <em>This is the JD's "cost tiering" and "long-running high-cost tasks" line.</em></li>
+</ul>
+<p><strong>Out:</strong> architecture diagram · 8 ADRs · cost/performance guide</p>
+
+<h3>Monday 8/10 — 2 hrs · Databricks hands-on</h3>
+<ul>
+<li><strong>30 min — Recap the three items that closed unverified in 2I</strong>, cold: DBU cost math and cluster sizing · Photon + Python UDF (it <em>bypasses</em> Photon, she answered "accelerates a lot") · job vs all-purpose vs serverless.</li>
+<li><strong>1 hr 30 — Build the medallion MVP</strong> on Synthea: bronze raw ingest → silver conformed with de-identification → gold marts. Include one <strong>SCD Type 2 MERGE</strong> on a patient or provider dimension, audit columns, and a data-quality gate.</li>
+</ul>
+<p><strong>Out:</strong> working bronze/silver/gold notebook · an SCD2 artifact she has actually run</p>
+
+<h3>Tuesday 8/11 — 2 hrs · Governance, AI-readiness, mock review</h3>
+<ul>
+<li><strong>30 min — Governance on the real build.</strong> Unity Catalog: masking policy on PHI, row filter, lineage graph. She's done this lab, so it's fast — the point is having it <em>in</em> the artifact.</li>
+<li><strong>30 min — AI-readiness design.</strong> Vector search, embeddings, RAG over the data dictionary, semantic layer, feature store, agentic dashboards. Design only, no models.</li>
+<li><strong>1 hr — Persona mock architecture review</strong> (the best idea in the source plan, kept whole):
+<ul>
+<li><strong>CTO:</strong> why should I spend $10M on this?</li>
+<li><strong>Finance:</strong> cut cloud cost 30% without breaking SLAs.</li>
+<li><strong>Security:</strong> how is PHI protected end to end, and who can see what?</li>
+<li><strong>Product:</strong> can we onboard a new domain in two weeks?</li>
+<li><strong>Principal Architect:</strong> why Databricks and not BigQuery? Why mesh and not a central warehouse? Defend the Iceberg call.</li>
+</ul></li>
+</ul>
+<p><strong>Out:</strong> governed build · AI-readiness design · a recorded mock she can review</p>
+
+<div class="win"><strong>Cut line if a session overruns:</strong> protect the ADRs and the mock review. Those two are what convert the work into interview answers. Implementation depth is the thing to sacrifice — a Senior Data Architect is graded on design quality and trade-off reasoning, not lines of code.</div>
+
 <h2>5b. The session schedule — Aug 14 → 23</h2>
 
 <div class="rule">
