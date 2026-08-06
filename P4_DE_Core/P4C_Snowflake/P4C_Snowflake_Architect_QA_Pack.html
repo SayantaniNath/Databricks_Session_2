@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>P4C — Snowflake Architect Q&amp;A Pack</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+         max-width: 940px; margin: 2rem auto; padding: 0 1.25rem; line-height: 1.65; color: #1c1e21; }
+  h1 { border-bottom: 3px solid #29b5e8; padding-bottom: .4rem; }
+  h2 { margin-top: 2.4rem; border-bottom: 1px solid #d8dbdf; padding-bottom: .3rem; }
+  h3 { margin-top: 1.7rem; color: #0b3d91; }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: .93rem; }
+  th, td { border: 1px solid #d8dbdf; padding: .5rem .65rem; text-align: left; vertical-align: top; }
+  th { background: #f1f4f9; }
+  code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  code { background: #f1f4f9; padding: .1rem .3rem; border-radius: 3px; font-size: .9em; }
+  pre { background: #f6f8fa; border: 1px solid #d8dbdf; border-radius: 6px; padding: .8rem; overflow-x: auto; font-size: .86rem; }
+  .rule { background: #fff8e1; border-left: 4px solid #f0a500; padding: .8rem 1rem; margin: 1.2rem 0; }
+  .gap { background: #ffeceb; border-left: 4px solid #d93025; padding: .8rem 1rem; margin: 1.2rem 0; }
+  .win { background: #e9f7ef; border-left: 4px solid #1e8e3e; padding: .8rem 1rem; margin: 1.2rem 0; }
+  .say { background: #eef3ff; border-left: 4px solid #0b5fff; padding: .8rem 1rem; margin: 1.1rem 0; }
+  .meta { color: #5f6368; font-size: .9rem; }
+  .q { font-weight: 600; color: #0b3d91; margin-top: 1.3rem; }
+</style>
+</head>
+<body>
+
+<h1>Snowflake — Architect Interview Q&amp;A Pack</h1>
+<p class="meta">Built 2026-08-06 · For the Ōura Senior Data Architect loop · Pillar 4C, interview-shaped rather than course-shaped</p>
+
+<div class="gap">
+<strong>Start from the truth.</strong> Her real Snowflake is <strong>query and view building at Hexaware</strong> — not architecture, not administration, not cost ownership. That's the honest baseline, and an architect interviewer will find the edge of it within two follow-ups. So this pack does two things: (1) gives her the architecture-level answers, and (2) marks which ones become <em>defensible</em> only after she runs the experiments in §9. <strong>Answers without the experiments are recall; answers with them are experience.</strong>
+</div>
+
+<div class="say">
+<strong>The framing sentence to open with if Snowflake depth is probed directly:</strong><br><br>
+"My hands-on Snowflake has been analyst-side — building queries and views on a warehouse someone else designed. I haven't owned an account or a credit budget. What I did do, preparing for this, was run the sizing and clustering experiments myself so I'd have actual numbers rather than opinions. Happy to walk through what I found."
+</div>
+
+<h2>1. The architecture — the question behind every other question</h2>
+
+<p class="q">Q: Explain Snowflake's architecture.</p>
+<p><strong>Three physically separate layers</strong> — this separation is the answer to almost everything else:</p>
+<ol>
+<li><strong>Cloud services</strong> — the brain. Authentication, metadata, the optimizer, transaction management, access control, the result cache. You don't size it, you don't pay for it directly (mostly).</li>
+<li><strong>Compute — "virtual warehouses."</strong> Independent MPP clusters. Multiple warehouses read the <em>same</em> data with zero contention. This is the bit you size and pay for by the second.</li>
+<li><strong>Storage</strong> — data in cloud object storage (S3/GCS/Blob), in Snowflake's compressed columnar format, organised into <strong>micro-partitions</strong>. Cheap, and completely decoupled from compute.</li>
+</ol>
+
+<div class="win">
+<strong>Why this matters, said as an architect:</strong> "Because storage and compute are separated, I can give the BI team a Small warehouse and the data-science team an X-Large on the same tables, and neither slows the other down. Scaling for concurrency and scaling for query size become two different decisions instead of one — that's the thing you can't do on a classic MPP appliance like the Redshift or Teradata generation."</p>
+</div>
+
+<h2>2. Virtual warehouses — sizing, scaling, cost</h2>
+
+<p class="q">Q: How do you size a warehouse?</p>
+<ul>
+<li>Sizes step <strong>XS → S → M → L → XL …</strong>, each doubling compute <em>and</em> cost per hour. XS = 1 credit/hr, S = 2, M = 4, L = 8, XL = 16.</li>
+<li><strong>Doubling the size roughly halves the runtime for a large scan</strong> — so cost is often flat while latency improves. That's the key insight: going bigger is frequently <em>free</em> in credit terms for big queries, and pure waste for small ones.</li>
+<li>Small queries don't benefit at all — you pay 2× for the same runtime.</li>
+<li><strong>Method:</strong> start at XS, scale up until runtime stops improving proportionally, stop there.</li>
+</ul>
+
+<p class="q">Q: Scale UP vs scale OUT?</p>
+<table>
+<tr><th></th><th>Scale up (bigger size)</th><th>Scale out (multi-cluster)</th></tr>
+<tr><td>Fixes</td><td>One <strong>slow</strong> query</td><td>Many <strong>concurrent</strong> queries queuing</td></tr>
+<tr><td>Mechanism</td><td>More compute per cluster</td><td>More clusters, auto-added under load</td></tr>
+<tr><td>Config</td><td><code>WAREHOUSE_SIZE</code></td><td><code>MIN_CLUSTER_COUNT</code> / <code>MAX_CLUSTER_COUNT</code>, plus <code>SCALING_POLICY</code> (Standard = favour speed, Economy = favour credit savings)</td></tr>
+</table>
+<p><strong>The diagnostic:</strong> queries queuing → scale out. A single query slow with no queue → scale up.</p>
+
+<p class="q">Q: How do you control cost?</p>
+<ul>
+<li><code>AUTO_SUSPEND</code> (60s is a sane default) and <code>AUTO_RESUME</code>. Idle warehouses are the classic bill leak.</li>
+<li><strong>Resource monitors</strong> — credit quotas with notify/suspend actions at thresholds.</li>
+<li>Separate warehouses per workload so you can <em>attribute</em> spend, not just observe it.</li>
+<li>Right-size down as well as up; review <code>WAREHOUSE_METERING_HISTORY</code>.</li>
+<li>Kill the long-tail: <code>STATEMENT_TIMEOUT_IN_SECONDS</code>.</li>
+</ul>
+
+<h2>3. Micro-partitions and clustering — the performance question</h2>
+
+<p class="q">Q: What is a micro-partition?</p>
+<p>Snowflake automatically divides table data into <strong>micro-partitions of ~50–500 MB uncompressed</strong>, stored columnar. For each one it keeps metadata: <strong>min/max per column</strong>, distinct counts, nulls. You never create or manage them.</p>
+
+<p class="q">Q: So how does pruning work?</p>
+<p>The optimizer reads the min/max metadata <em>before</em> touching data and skips any micro-partition that can't contain matching rows. A filter on a column that correlates with load order prunes beautifully; a filter on a randomly-distributed column prunes almost nothing.</p>
+
+<p class="q">Q: When would you add a clustering key?</p>
+<div class="rule">
+<strong>Default answer: usually you wouldn't.</strong> That's the senior answer. Natural load order already clusters by time, which matches most filters. Clustering keys cost continuous background credits (automatic reclustering).
+<br><br>
+<strong>Add one when:</strong> the table is large (multi-TB), queries filter on something <em>other</em> than load order, you've confirmed poor pruning via <code>SYSTEM$CLUSTERING_INFORMATION</code>, and query volume justifies the reclustering spend. Pick <strong>low-to-medium cardinality</strong> columns, most-filtered first — clustering on a unique id is the classic mistake.
+</div>
+
+<h3>Snowflake vs Delta — the comparison she can already make</h3>
+<table>
+<tr><th></th><th>Snowflake</th><th>Delta Lake</th></tr>
+<tr><td>Layout unit</td><td>Micro-partitions, automatic</td><td>Parquet files you manage</td></tr>
+<tr><td>Data skipping</td><td>Automatic min/max metadata</td><td>Delta log statistics</td></tr>
+<tr><td>Co-locate related data</td><td>Clustering key + auto-reclustering</td><td><code>OPTIMIZE ZORDER BY</code> / liquid clustering, run manually</td></tr>
+<tr><td>Small files</td><td>Never your problem</td><td>Very much your problem</td></tr>
+</table>
+<p class="meta">She has Delta cold from 2C — leading with this comparison signals real understanding rather than memorised Snowflake trivia.</p>
+
+<h2>4. Time Travel, Fail-safe, cloning</h2>
+<table>
+<tr><th>Feature</th><th>What it is</th><th>Retention</th></tr>
+<tr><td><strong>Time Travel</strong></td><td>Query/restore data as of a past point — <code>AT(TIMESTAMP =&gt; …)</code>, <code>BEFORE(STATEMENT =&gt; …)</code>, <code>UNDROP</code></td><td>1 day default; up to <strong>90 days</strong> on Enterprise+</td></tr>
+<tr><td><strong>Fail-safe</strong></td><td>Snowflake-operated disaster recovery <em>after</em> Time Travel expires. <strong>You cannot query it</strong> — you file a support request</td><td>Fixed <strong>7 days</strong>, non-configurable</td></tr>
+<tr><td><strong>Zero-copy clone</strong></td><td>New object sharing the same micro-partitions; storage charged only on divergence</td><td>Instant, effectively free at creation</td></tr>
+</table>
+<p><strong>The architect angle:</strong> longer Time Travel means more storage cost, because changed micro-partitions are retained. It's a governance decision, not a default — set it per table by criticality. Clone production into dev for realistic testing at near-zero cost; that's the standard answer to "how do you get prod-like test data without copying a petabyte?"</p>
+<p><strong>vs Delta:</strong> Time Travel ≈ Delta's log-based versioning (but Delta's is bounded by <code>VACUUM</code>); zero-copy clone ≈ <code>SHALLOW CLONE</code>. Fail-safe has no Delta equivalent.</p>
+
+<h2>5. Ingestion — and the Ōura-relevant comparison</h2>
+<table>
+<tr><th>Method</th><th>Use when</th></tr>
+<tr><td><code>COPY INTO</code></td><td>Scheduled bulk loads. You control the compute and the batch.</td></tr>
+<tr><td><strong>Snowpipe</strong></td><td>Continuous micro-batch, event-triggered on file arrival. Serverless — you don't run a warehouse. Latency ~1 minute.</td></tr>
+<tr><td><strong>Snowpipe Streaming</strong></td><td>Row-level streaming ingestion, seconds of latency, no files at all. This is what you'd pair with Kafka.</td></tr>
+<tr><td><strong>External tables / Iceberg tables</strong></td><td>Query data in place on S3 without ingesting. Iceberg tables give you open-format storage with Snowflake as the engine.</td></tr>
+</table>
+<p><strong>Snowpipe vs Auto Loader</strong> (she knows Auto Loader cold from 2G): both are incremental file ingestion with exactly-once semantics. Snowpipe is serverless and event-driven with no cluster to run; Auto Loader is a Structured Streaming source that you host, with richer schema-evolution control via <code>schemaEvolutionMode</code> and <code>_rescued_data</code>. Snowpipe's schema handling is far more rigid.</p>
+
+<h3>Streams and Tasks = CDC</h3>
+<ul>
+<li>A <strong>Stream</strong> is a change-tracking object over a table — it records inserts/updates/deletes since you last consumed it. Offset advances when consumed inside a DML statement.</li>
+<li>A <strong>Task</strong> is scheduled SQL, chainable into DAGs, with <code>WHEN SYSTEM$STREAM_HAS_DATA()</code> to skip empty runs.</li>
+<li>Together: Stream + Task + <code>MERGE</code> = incremental pipeline. <strong>This is Snowflake's answer to Delta Change Data Feed.</strong></li>
+</ul>
+<p><strong>Tasks vs Airflow:</strong> Tasks are in-database, no infrastructure, but limited to Snowflake and weak on cross-system dependencies and observability. Airflow orchestrates across systems with real lineage and alerting. Use Tasks for tight in-warehouse loops, Airflow when the pipeline crosses boundaries — which for a data-mesh architecture it always does.</p>
+
+<h2>6. Governance — the strongest ground for her</h2>
+<p class="meta">This maps almost one-to-one onto her Unity Catalog work, which is ✅ complete with a hands-on lab. Lead here when governance comes up.</p>
+<table>
+<tr><th>Snowflake</th><th>Unity Catalog equivalent she's already done</th></tr>
+<tr><td>Role hierarchy, <code>GRANT USAGE</code> on DB/schema then <code>SELECT</code> on table</td><td><code>USE CATALOG</code> + <code>USE SCHEMA</code> + <code>SELECT</code> — the exact traversal-vs-read distinction she got corrected on</td></tr>
+<tr><td><strong>Dynamic Data Masking</strong> — <code>MASKING POLICY</code> on a column, returns masked value based on <code>CURRENT_ROLE()</code></td><td><code>SET MASK</code> UDF (her <code>mask_ssn</code> lab)</td></tr>
+<tr><td><strong>Row Access Policies</strong></td><td><code>SET ROW FILTER</code> (her <code>filter_ca</code> lab)</td></tr>
+<tr><td><strong>Object tagging</strong> + tag-based masking</td><td>UC tags</td></tr>
+<tr><td><code>ACCESS_HISTORY</code> / <code>OBJECT_DEPENDENCIES</code> for lineage &amp; audit</td><td>UC automatic lineage</td></tr>
+<tr><td>Secure views, secure UDFs</td><td>—</td></tr>
+</table>
+<p><strong>RBAC specifics worth knowing:</strong> roles are hierarchical (a role inherits privileges of roles granted to it); system roles are <code>ORGADMIN</code> / <code>ACCOUNTADMIN</code> / <code>SECURITYADMIN</code> / <code>USERADMIN</code> / <code>SYSADMIN</code> / <code>PUBLIC</code>. Best practice: <strong>never let people work as <code>ACCOUNTADMIN</code></strong>; build functional roles under <code>SYSADMIN</code>, grant to roles not users.</p>
+
+<h2>7. Caching — three layers, know which is which</h2>
+<ol>
+<li><strong>Result cache</strong> (cloud services) — identical query, unchanged data, <strong>24 hours</strong>. Returns with <em>no warehouse running at all</em>, costs nothing. This is why a repeated dashboard query is instant and free.</li>
+<li><strong>Local disk / warehouse cache</strong> (SSD on the compute nodes) — data read from storage stays warm. <strong>Lost when the warehouse suspends</strong> — which is the real trade-off behind aggressive <code>AUTO_SUSPEND</code>.</li>
+<li><strong>Metadata cache</strong> — min/max stats; makes <code>COUNT(*)</code> and <code>MIN</code>/<code>MAX</code> answerable without scanning.</li>
+</ol>
+<div class="rule"><strong>Common follow-up:</strong> "Why did the same query take 40s then 0.2s then 8s?" → first run cold; second hit the result cache; third ran after a DML invalidated the result cache but the warehouse was still warm, so it used local disk cache.</div>
+
+<h2>8. Semi-structured, sharing, and the rest</h2>
+<ul>
+<li><strong><code>VARIANT</code></strong> — native semi-structured column (JSON/Avro/Parquet/XML). Access with <code>col:path.to.field::type</code>. <strong><code>LATERAL FLATTEN</code></strong> explodes arrays into rows. Snowflake shreds VARIANT into columnar sub-columns internally, so it's genuinely performant — but define explicit columns for anything queried constantly.</li>
+<li><strong>Secure Data Sharing</strong> — share live data with another account with <em>no copy and no ETL</em>; consumer pays their own compute. Cross-region/cross-cloud needs replication. Analogous to Delta Sharing.</li>
+<li><strong>Editions matter in interviews:</strong> Standard has no masking/row policies; <strong>Enterprise</strong> adds them plus 90-day Time Travel and multi-cluster; Business Critical adds HIPAA/PCI compliance support and customer-managed keys. <em>For a health company like Ōura, Business Critical is the relevant tier — say that, it shows you think about compliance as an architecture constraint.</em></li>
+<li><strong>Iceberg tables</strong> — Snowflake as compute over open Iceberg tables on your own S3. The trade: no lock-in and multi-engine access, versus giving up some native performance features and owning table maintenance yourself.</li>
+</ul>
+
+<h2>9. The experiments that convert this from recall to experience</h2>
+<div class="win">Two hours, free storage, and they make ~40% of the answers above <em>yours</em>. Do these before any Ōura technical.</div>
+
+<p><strong>Setup:</strong> Snowflake trial → set a resource monitor → use <code>SNOWFLAKE_SAMPLE_DATA.TPCH_SF1000</code> (free, shared, storage costs nothing).</p>
+
+<h3>Experiment A — warehouse sizing curve</h3>
+<pre>-- run the SAME aggregate on XS, S, M, L
+ALTER WAREHOUSE lab SET WAREHOUSE_SIZE = 'XSMALL';
+ALTER SESSION SET USE_CACHED_RESULT = FALSE;   -- else you measure the cache
+
+SELECT l_returnflag, l_linestatus, SUM(l_quantity), AVG(l_discount), COUNT(*)
+FROM SNOWFLAKE_SAMPLE_DATA.TPCH_SF1000.LINEITEM
+GROUP BY 1,2;
+
+-- then check what it cost and scanned:
+SELECT query_text, warehouse_size, execution_time/1000 AS secs,
+       bytes_scanned, partitions_scanned, partitions_total
+FROM SNOWFLAKE.ACCOUNT_USAGE.QUERY_HISTORY
+ORDER BY start_time DESC LIMIT 10;</pre>
+<p><strong>Record:</strong> runtime per size, and where the halving stops. That gives her a sentence no other candidate has: <em>"On a 6-billion-row table the curve flattened after ___, so going beyond that was paying double for nothing."</em></p>
+
+<h3>Experiment B — pruning</h3>
+<p>Run one query filtered on <code>l_shipdate</code> (correlates with load order) and one filtered on a scattered column. Compare <code>partitions_scanned / partitions_total</code> in <code>QUERY_HISTORY</code>. <strong>That ratio <em>is</em> pruning</strong>, and quoting a real one is the difference between explaining micro-partitions and having observed them.</p>
+
+<h3>Experiment C — the caching sequence</h3>
+<p>Run a query cold → rerun identical (result cache, ~0.1s, no warehouse) → change one literal (local disk cache) → suspend the warehouse, rerun (cold again). Four numbers, and §7 becomes something she watched happen.</p>
+
+<h2>10. Fast self-test — answer cold before the loop</h2>
+<ol>
+<li>Why can two teams query the same table with zero contention?</li>
+<li>Queries are queuing. Scale up or out? Why?</li>
+<li>When is a clustering key a <em>bad</em> idea?</li>
+<li>Time Travel vs Fail-safe — which can you query?</li>
+<li>How does a zero-copy clone charge storage?</li>
+<li>Snowpipe vs <code>COPY INTO</code> vs Snowpipe Streaming?</li>
+<li>Streams + Tasks solve what, and what's the Databricks equivalent?</li>
+<li>Which two caches does <code>AUTO_SUSPEND</code> affect, and how?</li>
+<li>Which edition would a health company need, and why?</li>
+<li>Why choose Iceberg tables over native Snowflake tables — and what do you give up?</li>
+</ol>
+
+</body>
+</html>

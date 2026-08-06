@@ -30,7 +30,7 @@
 <p class="meta">A scoped end-to-end ELT build · Purpose: close the tool gap for the Ōura Senior Data Architect loop, using the architecture pattern she actually ran at Citi · Built 2026-08-06</p>
 
 <div class="gap">
-<strong>Read this first — the honesty rule.</strong> This build does <em>not</em> give production experience and must never be presented as such. Her production credibility is <strong>Citi</strong> (Process Intelligence Dataverse — logical + physical models, Kafka topics into Redis serving views, Oracle + Talend, ~5–10 lakh rows/table) and <strong>IQVIA</strong> (healthcare/HIPAA). Those are real. What this build does is close the <em>tool</em> gap — Snowflake at architecture level, dbt, Iceberg, Airflow, data mesh, MDM — so that real production judgement can be expressed in Ōura's vocabulary. Frame it in the room as <em>"a reference implementation I built to work through the trade-offs"</em>, never as work experience. Same rule as ClinicalFlow.
+<strong>Read this first — the honesty rule.</strong> This build does <em>not</em> give production experience and must never be presented as such. Her production credibility is <strong>Citi</strong> (<strong>one of the leads creating the DCRM data model</strong> — logical + physical models, delivery ownership, the SQL, a Starburst/Trino data-mesh POC; stack was Oracle + light Talend, ~5–10 lakh rows/table) and <strong>IQVIA</strong> (healthcare/HIPAA). Those are real. <strong>No Kafka and no GraphQL on the Citi story</strong> — removed 2026-08-06. What this build does is close the <em>tool</em> gap — Snowflake at architecture level, dbt, Iceberg, Airflow, data mesh, MDM — so that real production judgement can be expressed in Ōura's vocabulary. Frame it in the room as <em>"a reference implementation I built to work through the trade-offs"</em>, never as work experience. Same rule as ClinicalFlow.
 </div>
 
 <div class="rule">
@@ -46,7 +46,7 @@
 
 <p>The design brief is the intersection of three things:</p>
 <ul>
-<li><strong>Her real Citi work</strong> — a regulated-domain data acquisition and remediation platform: logical + physical modelling, streaming topics landed into a low-latency serving store, governance and data-concern remediation, a Starburst/data-mesh POC.</li>
+<li><strong>Her real Citi work</strong> — she was <strong>one of the leads creating the DCRM data model</strong> on a regulated-domain data acquisition and remediation platform: logical + physical modelling, delivery ownership, the SQL, governance for data-concern remediation, and a Starburst/Trino data-mesh POC. <em>Design authority is the headline — not tooling.</em></li>
 <li><strong>The Ōura JD</strong> — Snowflake or BigQuery, <strong>dbt</strong>, <strong>Iceberg</strong>, Airflow/<strong>Dagster</strong>, Kafka/Kinesis, AWS (S3/Glue/Athena), <strong>data mesh + federated governance</strong>, <strong>MDM</strong>, HIPAA/PHI, TB–PB scale, vector/RAG.</li>
 <li><strong>The gaps</strong> — Snowflake at architecture level, dbt, Iceberg-as-table-format, Airflow, data mesh theory, MDM.</li>
 </ul>
@@ -148,8 +148,8 @@ COPY lineitem TO 's3://.../lineitem/' (FORMAT parquet, PARTITION_BY (l_shipdate)
 
 <h3>Phase 3 — streaming + AI (if time, ~3 hrs)</h3>
 <ol>
-<li><strong>CDC:</strong> Debezium → Redpanda → Snowflake. This is the direct Citi callback, modernised, and it doubles as the Kafka hands-on still owed from P4A.</li>
-<li><strong>Redis serving view</strong> — sub-millisecond lookups off the gold mart. Literally what she built at Citi, so the story writes itself.</li>
+<li><strong>CDC:</strong> Debezium → Redpanda → Snowflake. Doubles as the Kafka hands-on still owed from P4A. <em>Note: Kafka is no longer part of the Citi story (removed 2026-08-06) — so this is a pure learning artifact, not a callback. Claim it as project work only.</em></li>
+<li><strong>Redis serving view</strong> — sub-millisecond lookups off the gold mart. <em>Whether this connects back to Citi is an open question she needs to settle — see the honesty box above.</em></li>
 <li><strong>RAG over the catalogue:</strong> embed the dbt <code>manifest.json</code> model/column descriptions into a vector store; ask "which dataset has customer risk scores and who owns it?" Hits the JD's vector/RAG line, and her Claude Code work makes it authentic rather than bolted on.</li>
 </ol>
 
@@ -183,7 +183,11 @@ COPY lineitem TO 's3://.../lineitem/' (FORMAT parquet, PARTITION_BY (l_shipdate)
 <h2>7. How to talk about it</h2>
 
 <div class="say">
-"At Citi I owned the logical and physical models for our data acquisition platform — regulated data, streaming topics landed into Redis-backed serving views, and a governance layer for data-concern remediation. The stack was Oracle and Talend. When I looked at where the industry had moved, I wanted to know whether the modern stack actually solved the problems we had, so I rebuilt the same pattern end to end on Snowflake, dbt, Iceberg and Airflow — as a reference implementation, not production. Two things surprised me: [measured finding], and [where the modern tool was worse or added a cost]."
+"At Citi I was one of the leads creating the data model for our Data Acquisition Platform — regulated data, four domains, twenty-plus data flows, and I owned delivery on it. Logical and physical design, the SQL, and a governance layer for data-concern remediation. The stack underneath was Oracle and Talend, at hundreds of thousands to low millions of rows per table. The <em>problems</em> that platform had — late-arriving data, access control on regulated fields, keeping a model coherent across domains with competing owners — are the same problems at Ōura's scale, just with different tools. So I rebuilt the pattern end to end on Snowflake, dbt, Iceberg and Airflow, as a reference implementation rather than production, to find out what actually changes. Two things surprised me: [measured finding], and [where the modern tool was worse or added a cost]."
+</div>
+
+<div class="rule">
+<strong>Note what this version does:</strong> it leads with <strong>design authority and delivery ownership</strong>, which is what an architect req is buying, and it's honest about scale rather than hiding it. Naming "hundreds of thousands to low millions of rows" <em>before</em> they ask converts a weakness into evidence you calibrate accurately — and it sets up the build as the deliberate answer to that gap. Volunteering the limitation is a strength move here, not a concession.
 </div>
 
 <div class="rule">
