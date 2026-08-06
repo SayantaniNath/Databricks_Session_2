@@ -171,6 +171,35 @@ COPY lineitem TO 's3://.../lineitem/' (FORMAT parquet, PARTITION_BY (l_shipdate)
 <tr><td>Vector architectures / RAG for LLMs?</td><td>Phase 3.3 + Claude Code</td></tr>
 </table>
 
+<h2>5b. The session schedule — Aug 14 → 23</h2>
+
+<div class="rule">
+<strong>Window:</strong> Aug 14–23, after the Salesforce HM round and before Meta's final push (Aug 24 → Sep 3 belongs to Meta). ~15 hours. <strong>Still gated on the Ōura loop timeline</strong> — if the technical lands before Aug 14, drop the build and run Track A + Track C only.
+</div>
+
+<p><strong>Design principle: the build IS the revision.</strong> Don't separate "revise Databricks" from "build the POC" — the build is the vehicle. That halves the time.</p>
+
+<table>
+<tr><th>Day</th><th>Session</th><th>Covers</th></tr>
+<tr><td><strong>Fri 8/14</strong></td><td><strong>Databricks recap 1</strong> — re-read her own <code>Spark_Architecture_Walkthrough.html</code> (Delta + streaming sections), <code>Databricks_QA_Log.html</code>, <code>databricks_exercises.py</code> §5–8. Cold self-test on medallion, DLT/Lakeflow, Unity Catalog.</td><td>Lakehouse · bronze/silver/gold · governance</td></tr>
+<tr><td><strong>Sat 8/15</strong><br>(3 hr)</td><td><strong>Build 1</strong> — Databricks workspace; generate the financial dataset (DuckDB TPC-H SF10 → Parquet → S3); bronze → silver → gold in Delta; then write gold as <strong>Iceberg</strong> on S3.</td><td>Medallion · Iceberg · Spark ETL</td></tr>
+<tr><td><strong>Mon 8/17</strong></td><td><strong>Databricks recap 2 — the billing/infra session.</strong> DBU model, cluster sizing, job vs all-purpose vs serverless, Photon (incl. the Python-UDF bypass she got wrong), autoscaling, spot. <strong>Hands-on:</strong> run the same job on two cluster configs and record DBUs and runtime.</td><td>Cost tiering · observability · her 3 unverified 2I items</td></tr>
+<tr><td><strong>Tue 8/18</strong></td><td><strong>dbt 1</strong> — install dbt-databricks, project structure, <code>sources</code>/<code>ref</code>, materializations, staging → marts.</td><td>dbt · SQL-based modelling</td></tr>
+<tr><td><strong>Wed 8/19</strong></td><td><strong>dbt 2</strong> — incremental models, <strong>snapshots (SCD2)</strong>, schema + singular tests, dbt-expectations.</td><td>dbt · <strong>closes the SCD2 gap with an artifact</strong></td></tr>
+<tr><td><strong>Thu 8/20</strong></td><td><strong>Snowflake</strong> — trial + resource monitor; the three experiments from the Q&amp;A pack (sizing curve, pruning ratio, caching sequence); read the same Iceberg tables from Snowflake.</td><td>Snowflake architecture · <strong>"Databricks or Snowflake?" answered with her own numbers</strong></td></tr>
+<tr><td><strong>Fri 8/21</strong></td><td><strong>MDM + RDM + dictionary</strong> — golden customer record with survivorship rules and <code>match_confidence</code>; a governed reference-data table; <code>dbt docs</code> + model/column descriptions + contracts as the data dictionary.</td><td>MDM · RDM · standardization · self-service</td></tr>
+<tr><td><strong>Sat 8/22</strong><br>(3 hr)</td><td><strong>Data mesh + governance + mock.</strong> Restructure into <code>domains/</code> with owners, contracts, SLAs, exposures. Masking + row policies on both engines. README + architecture diagram. Then a <strong>45-min architecture mock, out loud.</strong></td><td>Data mesh · federated governance · HIPAA/PHI · delivery</td></tr>
+<tr><td><strong>Sun 8/23</strong></td><td>Rest, or RAG over the dbt <code>manifest.json</code> if energy allows.</td><td>Vector/RAG · Agentic AI</td></tr>
+</table>
+
+<h3>Track C — articulation, no tools (fold 15 min into any session)</h3>
+<ul>
+<li><strong>The Citi story, corrected:</strong> lead on the DCRM data model · delivery ownership · Starburst/Trino data-mesh POC · 40%/45% from <strong>large-query optimisation + materialised views</strong> · Oracle + Talend at 5–10 lakh rows/table. No Kafka, no Redis, no GraphQL.</li>
+<li><strong>The MV → incremental-model bridge</strong> — real production experience of the concept dbt implements. Rehearse until automatic.</li>
+<li><strong>Data mesh</strong> — four principles (domain ownership, data as a product, self-serve platform, federated computational governance) and how the Starburst POC touched them.</li>
+<li><strong>The honest gaps, named cleanly:</strong> BigQuery/VertexAI, Pulumi, Dagster. Naming them buys credibility for everything else.</li>
+</ul>
+
 <h2>6. Cost</h2>
 <table>
 <tr><th>Component</th><th>Cost</th></tr>
