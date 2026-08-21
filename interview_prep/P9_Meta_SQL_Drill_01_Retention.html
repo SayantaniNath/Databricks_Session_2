@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>P9 — Meta SQL Drill 01: Retention</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+         max-width: 900px; margin: 2rem auto; padding: 0 1.25rem; line-height: 1.6; color: #1c1e21; }
+  h1 { border-bottom: 3px solid #0b5fff; padding-bottom: .4rem; }
+  h2 { margin-top: 2.4rem; border-bottom: 1px solid #d8dbdf; padding-bottom: .3rem; }
+  h3 { margin-top: 1.6rem; color: #0b3d91; }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: .94rem; }
+  th, td { border: 1px solid #d8dbdf; padding: .5rem .65rem; text-align: left; vertical-align: top; }
+  th { background: #f1f4f9; }
+  code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  code { background: #f1f4f9; padding: .1rem .3rem; border-radius: 3px; font-size: .9em; }
+  pre { background: #f6f8fa; border: 1px solid #d8dbdf; border-radius: 6px; padding: .8rem; overflow-x: auto; font-size: .87rem; }
+  .rule { background: #fff8e1; border-left: 4px solid #f0a500; padding: .8rem 1rem; margin: 1.2rem 0; }
+  .gap { background: #ffeceb; border-left: 4px solid #d93025; padding: .8rem 1rem; margin: 1.2rem 0; }
+  .win { background: #e9f7ef; border-left: 4px solid #1e8e3e; padding: .8rem 1rem; margin: 1.2rem 0; }
+  .meta { color: #5f6368; font-size: .9rem; }
+  details { background: #f6f8fa; border: 1px solid #d8dbdf; border-radius: 6px; padding: .7rem 1rem; margin: 1rem 0; }
+  summary { cursor: pointer; font-weight: 600; color: #0b3d91; }
+  .q { background: #eef3ff; border-left: 4px solid #0b5fff; padding: .9rem 1rem; margin: 1.2rem 0; }
+</style>
+</head>
+<body>
+
+<h1>Meta SQL Drill 01 — Retention</h1>
+<p class="meta">Session: Wednesday 2026-08-05 · Meta DS Product Analytics screen prep (Fri 2026-09-04) · Week 1, Day 1</p>
+
+<div class="gap">
+<strong>Rules — non-negotiable, these are the point of the drill.</strong>
+<ol>
+<li><strong>Complete, runnable query. From a blank editor. Every time.</strong> No fragments, no "and then I'd join…". Meta's own guide: <em>"pseudo-code that allows you to gloss over details is not acceptable."</em></li>
+<li><strong>Clock on.</strong> Q1 = 6 min. Q2 = 8 min. Q3 = 10 min. When time's up, stop and look — don't keep polishing.</li>
+<li><strong>Say the clarifying question out loud before you type.</strong> Each problem below has at least one genuine ambiguity. Finding it is scored.</li>
+<li><strong>No peeking at solutions until all three are written.</strong> A wrong complete query is worth more than a right fragment.</li>
+</ol>
+</div>
+
+<h2>The schema</h2>
+<p>Two tables — the standard Meta screen setup. Presto/ANSI SQL.</p>
+
+<pre>users
+  user_id       BIGINT
+  signup_date   DATE
+  country       VARCHAR
+  platform      VARCHAR    -- 'ios' | 'android' | 'web'
+
+events
+  user_id       BIGINT
+  event_date    DATE
+  event_name    VARCHAR    -- 'open_app' | 'view_reel' | 'like' | 'comment' | 'share'
+  session_id    BIGINT</pre>
+
+<p class="meta">Assume: <code>events</code> can have many rows per user per day. A user may have zero rows in <code>events</code>. Today's date is <strong>2026-08-05</strong>. Data ends yesterday, <strong>2026-08-04</strong>.</p>
+
+<h2>Q1 — D7 retention (6 min)</h2>
+
+<div class="q">
+Of the users who signed up in <strong>July 2026</strong>, what percentage were still active on <strong>day 7</strong> after signup?
+</div>
+
+<p><strong>Before you type — the ambiguity to raise:</strong> "day 7" can mean <em>exactly</em> the 7th day (classic/bracket retention) or <em>any</em> activity in days 1–7 (rolling/range retention). They mean different numbers. Ask which, then say which you're implementing. For this one, implement <strong>exactly day 7</strong>.</p>
+
+<details><summary>Solution + traps</summary>
+
+<pre>SELECT
+    100.0 * COUNT(DISTINCT e.user_id) / COUNT(DISTINCT u.user_id) AS d7_retention_pct
+FROM users u
+LEFT JOIN events e
+       ON e.user_id   = u.user_id
+      AND e.event_date = u.signup_date + INTERVAL '7' DAY
+WHERE u.signup_date &gt;= DATE '2026-07-01'
+  AND u.signup_date &lt;  DATE '2026-08-01';</pre>
+
+<p><strong>Traps in this one:</strong></p>
+<ul>
+<li><strong>Count users, not events.</strong> <code>COUNT(DISTINCT user_id)</code> on both sides. <code>COUNT(*)</code> in the numerator counts a user with 40 likes as 40 retained users. This is the single most common miss.</li>
+<li><strong>The date condition belongs in the <code>ON</code> clause, not the <code>WHERE</code>.</strong> Put it in <code>WHERE</code> and the <code>LEFT JOIN</code> silently becomes an <code>INNER JOIN</code> — your denominator collapses to only retained users and you get 100%.</li>
+<li><strong>Integer division.</strong> <code>100.0</code>, not <code>100</code>. You've hit this before.</li>
+<li><strong>Half-open date range.</strong> <code>&gt;= Jul 1 AND &lt; Aug 1</code>, not <code>BETWEEN … AND '2026-07-31'</code> — safe against timestamps if the column type ever changes.</li>
+</ul>
+
+<p><strong>You don't strictly need the LEFT JOIN here</strong> (an inner join + a separate denominator count works too), but the LEFT JOIN version generalises to Q2 with no rewrite, which is why it's the one to have in your fingers.</p>
+</details>
+
+<div class="rule">
+<strong>The follow-up they will ask:</strong> "Is this number right?" — <em>No.</em> Users who signed up on July 30 have not had 7 days yet if data ends Aug 4… actually they have (Aug 6 &gt; Aug 4 — check it). <strong>Any cohort whose day-7 falls after 2026-08-04 is censored</strong> and must be excluded from the denominator, or your retention is artificially depressed. Add <code>AND u.signup_date &lt;= DATE '2026-07-28'</code> and say why out loud. <strong>This censoring point is the discriminator on retention questions.</strong> Raise it before they do.
+</div>
+
+<h2>Q2 — D1 / D7 / D28 by weekly cohort (8 min)</h2>
+
+<div class="q">
+For users who signed up in <strong>June and July 2026</strong>, produce one row per <strong>signup week</strong> showing cohort size and D1, D7 and D28 retention rates.
+</div>
+
+<p><strong>Ambiguity to raise:</strong> same classic-vs-rolling question — use <strong>exactly day N</strong> again for consistency. Also ask whether weeks start Monday or Sunday.</p>
+
+<details><summary>Solution + traps</summary>
+
+<pre>WITH first_touch AS (
+    SELECT
+        u.user_id,
+        u.signup_date,
+        DATE_TRUNC('week', u.signup_date) AS cohort_week,
+        e.event_date
+    FROM users u
+    LEFT JOIN events e
+           ON e.user_id = u.user_id
+    WHERE u.signup_date &gt;= DATE '2026-06-01'
+      AND u.signup_date &lt;  DATE '2026-08-01'
+)
+SELECT
+    cohort_week,
+    COUNT(DISTINCT user_id) AS cohort_size,
+    100.0 * COUNT(DISTINCT CASE WHEN DATE_DIFF('day', signup_date, event_date) = 1
+                                THEN user_id END) / COUNT(DISTINCT user_id) AS d1_pct,
+    100.0 * COUNT(DISTINCT CASE WHEN DATE_DIFF('day', signup_date, event_date) = 7
+                                THEN user_id END) / COUNT(DISTINCT user_id) AS d7_pct,
+    100.0 * COUNT(DISTINCT CASE WHEN DATE_DIFF('day', signup_date, event_date) = 28
+                                THEN user_id END) / COUNT(DISTINCT user_id) AS d28_pct
+FROM first_touch
+GROUP BY cohort_week
+ORDER BY cohort_week;</pre>
+
+<p><strong>Traps:</strong></p>
+<ul>
+<li><strong><code>COUNT(DISTINCT CASE WHEN … THEN user_id END)</code> is the whole pattern.</strong> Learn this shape — it is the workhorse of every Meta funnel and retention question. <code>SUM(CASE WHEN … THEN 1 END)</code> counts <em>events</em>, not users, and is wrong here.</li>
+<li><strong>The <code>LEFT JOIN</code> must stay outside any date filter on <code>event_date</code></strong>, or unretained users vanish from <code>cohort_size</code>.</li>
+<li><strong>Censoring again, and worse:</strong> D28 for the late-July cohorts is not observable yet. Either exclude those cohorts from the D28 column or return <code>NULL</code> for it. Say this out loud — a candidate who reports a D28 of 4% for a cohort that's 6 days old has failed the round even with perfect syntax.</li>
+<li><strong>Dialect:</strong> Presto is <code>DATE_DIFF('day', a, b)</code>; Postgres would be <code>(b - a)</code>. Say which you're writing and move on — Meta does not grade dialect.</li>
+</ul>
+</details>
+
+<h2>Q3 — Rolling retention by platform, with a size floor (10 min)</h2>
+
+<div class="q">
+For users who signed up in <strong>July 2026</strong>, what share came back at <strong>any point</strong> during days 1–7 after signup? Break it out by <code>platform</code>, and only include platform-cohorts with <strong>at least 100 signups</strong>. Order by retention, worst first.
+</div>
+
+<details><summary>Solution + traps</summary>
+
+<pre>WITH cohort AS (
+    SELECT user_id, signup_date, platform
+    FROM users
+    WHERE signup_date &gt;= DATE '2026-07-01'
+      AND signup_date &lt;  DATE '2026-08-01'
+      AND signup_date &lt;= DATE '2026-07-28'      -- day-7 must be observable
+),
+returned AS (
+    SELECT DISTINCT c.user_id
+    FROM cohort c
+    JOIN events e
+      ON e.user_id = c.user_id
+     AND e.event_date &gt;  c.signup_date
+     AND e.event_date &lt;= c.signup_date + INTERVAL '7' DAY
+)
+SELECT
+    c.platform,
+    COUNT(DISTINCT c.user_id)                                        AS cohort_size,
+    100.0 * COUNT(DISTINCT r.user_id) / COUNT(DISTINCT c.user_id)    AS rolling_d7_pct
+FROM cohort c
+LEFT JOIN returned r ON r.user_id = c.user_id
+GROUP BY c.platform
+HAVING COUNT(DISTINCT c.user_id) &gt;= 100
+ORDER BY rolling_d7_pct ASC;</pre>
+
+<p><strong>Traps:</strong></p>
+<ul>
+<li><strong><code>&gt; signup_date</code>, not <code>&gt;=</code>.</strong> Signup-day activity is not retention — nearly every user is active on day 0. Including it inflates the number toward 100% and is the classic silent error here.</li>
+<li><strong>The size floor goes in <code>HAVING</code>, not <code>WHERE</code></strong> — it's a condition on an aggregate.</li>
+<li><strong>Censoring is baked in</strong> via the <code>&lt;= 2026-07-28</code> line. Point at it and explain it unprompted.</li>
+<li><strong>Note the number will be higher than Q1's</strong> — rolling (any of days 1–7) always ≥ classic (exactly day 7). If yours isn't, you have a bug. Say this comparison out loud; it shows you understand what you computed rather than just producing it.</li>
+</ul>
+</details>
+
+<div class="rule">
+<strong>The mid-round pivot they will throw at you</strong> (Meta explicitly scores "adapting code based on new information"): <em>"Now do it for existing users instead of new users — what share of users active in a given week are still active the following week?"</em>
+<br><br>That's a different query entirely: no <code>users</code> table anchor, no signup date. It's a self-join of weekly-active users against themselves on <code>week + 1</code>. Sketch it out loud in one sentence before writing — <strong>"aggregate events to distinct user-weeks, then self-join that on week = week + 1, and divide."</strong> Don't start typing until you've said the shape.
+</div>
+
+<h2>Debrief — answer these after, in writing</h2>
+<ol>
+<li>Which of the three did you finish inside the clock?</li>
+<li>Did you raise the classic-vs-rolling ambiguity <em>before</em> typing, on your own?</li>
+<li>Did you raise censoring on your own, or did you read it here first?</li>
+<li>Where did you stall — recalling syntax, or deciding the shape of the query? <em>(Different fixes: syntax = more reps; shape = say the sentence out loud first.)</em></li>
+</ol>
+
+<div class="win">
+<strong>The one habit this drill is really training:</strong> say the shape of the query in one plain sentence before you touch the keyboard. "Left join users to events on a 7-day offset, count distinct users on both sides, divide." Your drill logs say your reasoning is right whenever you actually run it — the failure is starting to type before the reasoning has run. Same fix as the fact-naming drills, different surface.
+</div>
+
+</body>
+</html>

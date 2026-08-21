@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>P9 — Meta Stats Tier 1 (insurance pack)</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+         max-width: 900px; margin: 2rem auto; padding: 0 1.25rem; line-height: 1.65; color: #1c1e21; }
+  h1 { border-bottom: 3px solid #0b5fff; padding-bottom: .4rem; }
+  h2 { margin-top: 2.4rem; border-bottom: 1px solid #d8dbdf; padding-bottom: .3rem; }
+  h3 { margin-top: 1.7rem; color: #0b3d91; }
+  h4 { margin-top: 1.2rem; margin-bottom: .3rem; color: #333; }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: .94rem; }
+  th, td { border: 1px solid #d8dbdf; padding: .5rem .65rem; text-align: left; vertical-align: top; }
+  th { background: #f1f4f9; }
+  code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  code { background: #f1f4f9; padding: .1rem .3rem; border-radius: 3px; font-size: .9em; }
+  pre { background: #f6f8fa; border: 1px solid #d8dbdf; border-radius: 6px; padding: .8rem; overflow-x: auto; font-size: .88rem; }
+  .rule { background: #fff8e1; border-left: 4px solid #f0a500; padding: .8rem 1rem; margin: 1.2rem 0; }
+  .gap { background: #ffeceb; border-left: 4px solid #d93025; padding: .8rem 1rem; margin: 1.2rem 0; }
+  .win { background: #e9f7ef; border-left: 4px solid #1e8e3e; padding: .8rem 1rem; margin: 1.2rem 0; }
+  .say { background: #eef3ff; border-left: 4px solid #0b5fff; padding: .8rem 1rem; margin: 1.1rem 0; }
+  .meta { color: #5f6368; font-size: .9rem; }
+  details { background: #f6f8fa; border: 1px solid #d8dbdf; border-radius: 6px; padding: .7rem 1rem; margin: .9rem 0; }
+  summary { cursor: pointer; font-weight: 600; color: #0b3d91; }
+</style>
+</head>
+<body>
+
+<h1>Stats — Tier 1 “insurance pack”</h1>
+<p class="meta">Built 2026-08-04 · For the Meta DS Product Analytics screen (Fri 2026-09-04) · Three short sessions: Fri 8/14 · Fri 8/21 · 30 min inside Sat 8/22</p>
+
+<div class="gap">
+<strong>What this is and is not.</strong> This is <em>not</em> a statistics course — you have no formal stats background and four weeks that mostly belong to SQL. This is the minimum that lets you hold a metrics conversation credibly and never freeze. Five items, ~2.5 hours total. The full syllabus (LLN, CLT, regression, power, MDE, multiple testing) is <strong>Tier 2, after Sep 4, only if you pass.</strong>
+</div>
+
+<div class="rule">
+<strong>Almost no arithmetic in here.</strong> Items 1–3 need none at all. Items 4–5 need multiplication and division. Meta's own guide rules out calculus, advanced ML models and exotic distributions entirely — so nothing beyond this page is on the table.
+</div>
+
+<h2>Session 1 (Fri 8/14) — items 1 and 2</h2>
+
+<h3>Item 1 — What real product data actually looks like</h3>
+
+<p>Almost every number a product generates — minutes spent, sessions, posts, purchases, friends — has the <strong>same shape</strong>. Learn the shape once and you can describe any of them.</p>
+
+<h4>The shape</h4>
+<ul>
+<li><strong>Bounded at zero, unbounded above.</strong> Nobody spends −5 minutes. Someone spends 9 hours.</li>
+<li><strong>A big spike near zero.</strong> Most people who <em>could</em> use a feature barely do.</li>
+<li><strong>A long right tail.</strong> A small number of very heavy users.</li>
+<li>Therefore <strong>mean &gt; median</strong>. That gap is the tell-tale of right skew.</li>
+<li>Often <strong>bimodal</strong> in practice: a cluster of light users and a separate cluster of habitual users.</li>
+</ul>
+
+<h4>Which summary number to use</h4>
+<table>
+<tr><th>Statistic</th><th>What it is</th><th>When it misleads</th></tr>
+<tr><td><strong>Mean</strong></td><td>Total ÷ count</td><td>On skewed data, a handful of whales drag it up. "Average time spent = 42 min" can be true when the typical person spends 9.</td></tr>
+<tr><td><strong>Median (p50)</strong></td><td>The middle person</td><td>Rarely misleads. This is your default for product data.</td></tr>
+<tr><td><strong>Mode</strong></td><td>Most common value</td><td>For time-spent it's usually ~0, which is true but not useful alone.</td></tr>
+<tr><td><strong>p90 / p99</strong></td><td>The heavy end</td><td>Nothing — this is how you <em>describe</em> the tail instead of hiding it.</td></tr>
+</table>
+
+<p><strong>Also worth naming:</strong> real data is dirty — bots, duplicate events, test accounts, a user who left the app open all night. That's why you <strong>cap or winsorise</strong> (clip extreme values at, say, p99) before averaging.</p>
+
+<div class="say">
+<strong>Say this if asked “what does the distribution of time spent per day on Facebook look like?”</strong>
+<br><br>
+"It's bounded at zero and heavily right-skewed. Most users cluster near the low end, with a long tail of very heavy users, so the mean sits well above the median. It's probably bimodal in practice — casual users and habitual users behave like two different populations. So I wouldn't describe it with a mean. I'd report the median, plus p90 and p99 to show the tail, and I'd segment by user type rather than summarising everyone with one number. I'd also want to check for bots and sessions left open, because those inflate the tail artificially."
+</div>
+
+<details><summary>Check 1 — answer before opening</summary>
+<p>A PM says: "Average revenue per user is $12, so if we get 1,000 more users we'll make $12,000 more." What's wrong, and what would you ask for instead?</p>
+<p><strong>Answer:</strong> Revenue is extremely right-skewed — a small share of payers generates most of it, and most users pay nothing. The $12 mean is driven by whales, not the typical user. New users will look like the <em>typical</em> user, not the average one. Ask for the <strong>median</strong> (probably $0), the <strong>share of users who pay at all</strong>, and the <strong>distribution among payers</strong>. The right model is: (new users) × (P(they pay)) × (median spend among payers).</p>
+</details>
+
+<h3>Item 2 — “Is this difference real?”</h3>
+
+<p>The core idea, before any vocabulary: <strong>random things vary.</strong> Flip a fair coin 10 times and you might get 7 heads. That is not evidence the coin is biased — it's ordinary luck. Statistics is the discipline of asking <em>how much of this gap could be luck?</em></p>
+
+<h4>p-value, honestly</h4>
+<p><strong>p-value = "If there were genuinely no difference, how often would I see a gap at least this big just from luck?"</strong></p>
+<ul>
+<li>p = 0.30 → a gap this big happens by luck 30% of the time. Unremarkable.</li>
+<li>p = 0.01 → it'd happen by luck 1% of the time. Luck is now a strained explanation.</li>
+<li>Convention: p &lt; 0.05 is called "statistically significant". <strong>It's a convention, not a law of nature.</strong></li>
+</ul>
+
+<div class="gap">
+<strong>The one thing people get wrong, and interviewers listen for:</strong> a p-value is <em>not</em> the probability that your hypothesis is true, and not the probability the result is a fluke. It's the probability of <em>seeing data like this</em> assuming there's no real effect. If you say it the wrong way in the room, that's a visible miss. Say it the long way — it's safer and it sounds more careful.
+</div>
+
+<h4>Confidence interval — the more useful one</h4>
+<p>A CI is a <strong>range of plausible values</strong> for the true effect. "+2% [95% CI: +0.5% to +3.5%]" tells you two things a p-value doesn't: the effect is probably positive, <em>and</em> it might be trivially small or fairly large.</p>
+<p>Strictly: over many repeated experiments, 95% of intervals built this way contain the true value. Say that if pressed, but lead with the business version.</p>
+
+<h4>Sample size, intuitively</h4>
+<p>More data → less noise → narrower interval. That's it. (The formal name is the Law of Large Numbers; you don't need the maths.) It's why a 5% lift on 200 users means little and a 0.5% lift on 20 million users can be a big deal.</p>
+
+<div class="say">
+<strong>Say this when a metric moves and someone asks if it's real:</strong>
+<br><br>
+"Before I treat it as real I'd want three things. First, is it a data problem — a logging change, a pipeline gap, bot filtering? Second, how big is the sample and how much do these numbers normally bounce week to week? And third, what's the confidence interval, not just the point estimate — I care whether the plausible range is entirely on one side of zero and whether the low end is still big enough to matter commercially."
+</div>
+
+<details><summary>Check 2 — answer before opening</summary>
+<p>An A/B test reports +1.8% on the primary metric, p = 0.04. A PM says "significant, let's ship." What do you say?</p>
+<p><strong>Answer:</strong> p = 0.04 means a gap this size would arise by luck about 4% of the time if there were no real effect — suggestive, not conclusive, and just past an arbitrary threshold. Ask: (a) what's the <strong>confidence interval</strong> — if it runs from +0.1% to +3.5%, the true effect might be negligible; (b) <strong>was this the pre-registered primary metric</strong>, or one of twenty we looked at — because testing many metrics produces false positives by chance; (c) <strong>what did the guardrails do</strong>; (d) did the test run a full weekly cycle, and has the novelty effect worn off. Then decide on the business case, not the p-value.</p>
+</details>
+
+<h2>Session 2 (Fri 8/21) — items 3 and 4</h2>
+<p class="meta">Open this session by re-answering Checks 1 and 2 from memory, cold. Five minutes. If either doesn't come back, reread Session 1 before continuing.</p>
+
+<h3>Item 3 — Type I and Type II error</h3>
+
+<table>
+<tr><th></th><th>There IS a real effect</th><th>There is NO real effect</th></tr>
+<tr><td><strong>You conclude: effect</strong></td><td>✅ Correct</td><td><strong>Type I</strong> — false positive</td></tr>
+<tr><td><strong>You conclude: nothing</strong></td><td><strong>Type II</strong> — false negative</td><td>✅ Correct</td></tr>
+</table>
+
+<ul>
+<li><strong>Type I = you ship something that does nothing.</strong> Its rate is α, conventionally 5%.</li>
+<li><strong>Type II = you kill something that actually worked.</strong> Its rate is β; <strong>power = 1 − β</strong>, conventionally 80%.</li>
+<li>They trade off. Demanding more certainty (lower α) makes you miss more real wins (higher β), unless you collect more data.</li>
+</ul>
+
+<div class="say">
+<strong>The senior move — never answer this abstractly. Tie it to the decision:</strong>
+<br><br>
+"It depends what the error costs. For a small UI change that's cheap to ship and cheap to roll back, a false positive is survivable — I'd rather not miss a real win, so I'd accept more Type I risk. For something with a permanent cost — a privacy change, a pricing change, anything users can't un-see — a false positive is expensive and hard to reverse, so I'd want much stronger evidence and accept that I'll miss some real effects."
+</div>
+
+<details><summary>Check 3 — answer before opening</summary>
+<p>You're testing a change to the mechanism that decides which posts get reported/removed. Which error would you rather make, and why?</p>
+<p><strong>Answer:</strong> Type II. Wrongly shipping a change to a safety-critical system (Type I) means real harm at Meta's scale and it's hard to undo reputationally, so I'd demand strong evidence before shipping — accepting that I'll fail to detect some genuine improvements and have to re-test them. The general principle: as the cost of a wrong ship rises relative to the cost of a delay, shift risk from Type I toward Type II.</p>
+</details>
+
+<h3>Item 4 — The binomial (all you need)</h3>
+
+<p>You are in binomial territory whenever you're <strong>counting yes/no outcomes across a fixed number of independent tries with the same probability each time.</strong> Clicked / didn't. Converted / didn't. Completed the story / didn't.</p>
+
+<pre>n  = number of tries
+p  = probability of "yes" on each try
+
+expected count      = n × p
+standard deviation  = √( n × p × (1 − p) )</pre>
+
+<p><strong>Why the SD matters more than the formula:</strong> it tells you how much the count wobbles for free, so you can say whether an observed number is surprising.</p>
+
+<h4>Worked example</h4>
+<p>1,000 users see a new button. The historical click rate is 3%.</p>
+<ul>
+<li>Expected clicks = 1000 × 0.03 = <strong>30</strong></li>
+<li>SD = √(1000 × 0.03 × 0.97) = √29.1 ≈ <strong>5.4</strong></li>
+<li>So roughly 95% of the time you'd land between about 30 ± 2(5.4) → <strong>19 to 41</strong>.</li>
+<li>You observe 24 clicks → inside the range, <em>nothing happened</em>. You observe 60 → that's over 5 SDs out, something real is going on.</li>
+</ul>
+
+<h4>The Instagram-story version Meta actually asks</h4>
+<p>A story has 5 frames. Suppose each time a viewer finishes a frame there's an 85% chance they continue to the next. What's the probability they complete the story?</p>
+<p>Five frames means <strong>four transitions</strong>, so P(complete) = 0.85⁴ ≈ <strong>0.52</strong>.</p>
+<p><strong>State your assumption out loud:</strong> "I'm assuming the continue-probability is the same at every frame and independent of the previous ones. In reality it isn't — drop-off is usually steepest at frame 1 and viewers who reach frame 4 are self-selected as more engaged, so the true completion rate would be higher than this."</p>
+<div class="win">That second sentence is what actually scores. The arithmetic is easy; noticing that the independence assumption is false is the data-scientist part.</div>
+
+<details><summary>Check 4 — answer before opening</summary>
+<p>2,000 users are shown a new onboarding flow. Baseline completion is 40%. You observe 830 completions. Surprising?</p>
+<p><strong>Answer:</strong> Expected = 2000 × 0.4 = 800. SD = √(2000 × 0.4 × 0.6) = √480 ≈ 21.9. 830 is 30 above expected, i.e. about 1.4 SDs — comfortably inside normal fluctuation. Not surprising; I wouldn't claim an effect.</p>
+</details>
+
+<h2>Session 3 (30 min inside Sat 8/22) — item 5</h2>
+<p class="meta">Open with a cold re-answer of Checks 3 and 4.</p>
+
+<h3>Item 5 — Bayes / base rates</h3>
+
+<p>Meta asks one specific shape: <em>"the model flagged this user as likely to convert — what's the probability they actually convert?"</em> Learn it as a <strong>counting exercise</strong>, not a formula. The counting version is far easier and far harder to get wrong under pressure.</p>
+
+<h4>The method: imagine 10,000 users</h4>
+<p>Setup: 2% of users convert. The model catches 90% of real converters. It also wrongly flags 10% of non-converters.</p>
+
+<pre>Start with 10,000 users
+  ├── 200 actually convert        (2%)
+  │     └── 180 get flagged        (90% of 200)
+  └── 9,800 do not convert
+        └── 980 get flagged        (10% of 9,800)
+
+Total flagged = 180 + 980 = 1,160
+Of those, actually convert = 180
+
+P(converts | flagged) = 180 / 1,160 ≈ 15.5%</pre>
+
+<div class="win">
+<strong>The insight to say out loud — this is the whole point of the question:</strong> the model sounds accurate (90%!) but a flagged user still only converts about 16% of the time. That's because converters are <strong>rare</strong>. When the base rate is low, even a small false-positive rate applied to the huge non-converting population swamps the true positives. <em>"The base rate dominates."</em>
+</div>
+
+<p>The formula, for completeness — it produces the identical number, so use whichever you trust in the moment:</p>
+<pre>P(C | F) = P(F | C) · P(C)  /  [ P(F|C)·P(C) + P(F|¬C)·P(¬C) ]
+         = (0.9 × 0.02) / (0.9 × 0.02 + 0.1 × 0.98)
+         = 0.018 / 0.116
+         ≈ 15.5%</pre>
+
+<details><summary>Check 5 — answer before opening</summary>
+<p>A spam classifier flags 95% of spam accounts and wrongly flags 2% of legitimate accounts. 1% of accounts are spam. An account is flagged — what's the probability it's spam? What would you tell the team?</p>
+<p><strong>Answer:</strong> Out of 10,000 accounts: 100 spam → 95 flagged. 9,900 legit → 198 flagged. Total flagged = 293, of which 95 are spam → <strong>≈ 32%</strong>. So roughly two-thirds of flagged accounts are innocent. I'd tell the team not to auto-ban on this signal — route flags to review, or raise the threshold, because at this base rate the false-positive cost falls on legitimate users.</p>
+</details>
+
+<h2>The script for when you don't know</h2>
+
+<div class="say">
+"I haven't done formal experiment analysis in my roles — my background is on the data-production side, building the pipelines and models these analyses run on. But here's how I'd reason about it: [structure]. And here's what I'd want to check before I trusted the answer: [checks]."
+</div>
+
+<p>Meta's own candidate guide says: <em>"it's ok if you don't know! … you're encouraged to ask clarifying questions and be upfront if there are topics that you have less experience with. Your interviewer will be thinking about … how you tackle problems you're not as familiar with."</em> Being upfront and then reasoning is <strong>scored positively</strong>. Going quiet is not. Rehearse the sentence until it comes out without effort.</p>
+
+<h2>Revision card — the whole pack in ten lines</h2>
+<ol>
+<li>Product data is right-skewed, bounded at zero, long tail → report <strong>median + p90/p99</strong>, never the mean alone.</li>
+<li>Mean &gt; median is the signature of right skew.</li>
+<li>p-value = how often luck alone would produce a gap this big <em>if nothing were really there</em>. Not the probability the hypothesis is true.</li>
+<li>Confidence interval &gt; p-value for business, because it shows the plausible <em>size</em>.</li>
+<li>More data → narrower interval. Small samples bounce a lot.</li>
+<li>Type I = ship something useless. Type II = kill something that worked. Which is worse depends on the cost of the decision.</li>
+<li>Power = 1 − β, conventionally 80%. α conventionally 5%.</li>
+<li>Binomial: expected = n·p, SD = √(n·p·(1−p)). Use the SD to judge whether a count is surprising.</li>
+<li>Bayes: count out of 10,000. Low base rate → even an accurate model produces mostly false positives.</li>
+<li>Always name a check before trusting a number: logging, sample size, guardrails, novelty effect.</li>
+</ol>
+
+<h2>Deliberately not studied (Tier 2 — after Sep 4)</h2>
+<p>Central Limit Theorem · Law of Large Numbers formally · linear regression · power and sample-size calculations · MDE · multiple-testing corrections · A/B test design depth · variance derivations. These belong to the <strong>Analytical Execution</strong> round in the full loop, ~2 weeks of work, and they collide with the Sep 8–21 exam window — a decision to make when the loop is scheduled, not now.</p>
+<p class="meta">Meta's guide recommends Khan Academy for probability/stats and the brilliant.org combinatorics page, noting they want <em>only the fundamentals</em>. Don't go past the free basics.</p>
+
+</body>
+</html>

@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>P7 — Regulated ELT Platform (Oura architect prep build)</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+         max-width: 940px; margin: 2rem auto; padding: 0 1.25rem; line-height: 1.65; color: #1c1e21; }
+  h1 { border-bottom: 3px solid #0b5fff; padding-bottom: .4rem; }
+  h2 { margin-top: 2.4rem; border-bottom: 1px solid #d8dbdf; padding-bottom: .3rem; }
+  h3 { margin-top: 1.7rem; color: #0b3d91; }
+  h4 { margin-top: 1.2rem; margin-bottom: .3rem; color: #333; }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: .93rem; }
+  th, td { border: 1px solid #d8dbdf; padding: .5rem .65rem; text-align: left; vertical-align: top; }
+  th { background: #f1f4f9; }
+  code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  code { background: #f1f4f9; padding: .1rem .3rem; border-radius: 3px; font-size: .9em; }
+  pre { background: #f6f8fa; border: 1px solid #d8dbdf; border-radius: 6px; padding: .8rem; overflow-x: auto; font-size: .86rem; }
+  .rule { background: #fff8e1; border-left: 4px solid #f0a500; padding: .8rem 1rem; margin: 1.2rem 0; }
+  .gap { background: #ffeceb; border-left: 4px solid #d93025; padding: .8rem 1rem; margin: 1.2rem 0; }
+  .win { background: #e9f7ef; border-left: 4px solid #1e8e3e; padding: .8rem 1rem; margin: 1.2rem 0; }
+  .say { background: #eef3ff; border-left: 4px solid #0b5fff; padding: .8rem 1rem; margin: 1.1rem 0; }
+  .meta { color: #5f6368; font-size: .9rem; }
+</style>
+</head>
+<body>
+
+<h1>Regulated Data Acquisition Platform</h1>
+<p class="meta">A scoped end-to-end ELT build · Purpose: close the tool gap for the Ōura Senior Data Architect loop, using the architecture pattern she actually ran at Citi · Built 2026-08-06</p>
+
+<div class="gap">
+<strong>Read this first — the honesty rule.</strong> This build does <em>not</em> give production experience and must never be presented as such. Her production credibility is <strong>Citi</strong> (<strong>one of the leads creating the DCRM data model</strong> — logical + physical models, delivery ownership, the SQL, a Starburst/Trino data-mesh POC; stack was Oracle + light Talend, ~5–10 lakh rows/table) and <strong>IQVIA</strong> (healthcare/HIPAA). Those are real. <strong>No Kafka and no GraphQL on the Citi story</strong> — removed 2026-08-06. What this build does is close the <em>tool</em> gap — Snowflake at architecture level, dbt, Iceberg, Airflow, data mesh, MDM — so that real production judgement can be expressed in Ōura's vocabulary. Frame it in the room as <em>"a reference implementation I built to work through the trade-offs"</em>, never as work experience. Same rule as ClinicalFlow.
+</div>
+
+<div class="rule">
+<strong>Gate before starting.</strong> The Ōura technical is not scheduled — Friday 8/07 is the recruiter call. Ask the loop timeline there, then decide:
+<ul>
+<li><strong>Technical ≤ 1 week out</strong> → do NOT start this. Spend the time on architecture articulation and rehearsing Citi/IQVIA/ClinicalFlow.</li>
+<li><strong>Technical 2–3 weeks out</strong> → build Phase 1 + Phase 2. That alone answers most of the JD.</li>
+<li><strong>Technical 3+ weeks out</strong> → all three phases.</li>
+</ul>
+</div>
+
+<h2>1. Why this shape</h2>
+
+<p>The design brief is the intersection of three things:</p>
+<ul>
+<li><strong>Her real Citi work</strong> — she was <strong>one of the leads creating the DCRM data model</strong> on a regulated-domain data acquisition and remediation platform: logical + physical modelling, delivery ownership, the SQL, governance for data-concern remediation, and a Starburst/Trino data-mesh POC. <em>Design authority is the headline — not tooling.</em></li>
+<li><strong>The Ōura JD</strong> — Snowflake or BigQuery, <strong>dbt</strong>, <strong>Iceberg</strong>, Airflow/<strong>Dagster</strong>, Kafka/Kinesis, AWS (S3/Glue/Athena), <strong>data mesh + federated governance</strong>, <strong>MDM</strong>, HIPAA/PHI, TB–PB scale, vector/RAG.</li>
+<li><strong>The gaps</strong> — Snowflake at architecture level, dbt, Iceberg-as-table-format, Airflow, data mesh theory, MDM.</li>
+</ul>
+
+<p>So: <strong>the same platform pattern she ran at Citi, rebuilt on the modern stack Ōura uses.</strong> That sentence is also the pitch in the room — it converts "I haven't used dbt in production" into "I rebuilt our acquisition pattern on dbt to understand where it beats what we had, and where it doesn't."</p>
+
+<div class="rule">
+<strong>Domain choice — recommendation: keep it financial transactions.</strong> It's hers, she can defend every business rule, and the architecture is what's graded. Then add one prepared paragraph mapping the pattern onto Ōura's world: <em>high-volume biometric telemetry per member per device per second, PHI instead of PCI, same problems — late-arriving data, device clock skew, member identity resolution across devices, consent-driven access.</em> That paragraph is worth more than switching domains.
+</div>
+
+<h2>2. Architecture</h2>
+
+<pre>SOURCES
+  ├─ Postgres OLTP (Docker)            ← small, live, for CDC
+  │    accounts · customers · transactions
+  └─ Bulk history (DuckDB TPC-H gen)   ← the volume
+       ~60M row fact + dimensions → Parquet
+
+INGEST
+  ├─ Batch:  Parquet → S3 → Iceberg tables
+  └─ Stream: Debezium → Redpanda → micro-batch → Snowflake
+
+LAKEHOUSE
+  S3 + Apache Iceberg  ←→  Snowflake (Iceberg tables, external volume)
+
+TRANSFORM (dbt Core on Snowflake)
+  staging → intermediate → marts
+  incremental models · snapshots (SCD2) · tests · contracts · exposures
+
+ORCHESTRATION
+  Airflow (Astro CLI, local)  + a written Dagster comparison
+
+GOVERNANCE
+  PII tagging · dynamic masking · row access policies
+  data contracts · freshness SLAs · DQ gates · lineage via dbt docs
+
+MDM
+  golden customer record — entity resolution across the two sources
+
+SERVE
+  ├─ BI marts
+  ├─ Redis low-latency serving view      ← the Citi callback
+  └─ RAG over the data-product catalogue ← the JD's vector line</pre>
+
+<h3>Why each choice is defensible in the room</h3>
+<table>
+<tr><th>Choice</th><th>The trade-off to articulate</th></tr>
+<tr><td><strong>Iceberg on S3, read by Snowflake</strong></td><td>Open table format = no lock-in, multiple engines on one copy, but you give up some Snowflake-native performance features and take on maintenance (compaction, snapshot expiry) yourself. She already knows the Delta/Iceberg/Hudi log differences cold from 2C — this is where that pays off.</td></tr>
+<tr><td><strong>ELT not ETL</strong></td><td>Push transformation into the warehouse: cheaper to iterate, full lineage, testable. Costs you compute on raw data you may never use, and needs governance to stop the raw layer becoming a swamp.</td></tr>
+<tr><td><strong>dbt snapshots for SCD2</strong></td><td>Declarative history vs hand-rolled MERGE. Closes her documented SCD2 weak spot with a hands-on artifact.</td></tr>
+<tr><td><strong>Airflow over Dagster</strong></td><td>Maturity and ecosystem vs Dagster's asset-centric model and better data-aware scheduling. Know the difference; don't claim Dagster hands-on.</td></tr>
+<tr><td><strong>Redis serving layer</strong></td><td>Direct callback to Citi. Sub-ms point lookups the warehouse can't serve; costs you a second consistency story.</td></tr>
+</table>
+
+<h2>3. Getting genuine volume — cheaply</h2>
+
+<p>Two independent moves. Do both; they answer different questions.</p>
+
+<h3>3.1 Data she owns end-to-end — DuckDB TPC-H</h3>
+<p>DuckDB can generate TPC-H locally with no download:</p>
+<pre>INSTALL tpch; LOAD tpch;
+CALL dbgen(sf = 10);          -- ~60M lineitem rows, ~10 GB
+COPY lineitem TO 's3://.../lineitem/' (FORMAT parquet, PARTITION_BY (l_shipdate));</pre>
+<p><strong>SF10 = ~60M fact rows, ~10 GB</strong> — real volume, fits a laptop, generates in minutes. Go to SF100 (~600M rows, ~100 GB) only if disk allows; SF10 is enough to be credible and to make partitioning/clustering decisions actually matter.</p>
+
+<h3>3.2 Terabyte-scale tuning — Snowflake's free sample data</h3>
+<p>Every Snowflake account ships with <code>SNOWFLAKE_SAMPLE_DATA</code>, including <code>TPCH_SF1000</code> and <code>TPCDS_SF10TCL</code> (10 TB). Storage is free — you pay only compute. So she can run <strong>real query-tuning and warehouse-sizing experiments against terabyte tables</strong> without generating or storing anything.</p>
+
+<div class="win">
+<strong>This is the highest-value hour in the whole build.</strong> Run the same query on XS / S / M / L warehouses against a TB table. Record runtime, credits, and where the curve stops paying. Then run one query with and without a well-chosen cluster key and record partitions pruned. Those two experiments give her <em>measured numbers</em> to quote for warehouse sizing, micro-partition pruning, and the cost/performance trade-off — the exact questions a Snowflake-heavy architect interview asks, and currently her single biggest gap.
+</div>
+
+<div class="gap">
+<strong>Credit warning.</strong> A trial gives $400 / 30 days — ample, but a Large warehouse on a 10 TB table burns it fast. Use XS by default, set <code>AUTO_SUSPEND = 60</code>, always <code>LIMIT</code> exploratory queries, and set a resource monitor before touching <code>SF10TCL</code>.
+</div>
+
+<h2>4. Phased build — with cut lines</h2>
+<p class="meta">Budget: ~1 hr weekdays + ~3 hr Saturday. Phase 1 ≈ 5 hrs, Phase 2 ≈ 3 hrs, Phase 3 ≈ 3 hrs.</p>
+
+<h3>Phase 1 — the spine (must-have, ~5 hrs)</h3>
+<ol>
+<li>Snowflake trial account; database/schema/warehouse layout; roles (<code>loader</code>, <code>transformer</code>, <code>reporter</code>) — RBAC is a JD line and mirrors her Unity Catalog work.</li>
+<li>DuckDB TPC-H SF10 → Parquet → S3.</li>
+<li>External volume + <strong>Iceberg tables</strong> in Snowflake over that S3 path. Query them. Inspect the metadata layer.</li>
+<li><strong>dbt Core</strong> project: <code>staging → intermediate → marts</code>. One <strong>incremental</strong> model on the fact. One <strong>snapshot</strong> (SCD2) on the customer dimension. Schema tests + a couple of singular tests.</li>
+<li><strong>Airflow</strong> DAG (Astro CLI local) orchestrating: land → refresh Iceberg → <code>dbt run</code> → <code>dbt test</code>, with retries and an SLA.</li>
+<li>README with an architecture diagram and the trade-off table from §2.</li>
+</ol>
+<p><strong>Stop here and you can already answer:</strong> Snowflake architecture, Iceberg vs native tables, dbt structure/materialisations/incremental/SCD2, orchestration, warehouse/RBAC design.</p>
+
+<h3>Phase 2 — governance + MDM (the differentiators, ~3 hrs)</h3>
+<ol>
+<li><strong>The two warehouse-sizing and clustering experiments from §3.2.</strong> Write the numbers down.</li>
+<li><strong>PII governance:</strong> tag columns, apply a masking policy and a row access policy so <code>reporter</code> sees masked values and only its own region. Direct parallel to the UC row-filter/column-mask lab she's already done.</li>
+<li><strong>Data quality gates:</strong> dbt tests + <code>dbt-expectations</code>, a freshness check, and a DAG that fails loudly rather than publishing bad data. Articulate warn-vs-drop-vs-fail — she already has that framework from Lakeflow expectations.</li>
+<li><strong>MDM:</strong> a golden customer record resolving the same person across the OLTP source and the bulk history — deterministic match on a natural key, fuzzy fallback on name+email, survivorship rules, and a <code>match_confidence</code> column. Small to build, and MDM is named in the JD with almost no candidates able to speak to it.</li>
+<li><strong>Data-mesh framing:</strong> restructure the repo into <code>domains/customer</code>, <code>domains/transactions</code>, <code>domains/risk</code>, each with an owner, a contract, an SLA and exposures. Costs almost nothing; reframes the entire project as data products under federated governance.</li>
+</ol>
+
+<h3>Phase 3 — streaming + AI (if time, ~3 hrs)</h3>
+<ol>
+<li><strong>CDC:</strong> Debezium → Redpanda → Snowflake. Doubles as the Kafka hands-on still owed from P4A. <em>Note: Kafka is no longer part of the Citi story (removed 2026-08-06) — so this is a pure learning artifact, not a callback. Claim it as project work only.</em></li>
+<li><strong>Redis serving view</strong> — sub-millisecond lookups off the gold mart. <em>Whether this connects back to Citi is an open question she needs to settle — see the honesty box above.</em></li>
+<li><strong>RAG over the catalogue:</strong> embed the dbt <code>manifest.json</code> model/column descriptions into a vector store; ask "which dataset has customer risk scores and who owns it?" Hits the JD's vector/RAG line, and her Claude Code work makes it authentic rather than bolted on.</li>
+</ol>
+
+<h2>5. What each piece lets her answer</h2>
+<table>
+<tr><th>Likely Ōura question</th><th>Answered by</th></tr>
+<tr><td>How would you design a warehouse for TB–PB scale? Sizing, cost control?</td><td>Phase 2.1 — with her own measured runtime/credit numbers</td></tr>
+<tr><td>Micro-partitions, clustering, pruning — when does clustering pay?</td><td>Phase 2.1 — partitions-pruned figures</td></tr>
+<tr><td>Why Iceberg? Iceberg vs Delta vs proprietary tables?</td><td>Phase 1.3 + her existing 2C knowledge</td></tr>
+<tr><td>How do you structure a dbt project? Incremental strategy? Snapshots?</td><td>Phase 1.4</td></tr>
+<tr><td>How do you handle slowly changing dimensions?</td><td>Phase 1.4 snapshot — <em>and it closes her documented SCD2 gap</em></td></tr>
+<tr><td>How do you enforce data quality? What fails the pipeline vs warns?</td><td>Phase 2.3</td></tr>
+<tr><td>How do you handle PHI/PII and least-privilege access?</td><td>Phase 2.2 + ClinicalFlow HIPAA + IQVIA</td></tr>
+<tr><td>What is a data product? How do you run federated governance?</td><td>Phase 2.5 + the Citi Starburst/mesh POC</td></tr>
+<tr><td>How do you build a golden customer record?</td><td>Phase 2.4 MDM</td></tr>
+<tr><td>Airflow vs Dagster — how would you choose?</td><td>Phase 1.5 + the written comparison</td></tr>
+<tr><td>Batch vs streaming — when do you need CDC?</td><td>Phase 3.1 + genuine Citi Kafka experience</td></tr>
+<tr><td>Low-latency serving off a warehouse?</td><td>Phase 3.2 + Citi Kafka→Redis, which is <em>real production work</em></td></tr>
+<tr><td>Vector architectures / RAG for LLMs?</td><td>Phase 3.3 + Claude Code</td></tr>
+</table>
+
+<h2>5a. SPRINT — Sat 8/08 → Tue 8/11 (her decision 2026-08-06: Salesforce off Mon/Tue)</h2>
+
+<div class="gap">
+<strong>Domain changed to healthcare.</strong> Ōura is a health company and she has genuine IQVIA + ClinicalFlow credibility — healthcare beats the financial framing for this loop. <strong>Label every artifact "Reference Architecture — design exercise" on page one.</strong> Designing <em>for</em> petabyte scale is legitimate and normal architect work; claiming <em>delivered</em> scale is not. She may size for 35 markets / 200M patients / 2B scripts a year as a <em>design target</em>. She may not say she led a platform that served them.
+</div>
+
+<p><strong>~16 hours: 4 hrs/day × 4 days</strong> (her capacity, confirmed 2026-08-06). At this budget dbt, the Snowflake experiments and production engineering come <em>into</em> the sprint rather than waiting for Aug 14 — so she ends Tuesday with the complete story, and Aug 14–23 becomes depth and polish rather than first contact.</p>
+
+<div class="rule"><strong>Do this Saturday morning before anything else:</strong> kick off Synthea generation in the background — the CSVs were deleted and only <code>~/Downloads/clinicalflow/synthea.jar</code> survives. It needs to be finished by Monday. Everything else on Sat/Sun is design and needs no data.</div>
+
+<h3>Saturday 8/08 — 4 hrs · Discovery + enterprise model</h3>
+<ul>
+<li><strong>15 min — Kick off Synthea generation in the background</strong> and leave it running. Nothing else today needs data.</li>
+<li><strong>45 min — Discovery.</strong> Business capabilities, stakeholders, KPIs, functional vs non-functional requirements, HIPAA/PHI and data-residency constraints, source-system inventory (EMR, claims, labs, CRM, device telemetry, files, APIs).</li>
+<li><strong>1 hr 45 — Enterprise data model, conceptual → logical → physical.</strong> Domains: Patient, Provider, Drug, Prescription, Claims, Encounter, Geography, Payer, Calendar. A written grain statement for every fact.</li>
+<li><strong>45 min — Standardization.</strong> MDM (golden patient/provider), reference data (RDM), canonical models, surrogate vs business keys, <strong>SCD Type 2</strong>. <em>Doubles as her SCD2 cold re-test — say the mechanism out loud before opening any notes.</em></li>
+<li><strong>30 min — Data dictionary v1</strong> — every domain, every table, owner, grain, PHI flag.</li>
+</ul>
+<p><strong>Out:</strong> capability map · source inventory · enterprise ER diagram · data dictionary v1</p>
+
+<h3>Sunday 8/09 — 4 hrs · Architecture, ADRs, cost &amp; performance</h3>
+<ul>
+<li><strong>1 hr 30 — Platform architecture.</strong> Medallion lakehouse end to end; then the mesh overlay — domains as data products with owners, contracts, SLAs, and federated computational governance. Be explicit about where the platform team's responsibility ends and the domain's begins; that boundary is the question mesh interviews actually probe.</li>
+<li><strong>1 hr — Eight ADRs.</strong> Why Databricks · why Snowflake alongside it · Delta vs Iceberg · ELT over ETL · why dbt · why data mesh over a central warehouse · why SCD2 here · partitioning strategy. <em>Format: context → options considered → decision → consequences, <strong>including the bad ones</strong>. An ADR with no downside listed reads as marketing.</em></li>
+<li><strong>1 hr — Cost &amp; performance guide.</strong> Databricks DBUs and cluster choice; Snowflake credits and warehouse sizing; partitioning, clustering/Z-order, file compaction, broadcast joins, predicate pushdown, incremental processing; storage tiering (hot/warm/cold). <em>This is the JD's "cost tiering" and "long-running, high-cost tasks" line, and her own billing/infra question.</em></li>
+<li><strong>30 min — Architecture diagram.</strong></li>
+</ul>
+<p><strong>Out:</strong> architecture diagram · 8 ADRs · cost/performance guide</p>
+
+<h3>Monday 8/10 — 4 hrs · Databricks build + production engineering + governance</h3>
+<ul>
+<li><strong>30 min — Recap the three items that closed unverified in 2I</strong>, cold: DBU cost math and cluster sizing · Photon + Python UDF (it <em>bypasses</em> Photon; she answered "accelerates a lot") · job vs all-purpose vs serverless.</li>
+<li><strong>2 hrs — Medallion build</strong> on Synthea: bronze raw ingest → silver conformed with HIPAA Safe Harbor de-identification → gold marts. Include a <strong>SCD Type 2 MERGE</strong> on the patient or provider dimension, audit columns, and a data-quality gate.</li>
+<li><strong>45 min — Production engineering.</strong> Idempotency and re-runnability, retry semantics, schema evolution, partitioning choices, structured logging, and what you'd alert on. <em>These are the questions that separate "built a pipeline" from "operated one."</em></li>
+<li><strong>45 min — Governance on the real build.</strong> Unity Catalog masking policy on PHI, a row filter, and the lineage graph. She's done this lab, so it's fast — the point is having it <em>inside</em> the artifact.</li>
+</ul>
+<p><strong>Out:</strong> working bronze/silver/gold notebook · an SCD2 artifact she has actually run · governed and documented</p>
+
+<h3>Tuesday 8/11 — 4 hrs · dbt, Snowflake, AI-readiness, mock review</h3>
+<ul>
+<li><strong>1 hr 15 — dbt.</strong> <code>dbt-databricks</code>, project structure, sources and <code>ref</code>, staging → intermediate → marts, one <strong>incremental</strong> model, one <strong>snapshot</strong> (SCD2 declaratively — compare it to Monday's hand-written MERGE), schema tests, <code>dbt docs</code> as the data dictionary.</li>
+<li><strong>1 hr — Snowflake.</strong> Trial + resource monitor, then the three experiments from the Q&amp;A pack: warehouse sizing curve, pruning ratio, caching sequence. Write the numbers down — <em>this is what makes "Databricks or Snowflake?" answerable with evidence.</em></li>
+<li><strong>30 min — AI-readiness design.</strong> Vector search, embeddings, RAG over the data dictionary, semantic layer, feature store, agentic dashboards. Design only, no models.</li>
+<li><strong>1 hr 15 — Persona mock architecture review</strong> (the best idea in the source plan, kept whole):
+<ul>
+<li><strong>CTO:</strong> why should I spend $10M on this?</li>
+<li><strong>Finance:</strong> cut cloud cost 30% without breaking SLAs.</li>
+<li><strong>Security:</strong> how is PHI protected end to end, and who can see what?</li>
+<li><strong>Product:</strong> can we onboard a new domain in two weeks?</li>
+<li><strong>Principal Architect:</strong> why Databricks and not BigQuery? Why mesh and not a central warehouse? Defend the Iceberg call.</li>
+</ul></li>
+</ul>
+<p><strong>Out:</strong> dbt project + docs · Snowflake numbers · AI-readiness design · a recorded mock she can review</p>
+
+<div class="rule">
+<strong>Time-boxing rule, non-negotiable.</strong> If any implementation task overruns its box, stop the moment the architectural concept is demonstrated and move on. A half-finished ADR set costs her the interview; a half-finished notebook does not. <strong>Protect the ADRs and the Tuesday mock above everything else</strong> — those two are what convert 16 hours of work into answers she can actually give.
+</div>
+
+<h3>What Aug 14–23 becomes</h3>
+<p>With the sprint front-loading breadth, the later block stops being first contact and becomes depth: MDM golden-record implementation, the data-mesh domain restructure, RAG build-out, a second architecture mock on an unseen prompt, and the README/diagram polish for the portfolio.</p>
+
+<div class="win"><strong>Cut line if a session overruns:</strong> protect the ADRs and the mock review. Those two are what convert the work into interview answers. Implementation depth is the thing to sacrifice — a Senior Data Architect is graded on design quality and trade-off reasoning, not lines of code.</div>
+
+<h2>5b. The session schedule — Aug 14 → 23</h2>
+
+<div class="rule">
+<strong>Window:</strong> Aug 14–23, after the Salesforce HM round and before Meta's final push (Aug 24 → Sep 3 belongs to Meta). ~15 hours. <strong>Still gated on the Ōura loop timeline</strong> — if the technical lands before Aug 14, drop the build and run Track A + Track C only.
+</div>
+
+<p><strong>Design principle: the build IS the revision.</strong> Don't separate "revise Databricks" from "build the POC" — the build is the vehicle. That halves the time.</p>
+
+<table>
+<tr><th>Day</th><th>Session</th><th>Covers</th></tr>
+<tr><td><strong>Fri 8/14</strong></td><td><strong>Databricks recap 1</strong> — re-read her own <code>Spark_Architecture_Walkthrough.html</code> (Delta + streaming sections), <code>Databricks_QA_Log.html</code>, <code>databricks_exercises.py</code> §5–8. Cold self-test on medallion, DLT/Lakeflow, Unity Catalog.</td><td>Lakehouse · bronze/silver/gold · governance</td></tr>
+<tr><td><strong>Sat 8/15</strong><br>(3 hr)</td><td><strong>Build 1</strong> — Databricks workspace; generate the financial dataset (DuckDB TPC-H SF10 → Parquet → S3); bronze → silver → gold in Delta; then write gold as <strong>Iceberg</strong> on S3.</td><td>Medallion · Iceberg · Spark ETL</td></tr>
+<tr><td><strong>Mon 8/17</strong></td><td><strong>Databricks recap 2 — the billing/infra session.</strong> DBU model, cluster sizing, job vs all-purpose vs serverless, Photon (incl. the Python-UDF bypass she got wrong), autoscaling, spot. <strong>Hands-on:</strong> run the same job on two cluster configs and record DBUs and runtime.</td><td>Cost tiering · observability · her 3 unverified 2I items</td></tr>
+<tr><td><strong>Tue 8/18</strong></td><td><strong>dbt 1</strong> — install dbt-databricks, project structure, <code>sources</code>/<code>ref</code>, materializations, staging → marts.</td><td>dbt · SQL-based modelling</td></tr>
+<tr><td><strong>Wed 8/19</strong></td><td><strong>dbt 2</strong> — incremental models, <strong>snapshots (SCD2)</strong>, schema + singular tests, dbt-expectations.</td><td>dbt · <strong>closes the SCD2 gap with an artifact</strong></td></tr>
+<tr><td><strong>Thu 8/20</strong></td><td><strong>Snowflake</strong> — trial + resource monitor; the three experiments from the Q&amp;A pack (sizing curve, pruning ratio, caching sequence); read the same Iceberg tables from Snowflake.</td><td>Snowflake architecture · <strong>"Databricks or Snowflake?" answered with her own numbers</strong></td></tr>
+<tr><td><strong>Fri 8/21</strong></td><td><strong>MDM + RDM + dictionary</strong> — golden customer record with survivorship rules and <code>match_confidence</code>; a governed reference-data table; <code>dbt docs</code> + model/column descriptions + contracts as the data dictionary.</td><td>MDM · RDM · standardization · self-service</td></tr>
+<tr><td><strong>Sat 8/22</strong><br>(3 hr)</td><td><strong>Data mesh + governance + mock.</strong> Restructure into <code>domains/</code> with owners, contracts, SLAs, exposures. Masking + row policies on both engines. README + architecture diagram. Then a <strong>45-min architecture mock, out loud.</strong></td><td>Data mesh · federated governance · HIPAA/PHI · delivery</td></tr>
+<tr><td><strong>Sun 8/23</strong></td><td>Rest, or RAG over the dbt <code>manifest.json</code> if energy allows.</td><td>Vector/RAG · Agentic AI</td></tr>
+</table>
+
+<h3>Track C — articulation, no tools (fold 15 min into any session)</h3>
+<ul>
+<li><strong>The Citi story, corrected:</strong> lead on the DCRM data model · delivery ownership · Starburst/Trino data-mesh POC · 40%/45% from <strong>large-query optimisation + materialised views</strong> · Oracle + Talend at 5–10 lakh rows/table. No Kafka, no Redis, no GraphQL.</li>
+<li><strong>The MV → incremental-model bridge</strong> — real production experience of the concept dbt implements. Rehearse until automatic.</li>
+<li><strong>Data mesh</strong> — four principles (domain ownership, data as a product, self-serve platform, federated computational governance) and how the Starburst POC touched them.</li>
+<li><strong>The honest gaps, named cleanly:</strong> BigQuery/VertexAI, Pulumi, Dagster. Naming them buys credibility for everything else.</li>
+</ul>
+
+<h2>6. Cost</h2>
+<table>
+<tr><th>Component</th><th>Cost</th></tr>
+<tr><td>Snowflake trial</td><td>$400 credits / 30 days — free, but set a resource monitor</td></tr>
+<tr><td>S3 (~10 GB + requests)</td><td>&lt; $1/month</td></tr>
+<tr><td>dbt Core · Airflow (Astro CLI) · DuckDB · Redpanda · Debezium · Redis · Postgres</td><td>$0 — all local/Docker</td></tr>
+</table>
+<p><strong>Start the Snowflake trial the day you start Phase 1</strong>, not before — the 30-day clock is the binding constraint, not the credits.</p>
+
+<h2>7. How to talk about it</h2>
+
+<div class="say">
+"At Citi I was one of the leads creating the data model for our Data Acquisition Platform — regulated data, four domains, twenty-plus data flows, and I owned delivery on it. Logical and physical design, the SQL, and a governance layer for data-concern remediation. The stack underneath was Oracle and Talend, at hundreds of thousands to low millions of rows per table. The <em>problems</em> that platform had — late-arriving data, access control on regulated fields, keeping a model coherent across domains with competing owners — are the same problems at Ōura's scale, just with different tools. So I rebuilt the pattern end to end on Snowflake, dbt, Iceberg and Airflow, as a reference implementation rather than production, to find out what actually changes. Two things surprised me: [measured finding], and [where the modern tool was worse or added a cost]."
+</div>
+
+<div class="rule">
+<strong>Note what this version does:</strong> it leads with <strong>design authority and delivery ownership</strong>, which is what an architect req is buying, and it's honest about scale rather than hiding it. Naming "hundreds of thousands to low millions of rows" <em>before</em> they ask converts a weakness into evidence you calibrate accurately — and it sets up the build as the deliberate answer to that gap. Volunteering the limitation is a strength move here, not a concession.
+</div>
+
+<div class="rule">
+<strong>That last clause is what separates this from a tutorial follow-along.</strong> Have two concrete findings ready — one where the new stack clearly won, one where it introduced a cost the old one didn't. Candidates who only report the happy path read as having followed instructions. Candidates who name a downside read as having actually made decisions.
+</div>
+
+<div class="gap">
+<strong>Never claim:</strong> production scale on this build · Dagster or Pulumi hands-on (not built) · BigQuery/Vertex · anything you didn't measure yourself. Quote only real numbers. The ClinicalFlow lesson stands — the honest figure beats the impressive one, because the impressive one collapses on the first follow-up question.
+</div>
+
+</body>
+</html>

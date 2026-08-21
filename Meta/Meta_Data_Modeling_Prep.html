@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Meta Data Modeling Prep — Theory + 6 Live Mocks</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #ffffff; --fg: #1a1a1a; --muted: #666;
+    --card: #f6f8fa; --border: #e1e4e8; --accent: #0866ff;
+    --code-bg: #f0f2f4; --good: #1a7f37; --warn: #9a6700;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0d1117; --fg: #e6edf3; --muted: #9da7b1;
+      --card: #161b22; --border: #30363d; --accent: #58a6ff;
+      --code-bg: #1c2128; --good: #3fb950; --warn: #d29922;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { background: var(--bg); color: var(--fg); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; line-height: 1.6; max-width: 900px; margin: 0 auto; padding: 24px; }
+  h1 { font-size: 1.5em; border-bottom: 2px solid var(--accent); padding-bottom: 8px; }
+  h2 { font-size: 1.25em; color: var(--accent); margin-top: 36px; border-bottom: 1px solid var(--border); padding-bottom: 6px; }
+  h3 { font-size: 1.05em; margin-top: 22px; }
+  code { background: var(--code-bg); padding: 1px 5px; border-radius: 4px; font-size: 0.9em; }
+  pre { background: var(--code-bg); padding: 12px 14px; border-radius: 8px; overflow-x: auto; font-size: 0.85em; }
+  pre code { background: none; padding: 0; }
+  table { border-collapse: collapse; width: 100%; margin: 12px 0; }
+  th, td { border: 1px solid var(--border); padding: 8px 10px; text-align: left; vertical-align: top; }
+  th { background: var(--card); }
+  .muted { color: var(--muted); font-size: 0.9em; }
+  li { margin-bottom: 6px; }
+  .tag { display: inline-block; background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 0 8px; font-size: 0.78em; color: var(--muted); margin-left: 6px; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 14px 18px; margin: 14px 0; }
+  .good { color: var(--good); font-weight: 600; }
+  .warn { color: var(--warn); font-weight: 600; }
+  .prompt { font-style: italic; }
+  .round { border-left: 3px solid var(--accent); padding-left: 16px; margin: 20px 0; }
+</style>
+</head>
+<body>
+
+<h1>Meta Data Modeling Prep — Theory + 6 Live Mocks</h1>
+<p class="muted">Compiled 2026-07-23. Covers the full 2J Data Modeling deep-dive session: OLTP fundamentals, Kimball dimensional modeling theory, and 6 back-to-back live mock rounds run in the actual Meta interview format (product prompt → grain → fact type → dimensions → SCD/trade-offs). Role: Data Engineer, Analytics (Technical Leadership) — Instagram.</p>
+
+<h2>Quick-reference: OLTP Fundamentals</h2>
+
+<h3>Normalization (1NF → 3NF)</h3>
+<table>
+  <tr><th>Form</th><th>Rule</th></tr>
+  <tr><td>1NF</td><td>Every column holds a single atomic value — no lists/repeating groups in one cell</td></tr>
+  <tr><td>2NF</td><td>1NF + every non-key column depends on the <strong>whole</strong> composite key (kills partial dependencies)</td></tr>
+  <tr><td>3NF</td><td>2NF + no non-key column depends on <strong>another non-key column</strong> (kills transitive dependencies)</td></tr>
+</table>
+<p><strong>Junction tables are driven by cardinality, not normal form.</strong> Many-to-many relationships always need a junction table (e.g. Orders↔Products via <code>OrderLineItems</code>); one-to-many just needs a foreign key on the "many" side.</p>
+
+<h3>ER Diagram Notation (crow's foot)</h3>
+<pre><code>Order ||──o&lt; OrderLineItems &gt;o──|| Product</code></pre>
+<ul>
+  <li><code>|</code> = "exactly one" &nbsp;&nbsp; <code>o</code> = "zero/optional" &nbsp;&nbsp; <code>&lt;</code> = crow's foot = "many"</li>
+  <li>One many-end = one-to-many (plain FK). Two many-ends = many-to-many (junction table needed).</li>
+</ul>
+
+<h3>Derivable (Redundant) Relationships</h3>
+<p>A relationship implied by composing two other relationships (e.g. Customer↔Product via Customer→Order→OrderLineItems→Product) should <strong>not</strong> get its own table — it's answerable via JOINs across existing FKs. Only give something its own relationship/table if it captures a fact not implied by the existing path (e.g. a <code>Favorites</code> table is genuinely separate from purchase history).</p>
+
+<h3>Keys &amp; FK Delete Behavior</h3>
+<table>
+  <tr><th>Clause</th><th>Behavior</th></tr>
+  <tr><td><code>ON DELETE RESTRICT</code> (default)</td><td>Blocks the delete, errors out</td></tr>
+  <tr><td><code>ON DELETE CASCADE</code></td><td>Deletes child rows automatically</td></tr>
+  <tr><td><code>ON DELETE SET NULL</code></td><td>Orphans child rows (FK → NULL)</td></tr>
+  <tr><td><code>ON DELETE SET DEFAULT</code></td><td>Sets FK to a predefined default</td></tr>
+</table>
+<p class="muted">Same options exist for <code>ON UPDATE</code>. <strong>Degenerate dimension:</strong> an ID with no useful descriptive attributes (e.g. <code>order_id</code>) lives directly on the fact table — no separate dimension table needed.</p>
+
+<h2>Kimball Dimensional Modeling — Core Framework</h2>
+
+<h3>Step 1: Always declare grain first</h3>
+<p>Grain = what one row of the fact table represents. State it out loud before building anything else — everything downstream (dimensions, fact type, SCD) depends on this answer.</p>
+
+<h3>Three fact table types</h3>
+<table>
+  <tr><th>Type</th><th>Shape</th><th>Additivity</th><th>Example</th></tr>
+  <tr><td><strong>Transaction</strong></td><td>One row per discrete event; same action can repeat unboundedly, any order</td><td>Fully additive</td><td>Reels engagement (like/comment/share/view)</td></tr>
+  <tr><td><strong>Accumulating snapshot</strong></td><td>One row per process instance; entity moves through a small <em>fixed</em> set of stages <em>once each</em>; same row updated as it progresses</td><td>Fully additive</td><td>Ride lifecycle (requested→accepted→completed); checkout funnel; notification lifecycle (created→delivered→opened)</td></tr>
+  <tr><td><strong>Periodic snapshot</strong></td><td>One row per entity per fixed time interval, repeated indefinitely (no "end")</td><td><strong>Semi-additive</strong> (sum across entities OK, never across time)</td><td>Daily inventory level; daily account balance</td></tr>
+</table>
+<p><strong>The distinguishing test:</strong> does the entity repeat the <em>same</em> action arbitrarily many times in any order (transaction), move through a small fixed sequence exactly once (accumulating snapshot), or represent an ongoing state sampled at intervals with no defined end (periodic snapshot)?</p>
+
+<h3>Dimension patterns</h3>
+<ul>
+  <li><strong>Degenerate dimension</strong> — an identifier with no descriptive attributes worth a lookup table (e.g. <code>order_id</code>); lives directly on the fact row.</li>
+  <li><strong>Role-playing dimension</strong> — the same dimension table referenced multiple times in one fact row for different roles (e.g. <code>DimLocation</code> referenced as both <code>pickup_location_id</code> and <code>dropoff_location_id</code>; <code>DimDate</code> referenced as order_date/ship_date/delivery_date).</li>
+  <li><strong>Conformed dimension</strong> — the same dimension (same keys, same meaning) shared across multiple fact tables from different business processes (e.g. <code>DimProduct</code> shared by <code>FactSales</code> and <code>FactInventory</code>), enabling <strong>drill-across</strong> queries (e.g. inventory turnover = units sold ÷ avg inventory, joined through the shared dimension).</li>
+  <li><strong>Bus matrix</strong> — documents which conformed dimensions each fact table (business process) uses:
+    <table>
+      <tr><th></th><th>DimProduct</th><th>DimDate</th><th>DimCustomer</th></tr>
+      <tr><td>FactSales</td><td>✅</td><td>✅</td><td>✅</td></tr>
+      <tr><td>FactInventory</td><td>✅</td><td>✅</td><td>—</td></tr>
+    </table>
+  </li>
+  <li><strong>Polymorphic association problem</strong> — a single FK column can't reference different target tables depending on the row (e.g. a notification's source could be a post, comment, or message). Three resolutions:
+    <ol>
+      <li>Separate nullable FK columns per possible target (sparse but keeps real FK constraints)</li>
+      <li><code>(source_type, source_id)</code> pair — no DB-level FK, integrity enforced in app code</li>
+      <li><strong>Unified bridge dimension</strong> (e.g. <code>DimSource</code>) — an ETL step unions all source types into one lookup table with a type discriminator; fact table gets one clean FK. Costs an extra sync step, but restores real FK integrity and clean queries.</li>
+    </ol>
+  </li>
+</ul>
+
+<h3>Star vs. Snowflake Schema</h3>
+<table>
+  <tr><th>Star (denormalized)</th><th>Snowflake (normalized)</th></tr>
+  <tr><td>Dimension attributes inlined directly (e.g. movie genre repeated on every showtime row)</td><td>Dimension references other dimensions via FK (e.g. <code>DimShowtime → DimMovie</code>)</td></tr>
+  <tr><td>Fewer joins, simpler for BI/reporting</td><td>Single point of update, less redundancy</td></tr>
+  <tr><td class="good"><strong>Default choice</strong> — dimension tables are tiny vs. fact tables, so redundancy cost is negligible</td><td>Only worth it for very large/deep-hierarchy dimensions, or attributes needing single-point-of-truth updates</td></tr>
+</table>
+
+<h3>SCD Types</h3>
+<table>
+  <tr><th>Type</th><th>Behavior</th><th>Limitation</th></tr>
+  <tr><td>Type 1</td><td>Overwrite in place</td><td>Destroys history — retroactively contaminates past analysis</td></tr>
+  <tr><td>Type 2</td><td>New row per change, with <code>effective_date</code>/<code>end_date</code></td><td>None for history; costs storage growth + point-in-time join complexity</td></tr>
+  <tr><td>Type 3</td><td>Add a "previous value" column</td><td>Only tracks ONE prior value — can't represent multiple transitions</td></tr>
+</table>
+<p><strong>Staff-level layer:</strong> don't just pick Type 2 silently — name the trade-off (storage growth, point-in-time join cost at scale) and flag the retention-window decision (unlimited history vs. capped/archived) explicitly to the team.</p>
+
+<h3>SCD Type 2 with Delta <code>MERGE INTO</code> — the merge_key trick</h3>
+<p>A single <code>MERGE INTO</code> can only take one action (UPDATE or INSERT) per matched key, but Type 2 needs both: expire the old row AND insert a new one. The fix — union the update set with a duplicate copy whose merge key is forced to <code>NULL</code>, guaranteeing those rows fall into the INSERT branch:</p>
+<pre><code>MERGE INTO DimUser t
+USING (
+    SELECT u.customer_id AS merge_key, u.*
+    FROM updates u
+
+    UNION ALL
+
+    SELECT NULL AS merge_key, u.*
+    FROM updates u
+    JOIN DimUser t ON u.customer_id = t.customer_id
+    WHERE t.is_current = true AND u.account_type &lt;&gt; t.account_type
+) staged
+ON t.customer_id = staged.merge_key
+WHEN MATCHED AND t.is_current = true AND t.account_type &lt;&gt; staged.account_type THEN
+    UPDATE SET is_current = false, end_date = staged.effective_date
+WHEN NOT MATCHED THEN
+    INSERT (customer_id, account_type, is_current, effective_date, end_date)
+    VALUES (staged.customer_id, staged.account_type, true, staged.effective_date, NULL)</code></pre>
+<p class="muted">One atomic transaction — no risk of a partial expire-without-insert if the job fails halfway. <span class="warn">Not yet run hands-on against a real Delta table — still open.</span></p>
+
+<h2>The 6 Live Mock Rounds</h2>
+
+<div class="round">
+<h3>Round 1 — Reels Engagement <span class="tag">reported repeatedly</span></h3>
+<p class="prompt">"Track engagement on Reels — likes, comments, shares, views, watch-time. Support real-time dashboards + historical analytics."</p>
+<ul>
+  <li><strong>Grain:</strong> one row per engagement event (not a daily rollup — pre-aggregating destroys sub-day resolution needed for real-time)</li>
+  <li><strong>Fact type:</strong> transaction fact table — <code>engagement_count=1</code> and <code>watch_duration_seconds</code>, both fully additive</li>
+  <li><strong>Dimensions:</strong> DimUser, DimMedia, DimDate, DimActionType</li>
+  <li><strong>SCD:</strong> Type 2 for <code>DimUser.account_type</code> (personal→business) — correctly reasoned and defended against Type 1/3</li>
+</ul>
+</div>
+
+<div class="round">
+<h3>Round 2 — Ride-Sharing Platform</h3>
+<p class="prompt">"Riders request rides, drivers accept/complete. Support live operational app + analytics (trip volume, driver earnings, surge effectiveness)."</p>
+<ul>
+  <li><strong>Fact split:</strong> <code>FactDriverLocation</code> (per-second GPS pings — a time-series stream, not a warehouse fact table) separated from <code>FactTrip</code> (the real Kimball fact) — correctly reasoned from frequency mismatch alone</li>
+  <li><strong>Grain/fact type:</strong> initially guessed transaction (pattern-matched to Round 1); self-corrected to <strong>accumulating snapshot</strong> once compared against the checkout-funnel pattern</li>
+  <li><strong>Partitioning at scale:</strong> date (primary) + region/geography (secondary) — solves both time-bounded query efficiency and cross-region hotspot risk</li>
+  <li><strong>Dimensions:</strong> DimRider, DimDriver, DimDate, <strong>DimLocation (role-playing: pickup + dropoff)</strong></li>
+</ul>
+<p class="muted">Watch: grain classification defaulted to pattern-matching the previous round rather than re-deriving from scratch — worth a cold redo.</p>
+</div>
+
+<div class="round">
+<h3>Round 3 — E-Commerce</h3>
+<p class="prompt">"Products, orders, customers, inventory. Analyze sales trends, inventory turnover, customer lifetime value."</p>
+<ul>
+  <li><strong>Fact tables:</strong> <code>FactSales</code> + <code>FactInventory</code> — correctly rejected a third table (<code>FactCustomerValue</code>) using the derivable-relationship principle (CLV is a rollup of FactSales, not its own grain)</li>
+  <li><strong>FactInventory:</strong> initially guessed accumulating snapshot; self-corrected to <strong>periodic snapshot</strong> (grain: product+date, <code>quantity_on_hand</code> semi-additive)</li>
+  <li><strong>Dimensions:</strong> DimProduct, DimDate, DimCustomer (Sales only) — <code>order_id</code> correctly named as degenerate dimension</li>
+  <li><strong>Conformed dimensions:</strong> DimProduct + DimDate shared across both facts, enabling the inventory-turnover drill-across query; bus matrix concept landed</li>
+</ul>
+</div>
+
+<div class="round">
+<h3>Round 4 — Instagram Metric-Drop Investigation <span class="tag">reported</span></h3>
+<p class="prompt">"An Instagram metric is dropping — walk through root-cause investigation, the data model that supports it, and follow-ups."</p>
+<ul>
+  <li><strong>Product sense:</strong> correctly led with "what kind of metric," then correctly picked the 3 substantive clarifying questions (segment/platform split, logging-change check, seasonality) out of 4 options, rejecting a decoy</li>
+  <li><strong>Reveal:</strong> Android-specific real drop in Reels watch-time, no logging change, not seasonal</li>
+  <li><strong>Schema gap:</strong> correctly identified Round 1's <code>FactReelsEngagement</code> was missing <code>DimDeviceOS</code>/platform — added it without rebuilding the rest (the "adapt mid-round" skill Meta explicitly grades)</li>
+  <li><strong>Follow-up:</strong> proposed video/codec compatibility on Android as next investigation step</li>
+</ul>
+<p class="good">Strongest round of the day — full loop completed with only light nudging.</p>
+</div>
+
+<div class="round">
+<h3>Round 5 — Notification System (Reddit-style)</h3>
+<p class="prompt">"Users get notified about replies, upvotes, mentions, DMs. Support real-time display + engagement analytics (open rates, which types drive re-engagement)."</p>
+<ul>
+  <li><strong>Fact table:</strong> single <code>FactNotification</code>; initially guessed transaction, self-corrected to <strong>accumulating snapshot</strong> (created→delivered→opened, fixed lifecycle once per notification)</li>
+  <li><strong>Polymorphic problem:</strong> notification source can be post/comment/message — no single FK target. Independently proposed the <strong>unified DimSource bridge dimension</strong> resolution after the concept was taught</li>
+  <li>Correctly worked out when the same domain needs a <em>periodic snapshot</em> instead (unread-notification-backlog tracking) — good sign of generalizing the framework</li>
+  <li><strong>Dimensions:</strong> DimUser, DimDate, DimNotificationType, DimSource</li>
+</ul>
+</div>
+
+<div class="round">
+<h3>Round 6 — Movie-Theater Ticketing</h3>
+<p class="prompt">"Customers book seats for showtimes; showtimes belong to movies at theaters/screens. Support live booking (seat availability) + analytics (revenue, utilization, popular showtimes)."</p>
+<ul>
+  <li>Correctly identified live seat-booking as an operational/event-stream concern, separate from the Kimball analytical model (parallel to GPS-location reasoning)</li>
+  <li><strong class="warn">Repeated miss:</strong> proposed <code>FactRevenue</code> → <code>FactShowtime</code> → <code>FactPrice</code> in sequence before landing on the correct <code>FactTicketSale</code> (one row per seat booked). Each guess named the table after a derived measure or a scheduling entity instead of the underlying transactional event/verb.</li>
+  <li>Correctly reasoned <code>DimSeat</code> deserves a full dimension (not degenerate) by applying the test against the stated "theater utilization" goal</li>
+  <li>Correctly chose <strong>star over snowflake</strong> for DimShowtime/DimMovie with standard Kimball reasoning</li>
+</ul>
+</div>
+
+<h2>Data Lake vs. Data Warehouse / ETL vs. ELT <span class="tag">added 2026-07-27</span></h2>
+
+<h3>Data Lake vs. Data Warehouse</h3>
+<table>
+  <tr><th></th><th>Data Lake</th><th>Data Warehouse</th></tr>
+  <tr><td>Data shape</td><td>Raw, any format (structured/semi/unstructured)</td><td>Structured, curated, modeled (facts/dims)</td></tr>
+  <tr><td>Schema</td><td>Schema-on-<strong>read</strong> — flexible, decided at query time</td><td>Schema-on-<strong>write</strong> — enforced before it lands</td></tr>
+  <tr><td>Storage</td><td>Cheap object storage (S3, ADLS)</td><td>Pricier, optimized for fast SQL</td></tr>
+  <tr><td>Best for</td><td>ML, exploratory analysis, streaming, variety/volume</td><td>BI dashboards, governed reporting, fast structured queries</td></tr>
+</table>
+
+<h3>ETL vs. ELT — the difference is WHERE transformation happens relative to load</h3>
+<ul>
+  <li><strong>ETL</strong> (Extract → Transform → Load): shaped in separate compute (Glue/Spark/ETL tool) <em>before</em> landing. Use when: strict governance requires validated data before it lands, or transformation needs dedicated compute separate from the warehouse.</li>
+  <li><strong>ELT</strong> (Extract → Load → Transform): raw lands first, transform happens <em>after</em>, using the target's own compute. Use when: fast ingestion + flexibility to decide transform logic later; modern elastic-compute warehouses (Snowflake/BigQuery/Databricks). <strong>dbt is the classic ELT tool</strong> — only ever transforms data already loaded, via SQL models (4D in the plan).</li>
+</ul>
+
+<div class="card">
+<p><strong>30-second spoken answer, grounded in ClinicalFlow:</strong> "ClinicalFlow lands raw Synthea data in S3 first, encrypted, before any transformation touches it. From there it moves through a medallion pattern — raw → silver → gold — where transformation happens after landing, using Glue and EMR as the compute layer. So even though I named the Glue job an 'ETL job,' the architecture is really ELT: extract and load raw first, transform in place. I chose that over a classic pre-load ETL pipeline because in a lakehouse you want the raw layer preserved — for reprocessing if a transformation rule changes later, and for audit lineage, which matters a lot in a HIPAA context."</p>
+<p class="muted"><strong>If pushed on the compliance angle</strong> (raw briefly holds PHI before de-id): "That's a deliberate trade-off, not a gap — the raw zone is SSE-KMS encrypted, access-restricted via IAM, every access logged via CloudTrail. De-identifying before anything lands would remove the raw copy entirely, which sounds safer but kills your ability to audit or reprocess if the de-id logic itself needs to change later. I chose auditable-and-controlled over unrecoverable."</p>
+<p class="muted"><strong>Staff-level layer, if asked "why not just do ETL":</strong> "ETL made sense when warehouse compute was expensive and you had to shape data before it landed. Now that Spark/EMR compute is elastic and cheap relative to storage, ELT lets you defer transformation decisions instead of locking into one schema the moment data arrives. The cost is you need real governance on the raw zone itself, not just the curated output — which is exactly what the KMS encryption, IAM restrictions, and CloudTrail logging are doing here."</p>
+</div>
+
+<h2>Priority Fix Before the Real Screen</h2>
+<div class="card">
+<p><strong>Fact-table naming</strong> — the single clearest, most fixable gap from all 6 rounds. Missed 3x in a row in Round 6 alone. <strong>Rule to drill:</strong> name the fact table after the business event/verb happening (e.g. "a ticket gets sold," "a trip happens"), never after a derived measure (<code>FactRevenue</code>, <code>FactPrice</code>) or a scheduling/descriptive entity (<code>FactShowtime</code>). Quick drill: given a fresh prompt, say the fact table name FIRST, before anything else, and justify it as an event.</p>
+</div>
+
+<h2>Still Open / Deferred</h2>
+<ul>
+  <li>Data Vault 2.0 (hubs/links/satellites, hash keys) — not yet touched</li>
+  <li>SCD Type 2 + Delta <code>MERGE INTO</code> hands-on lab — concept taught, not yet run against a real table</li>
+  <li>Kimball vs. Inmon formal terminology comparison — conformed dims/bus matrix applied correctly in practice, but the explicit Kimball-vs-Inmon lecture itself wasn't given</li>
+</ul>
+
+</body>
+</html>

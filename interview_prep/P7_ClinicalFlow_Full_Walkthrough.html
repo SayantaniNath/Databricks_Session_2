@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>P7 — AWS ClinicalFlow: Full Walkthrough &amp; Interview Defence</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+         max-width: 960px; margin: 2rem auto; padding: 0 1.25rem; line-height: 1.65; color: #1c1e21; }
+  h1 { border-bottom: 3px solid #ff9900; padding-bottom: .4rem; }
+  h2 { margin-top: 2.4rem; border-bottom: 1px solid #d8dbdf; padding-bottom: .3rem; }
+  h3 { margin-top: 1.7rem; color: #0b3d91; }
+  h4 { margin-top: 1.2rem; margin-bottom: .3rem; color: #444; }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: .92rem; }
+  th, td { border: 1px solid #d8dbdf; padding: .5rem .65rem; text-align: left; vertical-align: top; }
+  th { background: #f1f4f9; }
+  code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  code { background: #f1f4f9; padding: .1rem .3rem; border-radius: 3px; font-size: .89em; }
+  pre { background: #f6f8fa; border: 1px solid #d8dbdf; border-radius: 6px; padding: .8rem; overflow-x: auto; font-size: .85rem; }
+  .rule { background: #fff8e1; border-left: 4px solid #f0a500; padding: .8rem 1rem; margin: 1.2rem 0; }
+  .gap { background: #ffeceb; border-left: 4px solid #d93025; padding: .8rem 1rem; margin: 1.2rem 0; }
+  .win { background: #e9f7ef; border-left: 4px solid #1e8e3e; padding: .8rem 1rem; margin: 1.2rem 0; }
+  .say { background: #eef3ff; border-left: 4px solid #0b5fff; padding: .8rem 1rem; margin: 1.1rem 0; }
+  .meta { color: #5f6368; font-size: .9rem; }
+  .q { font-weight: 600; color: #0b3d91; margin-top: 1.4rem; margin-bottom: .2rem; }
+</style>
+</head>
+<body>
+
+<h1>AWS ClinicalFlow — Full Walkthrough &amp; Interview Defence</h1>
+<p class="meta">Rebuilt 2026-08-07 from the actual repo (<code>~/aws-healthcare-datalake</code>, 17 commits, 4 PRs) and the live infra notes — not from memory. Every number below is real.</p>
+
+<div class="gap">
+<strong>The framing rule, every time.</strong> This is a <strong>personal portfolio project</strong>. Say so unprompted. Real figures: <strong>64,338 synthetic patients, 10 years, 8.2 GB across 16 CSVs</strong>. Never "100K patients" and never "50M records" — those were the original target, never reached, and the 50M figure is <em>still wrong on the master resume PDF and needs fixing</em>. The honest number is more than good enough; the inflated one dies on the first follow-up.
+</div>
+
+<h2>0. The pitch — three lengths</h2>
+
+<div class="say">
+<strong>30 seconds:</strong> "ClinicalFlow is a healthcare lakehouse I built end to end on AWS. Synthetic EHR data from Synthea — about 64,000 patients over ten years — lands in an encrypted S3 lake, gets de-identified to HIPAA Safe Harbor standard in Glue, validated, written to an Iceberg silver layer, and aggregated on EMR Serverless into a 30-day readmission analysis with statistical anomaly detection. Governance runs through Lake Formation column grants, GDPR erasure through a consent dimension, and audit through CloudTrail."
+</div>
+
+<div class="say">
+<strong>2 minutes — add the decisions:</strong> "The interesting part wasn't the pipeline, it was the compliance design. Safe Harbor requires removing eighteen identifier classes, so the silver layer drops twelve columns outright, tokenises the patient ID to a fresh UUID, truncates ZIP to three digits and buckets birthdate into five-year ranges. That created the problem I found most instructive: once IDs are tokenised, silver <em>cannot</em> join back to encounters — which is the point of de-identification, but it broke my aggregation job and produced zero rows. I fixed it by running the analytical join on the raw layer inside the controlled environment, and noted that in production you'd either tokenise every table consistently or keep a secure re-identification mapping under separate access control. That trade-off — analytical utility versus de-identification — is the real design question in healthcare data."
+</div>
+
+<h2>1. Architecture</h2>
+
+<pre>Synthea (synthetic EHR generator)
+   │  64,338 patients · 10 years · Massachusetts · seed 42 · 16 CSVs · 8.2 GB
+   ▼
+S3  raw/synthea/csv/            ── SSE-KMS (alias/clinicalflow-cmk)
+   │                               block-public-access ON · versioning ON
+   ▼
+Glue Crawler ──► Glue Data Catalog  (clinicalflow_raw — 17 tables)
+   │
+   ▼
+Glue ETL  hipaa_deid_patients.py
+   ├─► quarantine/patients/        (3 malformed rows + reason + timestamp)
+   └─► silver/patients/            HIPAA Safe Harbor de-identified
+   │
+   ▼
+Validation   Great Expectations (17 checks) + Glue DQDL ruleset (8 rules)
+   │
+   ▼
+Iceberg v2   clinicalflow_silver.patients   (15 cols · 64,335 rows)
+   ├─ dim_patient_consent   (GDPR: consent + erasure flags)
+   │
+   ▼
+EMR Serverless
+   ├─ readmission_aggregation.py      → gold/readmission_summary/
+   └─ readmission_anomaly_detection.py → gold/readmission_anomalies/
+   │
+   ▼
+Athena views + Lake Formation column-level grants
+   ├─ vw_patient_demographics  → analyst role
+   └─ vw_patient_financials    → finance role
+
+Cross-cutting: CloudTrail (clinicalflow-audit-trail, KMS-encrypted, S3 data events)</pre>
+
+<h2>2. Step by step — what was done, and why</h2>
+
+<h3>Step 1 — Data generation</h3>
+<p>Synthea, Massachusetts, <strong>seed 42</strong> (reproducibility), 10 years, 64,338 patients → 16 CSVs, 8.2 GB. Largest: <code>claims.csv</code> 2.1 GB, <code>procedures.csv</code> 1.8 GB, <code>imaging_studies.csv</code> 1.7 GB, <code>encounters.csv</code> 1.0 GB, <code>patients.csv</code> 18 MB.</p>
+<p><strong>Why synthetic:</strong> real EHR data requires credentialing (MIMIC/PhysioNet) and cannot go in a public GitHub repo. Synthea is statistically realistic, clinically coherent, and licence-clean.</p>
+
+<h3>Step 2 — Encryption and bucket hardening (before any data landed)</h3>
+<ul>
+<li><strong>KMS customer-managed key</strong> <code>alias/clinicalflow-cmk</code> — CMK not SSE-S3, because a CMK gives you your own key policy, rotation control, and — critically for HIPAA — <strong>every key use is logged in CloudTrail</strong>.</li>
+<li><strong>S3</strong> <code>clinicalflow-datalake-941141114246</code>: block-all-public-access ON, versioning ON, default SSE-KMS.</li>
+<li><strong>CloudTrail</strong> <code>clinicalflow-audit-trail</code>, itself KMS-encrypted, with <strong>S3 data events</strong> enabled on the bucket — management events alone would not capture object-level reads, which is what an auditor asks for.</li>
+</ul>
+<div class="rule"><strong>Order matters and is worth saying:</strong> encryption and audit were configured <em>before</em> the first upload. Retro-fitting encryption leaves unencrypted object versions behind — and with versioning on, they persist.</div>
+
+<h3>Step 3 — Catalog the raw layer</h3>
+<p>Glue Crawler → <code>clinicalflow_raw</code>, 17 tables. Schema-on-read: no transformation, raw stays immutable as the audit baseline.</p>
+
+<h3>Step 4 — HIPAA Safe Harbor de-identification (the core)</h3>
+<p><code>glue_jobs/hipaa_deid_patients.py</code>. Four transformation classes:</p>
+<table>
+<tr><th>Action</th><th>Columns</th><th>Safe Harbor rationale</th></tr>
+<tr><td><strong>Dropped (12)</strong></td><td><code>first, middle, last, maiden, ssn, passport, drivers, prefix, suffix, address, lat, lon</code></td><td>Direct identifiers § 164.514(b)(2). <code>maiden</code> is still a name; <code>drivers</code> is a government ID; <strong>lat/lon</strong> is geography below county level.</td></tr>
+<tr><td><strong>Tokenised</strong></td><td><code>id</code> → fresh <code>uuid4()</code></td><td>Breaks linkability to the source record</td></tr>
+<tr><td><strong>Truncated</strong></td><td><code>zip</code> → first 3 chars</td><td>Safe Harbor geographic rule (and 3-digit zones under 20,000 people must go to 000)</td></tr>
+<tr><td><strong>Generalised</strong></td><td><code>birthdate</code> → <code>birth_year_bucket</code>, 5-year</td><td>All individual dates must go; <code>(year/5)::int * 5</code></td></tr>
+<tr><td><strong>Dropped</strong></td><td><code>deathdate</code></td><td>Individual-related date</td></tr>
+</table>
+<p>Result: <strong>15 clean columns.</strong></p>
+
+<h4>The quarantine pattern</h4>
+<p>3 rows in <code>patients.csv</code> (lines 60385, 60401, 64324) had two records concatenated onto one line — a Synthea output bug. Glue read them as over-wide rows and auto-named the spill columns <code>col28…col35</code>. Clean rows have those as NULL.</p>
+<pre>overflow_cols = [c for c in patients.columns if c.startswith('col')]
+is_malformed  = reduce(lambda a, b: a | b,
+                       [F.col(c).isNotNull() for c in overflow_cols])
+
+quarantine_df = patients.filter(is_malformed)
+clean_df      = patients.filter(~is_malformed)</pre>
+<p>Quarantined rows are written to <code>quarantine/patients/</code> in <strong>append</strong> mode with <code>quarantine_reason</code> and <code>quarantine_ts</code>.</p>
+<div class="win"><strong>Why append, not overwrite —</strong> and this is the answer an interviewer wants: the quarantine <em>is</em> the audit trail. If the source is corrected and reprocessed, the original bad rows must still be on record. Overwrite would destroy the evidence that you ever rejected anything. <strong>64,338 − 3 = 64,335 rows in silver</strong>, and being able to account for exactly three missing records is the point.</div>
+
+<h4><code>resolveChoice</code></h4>
+<p>Those malformed rows also spilled text into numeric columns, so Glue inferred ambiguous union types (<code>{'double': 41009.33, 'string': None}</code>). Forced to concrete types:</p>
+<pre>.resolveChoice(specs=[("zip","cast:string"), ("healthcare_expenses","cast:double"),
+                      ("healthcare_coverage","cast:double"), ("income","cast:long"),
+                      ("fips","cast:long")])</pre>
+<p><code>zip</code> is deliberately a <strong>string</strong> — "02134" loses its leading zero as a number.</p>
+
+<h3>Step 5 — Two independent validation layers</h3>
+<table>
+<tr><th></th><th>Great Expectations</th><th>Glue DQDL</th></tr>
+<tr><td>Scope</td><td>17 checks, 17/17 pass</td><td>8 rules, 8/8 pass</td></tr>
+<tr><td>Reads</td><td>The actual data</td><td><strong>The Glue Catalog schema</strong>, not S3 files directly</td></tr>
+<tr><td>Checks</td><td>not-null, row-count range, regex, value lengths</td><td>ColumnCount, UUID-format regex, PHI-absence audit</td></tr>
+</table>
+<p><strong>Why both:</strong> GE proves the <em>data</em> is right; DQDL proves no PHI column has crept back into the <em>schema</em>. They fail for different reasons — a schema regression passes GE and fails DQDL.</p>
+
+<h3>Step 6 — Iceberg silver</h3>
+<p>Rewritten as <strong>Iceberg v2</strong> registered in the Glue Catalog, then GE re-run (17/17) against the Iceberg table to prove the format migration was lossless.</p>
+<pre>--datalake-formats iceberg
+--conf spark.sql.catalog.glue_catalog=org.apache.iceberg.spark.SparkCatalog
+ --conf spark.sql.catalog.glue_catalog.catalog-impl=org.apache.iceberg.aws.glue.GlueCatalog</pre>
+
+<h3>Step 7 — GDPR consent dimension</h3>
+<p><code>dim_patient_consent</code> (Iceberg v2, 128 MB target file size): <code>consent_given</code>, <code>consent_date</code>, <code>erasure_requested</code> (~5% simulated), <code>erasure_date</code>, <code>last_updated</code>.</p>
+<div class="rule"><strong>Why a separate dimension rather than a flag on <code>patients</code>:</strong> consent changes on a completely different cadence to demographics, it has its own audit and retention requirements, and erasure must be actioned without rewriting the patient record itself. Also the honest architectural point — <strong>GDPR erasure and Iceberg immutability are in tension</strong>: you satisfy erasure with row-level deletes plus snapshot expiry, and you must ensure retained snapshots don't silently preserve erased data.</div>
+
+<h3>Step 8 — EMR Serverless: readmission aggregation</h3>
+<p><code>emr_jobs/readmission_aggregation.py</code>: 30-day readmission flag via <code>LAG</code> over <code>PATIENT</code> ordered by <code>START</code>, then aggregation by demographic group.</p>
+<pre>w = Window.partitionBy("PATIENT").orderBy("START")
+.withColumn("prev_stop", F.lag("STOP").over(w))
+.withColumn("days_since_last", F.datediff(F.col("START"), F.col("prev_stop")))
+.withColumn("is_readmission", F.when(F.col("days_since_last") <= 30, 1).otherwise(0))
+...
+.groupBy("GENDER","RACE","ETHNICITY","STATE","birth_year_bucket")
+.agg(F.count("encounter_id").alias("total_encounters"),
+     F.sum("is_readmission").alias("readmissions_30d"))
+.withColumn("readmission_rate", F.round(readmissions_30d/total_encounters*100, 2))</pre>
+<p>Timestamps parsed with <code>try_cast</code> — returns NULL instead of failing the job on a bad value.</p>
+
+<h3>Step 9 — Anomaly detection in pure Spark SQL</h3>
+<pre>(readmission_rate - AVG(readmission_rate) OVER ())
+  / NULLIF(STDDEV(readmission_rate) OVER (), 0)   AS z_score
+ABS(...) > 2.0                                    AS is_anomaly</pre>
+<p><code>NULLIF(stddev, 0)</code> guards division by zero when every group has the same rate.</p>
+
+<h3>Step 10 — Gold serving with column-level access control</h3>
+<p>Athena views governed by <strong>Lake Formation</strong> column grants:</p>
+<ul>
+<li><code>vw_patient_demographics</code> → analyst role: id, gender, race, ethnicity, state, zip, birth_year_bucket</li>
+<li><code>vw_patient_financials</code> → finance role: id, income, healthcare_expenses, healthcare_coverage</li>
+</ul>
+<p><strong>The enforcement point:</strong> analyst IAM users hold <em>zero</em> direct S3 or Glue permissions. All access flows through Lake Formation grants — otherwise a view is theatre, because the analyst could read the underlying S3 objects directly.</p>
+
+<h2>3. Why this, not that</h2>
+<table>
+<tr><th>Decision</th><th>Alternatives</th><th>Defence</th></tr>
+<tr><td><strong>Safe Harbor</strong></td><td>Expert Determination</td><td>Safe Harbor is a deterministic checklist of 18 identifier classes — implementable and testable in code. Expert Determination needs a qualified statistician certifying re-identification risk; more analytically useful (you can keep dates), but not something a pipeline can assert on its own.</td></tr>
+<tr><td><strong>Tokenise ID (random UUID)</strong></td><td>Hash, encrypt, drop</td><td>A hash of a known ID space is reversible by brute force — a rainbow table over 64K IDs is trivial. Encryption is reversible by design, so the data stays PHI. Dropping loses row identity entirely. Random UUID is genuinely one-way — <em>and that's exactly what broke the join, which is the honest cost.</em></td></tr>
+<tr><td><strong>Glue for de-id, EMR for analytics</strong></td><td>Everything in one engine</td><td>Glue: serverless, catalog-integrated, DynamicFrame's <code>resolveChoice</code> handles the messy schema — right for ingest. EMR Serverless: full Spark control and cheaper for heavy compute, no cluster to manage — right for the window-function aggregation. Different tools for different failure modes.</td></tr>
+<tr><td><strong>Iceberg</strong></td><td>Delta, Hudi, plain Parquet</td><td>Open format, engine-neutral (Athena, EMR, Spark, Trino all read it), and first-class in AWS. Plain Parquet gives no ACID, no time travel, no schema evolution. Delta is stronger inside Databricks; this is an AWS-native stack. Hudi wins on very heavy upsert workloads, which this isn't.</td></tr>
+<tr><td><strong>Athena + Lake Formation</strong></td><td>Redshift <em>(planned, then dropped)</em></td><td><strong>Own the pivot — it's a better answer than the original plan.</strong> The branch is literally named <code>feat/redshift-gold</code>, but what shipped was Athena views + Lake Formation grants. Say it as a decision: "I'd planned a Redshift gold layer, then realised there was no high-concurrency BI workload to justify a cluster idling at cost. Athena queries the lake in place and Lake Formation gives column-level grants centrally, which was the actual requirement." Redshift wins for sub-second high-concurrency BI — that workload didn't exist here.</td></tr>
+<tr><td><strong>Z-score, not ML</strong></td><td>IsolationForest / clustering</td><td>Started with IsolationForest — <strong>sklearn isn't available on EMR Serverless</strong>. Rewrote as z-score in Spark SQL. Honestly: for a single-metric outlier check on a few hundred groups, z-score is the <em>right</em> answer anyway — explainable to a clinician, no training, no model to maintain. ML would be justified with multivariate signals.</td></tr>
+<tr><td><strong>CMK, not SSE-S3</strong></td><td>SSE-S3</td><td>Own key policy, own rotation, and every decrypt is CloudTrail-logged. For PHI the audit trail is the requirement.</td></tr>
+</table>
+
+<h2>4. The bugs — rehearse these, they are the most valuable part</h2>
+<div class="win">Interviewers learn more from what broke than from what worked. Each of these has a clean cause → fix → lesson shape.</div>
+
+<h4>Bug 1 — Aggregation returned 0 rows</h4>
+<p><strong>Cause:</strong> joined silver (tokenised UUIDs) to <code>encounters.PATIENT</code> (original Synthea IDs). Zero matches — silently, because an inner join on no matches is empty, not an error.<br>
+<strong>Fix:</strong> read raw <code>patients.csv</code> for the join, inside the controlled environment.<br>
+<strong>Lesson:</strong> de-identification deliberately destroys join keys. In production: tokenise every table with a <em>consistent</em> mapping, or hold a secure original→token table under separate access control. <strong>This is the single best story in the project</strong> — a compliance control colliding with analytical need.</p>
+
+<h4>Bug 2 — sklearn not on EMR Serverless</h4>
+<p>Rewrote IsolationForest as a Spark SQL z-score. Lesson: know your runtime's libraries before designing around them; and check whether the simpler statistical method was sufficient all along — here it was.</p>
+
+<h4>Bug 3 — Union struct types from 3 malformed rows</h4>
+<p>Three bad lines out of 64,338 corrupted the inferred schema for the entire table. Fixed with <code>resolveChoice</code> + quarantine. Lesson: schema inference is only as good as the worst row in the file.</p>
+
+<h4>Bug 4 — Spurious <code>partition_0</code> from the crawler</h4>
+<p>The crawler inferred a partition column that didn't exist, breaking the DQDL <code>ColumnCount</code> rule. Fixed by dropping the table and recreating it via CLI without partition keys. Lesson: <strong>DQDL evaluates the Glue Catalog schema, not the S3 files</strong> — catalog drift is its own failure class.</p>
+
+<h4>Bug 5 — Iceberg catalog config, three attempts</h4>
+<ol>
+<li>Multiple <code>--conf</code> keys in the Glue console silently collapse to the last one (it's a dict) — chain them into a single value.</li>
+<li><code>spark.conf.set()</code> after the SparkContext starts is too late for catalog plugin registration — it must be a job parameter.</li>
+<li><code>GlueCatalog</code> does not implement Spark's <code>CatalogPlugin</code> — you need <code>SparkCatalog</code> with <code>catalog-impl=GlueCatalog</code>.</li>
+</ol>
+<p>Plus: an existing Parquet table blocks <code>createOrReplace()</code> for Iceberg — drop it first.</p>
+
+<h2>5. Edge cases an HM will probe</h2>
+
+<p class="q">Q: Is Safe Harbor de-identification actually sufficient?</p>
+<p>It's the legal standard, not a guarantee. Known residual risk: <strong>quasi-identifier re-identification</strong> — gender + race + ethnicity + 3-digit ZIP + 5-year birth bucket can be unique for rare combinations in a small population. Safe Harbor doesn't require k-anonymity. In production I'd measure the smallest equivalence-class size and suppress or further generalise groups below a threshold (k=5 or k=11 is common). <em>Volunteering this is a strong signal.</em>
+
+<p class="q">Q: What happens when a patient requests erasure?</p>
+<p>Set <code>erasure_requested</code> in <code>dim_patient_consent</code>, then delete the rows from the Iceberg table — and <strong>expire the snapshots</strong>, otherwise time travel still holds the data and you haven't complied. The tension: Iceberg's immutable snapshots are excellent for audit and directly at odds with the right to be forgotten. You resolve it with a snapshot-retention policy short enough to satisfy erasure SLAs but long enough for audit — and you write that policy down.</p>
+
+<p class="q">Q: How does this handle late-arriving or corrected records?</p>
+<p>Currently it doesn't — it's a full-refresh <code>overwrite</code>. That's honest and it's the right next change: Iceberg <code>MERGE INTO</code> keyed on the business key, with SCD Type 2 on the patient dimension so corrections version rather than overwrite history.</p>
+
+<p class="q">Q: What if the source schema changes?</p>
+<p>The crawler would pick up a new column and DQDL's <code>ColumnCount</code> would fail — which is the desired behaviour, a loud stop rather than silent PHI leakage. The gap: a <em>renamed</em> PHI column would pass the drop list, since it drops by name. Production fix: tag-based classification, or an allow-list (only these 15 columns may reach silver) rather than a deny-list. <strong>Deny-lists fail open; allow-lists fail closed — and for PHI you want fail-closed.</strong></p>
+
+<p class="q">Q: Is this idempotent? Can you re-run it safely?</p>
+<p>Mostly. Silver is <code>overwrite</code>, so re-running is deterministic — <em>except</em> the UUID tokenisation, which generates fresh IDs every run, so silver IDs are not stable across runs. Fine for a de-identified snapshot; wrong if anything downstream persists those IDs. Production fix: a deterministic keyed token (HMAC with a secret) or a persisted mapping table. Quarantine is <code>append</code>, so it's cumulative by design.</p>
+
+<p class="q">Q: How would you scale this to 200× the data?</p>
+<p>Partition raw by ingest date and silver by <code>birth_year_bucket</code> or state; move from full refresh to incremental MERGE; size EMR Serverless by measured shuffle rather than guesswork; Iceberg compaction and sorted file layout for the analytical predicates; and watch the small-files problem, which is what actually bites first at scale.</p>
+
+<p class="q">Q: What's the cost, and how would you control it?</p>
+<p>Built for well under $100 by keeping EMR and any orchestration ephemeral — spin up, run, tear down. Levers: S3 lifecycle to Glacier for raw beyond the retention window, Iceberg compaction to cut request costs, right-sized EMR workers, Athena's scanned-bytes charge managed with partitioning and columnar formats.</p>
+
+<p class="q">Q: Where's the orchestration?</p>
+<p>Phase 1 was run step by step deliberately, to see each failure clearly. Phase 2 is MWAA with the DAG developed locally first and the environment torn down after the demo — MWAA has a real hourly cost. Honest current state: <strong>not yet built.</strong></p>
+
+<h2>6. What is genuinely not done — say these before you're asked</h2>
+<ul>
+<li><strong>Only the <code>patients</code> table is de-identified.</strong> Encounters, claims, procedures and the rest remain raw. A complete implementation would apply the same treatment consistently across every table.</li>
+<li><strong>No orchestration</strong> — Phase 2 (MWAA).</li>
+<li><strong>No streaming</strong> — Phase 3 (Kinesis → Lambda → Firehose → S3).</li>
+<li><strong>No incremental/CDC</strong> — full refresh only.</li>
+<li><strong>No k-anonymity measurement.</strong></li>
+<li><strong>❌ NO REDSHIFT. Ever.</strong> Verified 2026-08-07 against the repo: the branch was named <code>feat/redshift-gold</code> but the merged commit is "Add Athena gold views with Lake Formation column-level access control", the only file is <code>athena/gold_views.sql</code>, and README line 248 still shows <em>"Redshift gold … ⏳"</em>. <strong>⚠️ <code>Sayantani_Nath_ATS_Resume_DataArchitect_AWS.html</code> currently claims Redshift, Lambda, Kinesis and MWAA — none of which were built. Fix before sending it anywhere.</strong></li>
+<li><strong>Deployed state of the last three Phase-1 items is unverified.</strong> <code>dim_patient_consent</code>, the Athena/Lake Formation gold views and the CloudTrail verification script all exist as committed code (PRs #1–#3, 2026-06-25) — but whether they were actually run against live AWS was never confirmed. <em>Verify before claiming them in an interview:</em> <code>aws glue get-tables --database-name clinicalflow_silver</code> and <code>aws cloudtrail describe-trails</code>.</li>
+</ul>
+<div class="win">Naming these first is a strength move. It reads as someone who knows the difference between a portfolio build and a production system — which is exactly what a Senior/Staff interviewer is testing for.</div>
+
+<h2>7. Numbers to have memorised</h2>
+<table>
+<tr><td>Patients generated</td><td><strong>64,338</strong></td></tr>
+<tr><td>Rows in silver</td><td><strong>64,335</strong> (3 quarantined)</td></tr>
+<tr><td>Raw data</td><td><strong>8.2 GB</strong>, 16 CSVs, 10 years</td></tr>
+<tr><td>Raw catalog tables</td><td>17</td></tr>
+<tr><td>Silver columns</td><td>15 (from 27 + 8 overflow)</td></tr>
+<tr><td>PHI columns dropped</td><td>12 (+ birthdate, deathdate)</td></tr>
+<tr><td>GE checks</td><td>17/17</td></tr>
+<tr><td>DQDL rules</td><td>8/8</td></tr>
+<tr><td>Anomaly threshold</td><td>&#124;z&#124; &gt; 2.0</td></tr>
+<tr><td>Readmission window</td><td>30 days</td></tr>
+<tr><td>Est. total AWS spend</td><td>&lt; $100</td></tr>
+</table>
+
+</body>
+</html>

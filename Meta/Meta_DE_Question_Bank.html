@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Meta DE — Collated Interview Questions (2025–26)</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #ffffff; --fg: #1a1a1a; --muted: #666;
+    --card: #f6f8fa; --border: #e1e4e8; --accent: #0866ff;
+    --code-bg: #f0f2f4;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0d1117; --fg: #e6edf3; --muted: #9da7b1;
+      --card: #161b22; --border: #30363d; --accent: #58a6ff;
+      --code-bg: #1c2128;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { background: var(--bg); color: var(--fg); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; line-height: 1.6; max-width: 880px; margin: 0 auto; padding: 24px; }
+  h1 { font-size: 1.5em; border-bottom: 2px solid var(--accent); padding-bottom: 8px; }
+  h2 { font-size: 1.2em; color: var(--accent); margin-top: 32px; }
+  h3 { font-size: 1.05em; margin-top: 20px; }
+  code { background: var(--code-bg); padding: 1px 5px; border-radius: 4px; font-size: 0.9em; }
+  table { border-collapse: collapse; width: 100%; margin: 12px 0; }
+  th, td { border: 1px solid var(--border); padding: 8px 10px; text-align: left; vertical-align: top; }
+  th { background: var(--card); }
+  .muted { color: var(--muted); font-size: 0.9em; }
+  li { margin-bottom: 6px; }
+  .tag { display: inline-block; background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 0 8px; font-size: 0.78em; color: var(--muted); margin-left: 6px; }
+</style>
+</head>
+<body>
+
+<h1>Meta Data Engineer — Collated Interview Questions</h1>
+<p class="muted">Compiled 2026-07-17 from Exponent, IGotAnOffer, DataInterview, Glassdoor summaries, and first-hand 2025 candidate accounts (Medium/Blind). Role: Data Engineer, Analytics (Technical Leadership) — Instagram.</p>
+<p class="muted"><strong>Updated 2026-07-27:</strong> recruiter is likely routing her to <strong>Data Engineer, Product Analytics (E5)</strong> instead — a Blind thread specifically on that team confirms the same loop structure applies (5 SQL + 5 Python screen, blended onsite). Re-verified against Exponent, IGotAnOffer, a first-hand Medium account (Bobby Hsu-style, Nov 2025), and a generic listicle (weekday.works) — new confirmed questions added below where found. The weekday.works source also listed classic DSA questions (reverse linked list, spiral matrix, valid parentheses) that <strong>contradict every verified account</strong> — treated as generic filler, not added.</p>
+
+<h2>The loop at a glance</h2>
+<table>
+  <tr><th>Stage</th><th>Format</th><th>Pass bar</th></tr>
+  <tr><td>Recruiter screen</td><td>30 min, fit + logistics. Recruiter shares official prep material — ASK for it.</td><td>—</td></tr>
+  <tr><td><strong>Technical screen</strong></td><td>60 min CoderPad + Zoom: ~5 SQL (25 min) + ~5 Python (25 min)</td><td><strong>3+ correct in EACH section.</strong> Reported as the highest-attrition stage.</td></tr>
+  <tr><td>Onsite loop</td><td>3× 1-hr "full-stack" rounds, EACH split: product sense ~10 min → data modeling ~15 → SQL ~15 → Python ~15. Plus 30-min "ownership" (behavioral) round with a manager.</td><td>All four competencies scored in every round</td></tr>
+</table>
+<p class="muted">First-hand 2025 account (Bobby Hsu, Medium): whole process ~2 months; screen results in 2 days; stamina matters — onsite is 4–5 hours.</p>
+
+<h2>1. SQL questions (screen + onsite)</h2>
+<p>Dialect: <strong>Presto/Spark SQL</strong> — practice in that dialect, not Oracle. Tables are almost always user-event shaped: <code>(user_id, event_time, event_name)</code>.</p>
+<h3>Reported questions</h3>
+<ul>
+  <li>Given an events table <code>(user_id, event_time, event_name)</code>, compute <strong>7-day retention cohorts</strong> by signup date — derive cohorts, join event windows, window-function activity flags. <span class="tag">reported 2025</span></li>
+  <li>Compute <strong>Day-N retention for each weekly cohort</strong>, given a signup event and an active event.</li>
+  <li>Funnel: <strong>what % of Messenger users active yesterday made a video call</strong>. <span class="tag">Exponent</span></li>
+  <li>Users who checked out books but didn't return before the due date (per user count). <span class="tag">screen</span></li>
+  <li>Users who checked out books in a category, grouped by age. <span class="tag">screen</span></li>
+  <li>People who checked out a book <strong>the same day</strong> another person returned it (self-join on dates). <span class="tag">screen</span></li>
+  <li>Sum of total orders + count of distinct customers. <span class="tag">screen warm-up</span></li>
+  <li>Users who called <strong>3+ distinct people</strong> in the last week. <span class="tag">screen</span></li>
+  <li>Aggregating transactions by user, with joins across tables. <span class="tag">screen, Medium 2025</span></li>
+</ul>
+<h3>Generic SQL warm-ups reported (lower signature-value, but real reports)</h3>
+<ul class="muted">
+  <li>UNION vs UNION ALL — difference + which is faster</li>
+  <li>Top 5 products by sales; % of total sales on first vs last working day of month</li>
+  <li>Second-highest / third-highest salary without TOP/LIMIT; employees without managers; normalize a redundant table</li>
+</ul>
+<h3>Patterns to drill</h3>
+<ul>
+  <li>Retention + cohort analysis (the signature Meta question — multiple stacked CTEs)</li>
+  <li>Funnels with conversion % between steps</li>
+  <li>Full window-function surface: <code>ROW_NUMBER / RANK / DENSE_RANK / NTILE / PERCENT_RANK / CUME_DIST / LAG / LEAD / FIRST_VALUE / LAST_VALUE</code></li>
+  <li>Self-joins on event tables; date arithmetic; <code>COUNT(DISTINCT ...)</code> traps; CASE-pivots</li>
+</ul>
+
+<h2>2. Python questions (screen + onsite)</h2>
+<p>NOT LeetCode DSA. Practical data manipulation on native structures — lists, dicts, strings, files. Onsite adds <strong>streaming patterns</strong>.</p>
+<h3>Reported questions</h3>
+<ul>
+  <li>For each string in a list: take the <strong>second letter of the first word</strong>, return char + count (dict counting). <span class="tag">screen</span></li>
+  <li>Read <code>data.csv</code>, process it, <strong>handle file-not-found</strong> (try/except — your Python Foundations topic 4). <span class="tag">screen</span></li>
+  <li><strong>Second-highest salary per department</strong> from employee records — in pure Python, no SQL. <span class="tag">screen</span></li>
+  <li>Join two lists and sort; remove items from a list by key. <span class="tag">screen warm-ups</span></li>
+  <li>Stream of ride requests → <strong>count per 15-minute tumbling window</strong> (your 2D watermark/window knowledge, in plain Python). <span class="tag">onsite</span></li>
+  <li>Write a function that <strong>dynamically formats a SQL query</strong> from input parameters. <span class="tag">onsite</span></li>
+  <li>Given a dict of bookstore locations → list of review strings, dedup reviews per location, then find the <strong>most frequent review across all locations</strong>. <span class="tag">screen, new 2026-07-27</span></li>
+  <li><strong>Forward-fill</strong>: given a list, replace NULLs with the previous non-null value. <span class="tag">new 2026-07-27 — DE-relevant pattern</span></li>
+  <li>Count occurrences of a character in a string; find mismatched words between two strings (case-sensitive). <span class="tag">new 2026-07-27</span></li>
+  <li>Check whether a list of numbers is <strong>monotonic</strong> (all non-decreasing or all non-increasing). <span class="tag">new 2026-07-27</span></li>
+  <li>Given several lists, compute the average list length. <span class="tag">new 2026-07-27</span></li>
+</ul>
+<h3>Patterns to drill</h3>
+<ul>
+  <li>Dict counting/grouping by hand (<code>defaultdict</code>, <code>Counter</code>)</li>
+  <li>String parsing + list comprehensions; sorting with <code>key=</code>; top-N per group without SQL</li>
+  <li>File I/O + exception handling; generators for large-file processing (your Foundations topics 1–4 — directly relevant)</li>
+  <li>Windowing logic over event streams with plain dicts + timestamps</li>
+</ul>
+
+<h2>3. Data modeling (onsite, ~15 min per round — highest-weighted)</h2>
+<p>Always introduced through a product prompt. Whiteboard a <strong>star schema</strong> and defend grain, SCD choice, fact type.</p>
+<h3>Reported prompts</h3>
+<ul>
+  <li>Design the star schema for <strong>News Feed / Marketplace / Reels</strong> — defend grain, SCDs, fact table type. <span class="tag">reported repeatedly</span></li>
+  <li>Ride-sharing platform schema: relationships, PK/FK, <strong>how you'd partition transactional tables at scale</strong>.</li>
+  <li>E-commerce: products, orders, customers, inventory.</li>
+  <li>Notification system for a Reddit-style app — backend + data model.</li>
+  <li>Movie-theater ticketing system end-to-end.</li>
+  <li>"An Instagram metric is dropping — walk through root-cause analysis, the data model that supports the investigation, and follow-ups."</li>
+  <li>Social media site like Twitter — full schema. <span class="tag">new 2026-07-27</span></li>
+  <li>Track software versions + dependencies. <span class="tag">new 2026-07-27</span></li>
+  <li>Global weather tracking system. <span class="tag">new 2026-07-27</span></li>
+  <li>Video streaming service — scalable schema. <span class="tag">new 2026-07-27</span></li>
+  <li>Multi-tenant application with different access levels. <span class="tag">new 2026-07-27</span></li>
+  <li>ETL pipeline for Uber user engagement — what events to capture, log structure, queryability, metric pre-calculation. <span class="tag">Medium 2025 — process note: modeling + ETL are now ONE integrated round, not separate</span></li>
+</ul>
+<h3>What they score</h3>
+<ul>
+  <li>Clarify ambiguity BEFORE committing; state the grain out loud; additive vs semi-additive vs non-additive facts</li>
+  <li>SCD choices with reasons; bridge tables; conformed dimensions (Kimball vocabulary — your IQVIA/Dow home turf)</li>
+  <li>Partitioning strategy at consumer scale; how the ETL lands the model; adapting when they shift a requirement mid-round</li>
+</ul>
+
+<h2>4. Product sense (onsite, ~10 min per round)</h2>
+<ul>
+  <li>Define success metrics for an Instagram feature (Reels, Stories, Notifications) — north star + guardrail/counter-metrics</li>
+  <li>Metric X dropped 10% — how do you investigate? (segment, seasonality, logging change, mix shift)</li>
+  <li>Which tables/events must exist to measure this feature? (bridges straight into the modeling section)</li>
+  <li>How would you improve Facebook search? <span class="tag">new 2026-07-27</span></li>
+  <li>What metrics would you examine to grow engagement on Instagram Stories? <span class="tag">new 2026-07-27</span></li>
+  <li>Design a feature to increase Marketplace transactions. <span class="tag">new 2026-07-27</span></li>
+  <li>How would you use data to decide on a new WhatsApp feature? <span class="tag">new 2026-07-27</span></li>
+  <li>Propose how to measure success of a new video-recommendation algorithm. <span class="tag">new 2026-07-27</span></li>
+  <li>Housing marketplace feature — how would you measure success? <span class="tag">Medium 2025, onsite round 1</span></li>
+</ul>
+<p class="muted">Framework: user action → north star metric → counter-metrics → grain of the fact table that measures it. Your schema-derivation recipe from the SD ledger pattern applies directly.</p>
+
+<h2>5. Ownership / behavioral (30 min, with a manager)</h2>
+<ul>
+  <li>Led a project end-to-end</li>
+  <li>Disagreed with manager/lead — how resolved</li>
+  <li>Process improved with measurable business impact</li>
+  <li>Learned a new tool/system fast and delivered</li>
+  <li>Went the extra mile for a project. <span class="tag">new 2026-07-27</span></li>
+  <li>Biggest anticipated challenge in the DE role. <span class="tag">new 2026-07-27</span></li>
+  <li>Made a quick decision without all the necessary information. <span class="tag">new 2026-07-27 — matches Pillar 8's "decision with incomplete info"</span></li>
+</ul>
+<p class="muted">Run by a Data Engineering manager, not a peer — first-hand account confirms situational/scenario-style follow-ups, not pure SAR recitation.</p>
+<p>Your four stories: Citi consumption layer (ownership+tradeoff, Q2), Playwright ElementHandle (rigor, Q4), IQVIA DV2-over-Kimball (decision under volatility), mentoring 3 juniors (level). Under 5 min each, numbers included, "I" not "we".</p>
+
+<h2>Prep mapping — what you already have vs. what to build</h2>
+<table>
+  <tr><th>Round</th><th>Covered by</th><th>Gap to work</th></tr>
+  <tr><td>SQL</td><td>12 yrs + window functions ✅</td><td>Presto dialect + retention/funnel shapes — StrataScratch Meta-tagged set</td></tr>
+  <tr><td>Python</td><td>Foundations ✅ (esp. topics 1–4)</td><td><strong>From-blank speed under time pressure</strong> — daily reps from Tue 2026-07-21</td></tr>
+  <tr><td>Modeling</td><td>IQVIA DV2, Dow Kimball, SCDs</td><td>2J pulled forward; practice saying grain/fact-type decisions OUT LOUD on consumer prompts</td></tr>
+  <tr><td>Product sense</td><td>SD Phase B recipe</td><td>New muscle — metric definition drills on IG features</td></tr>
+  <tr><td>Behavioral</td><td>Q2/Q4 prescreen answers</td><td>Spoken 5-min versions, timed</td></tr>
+</table>
+
+<h2>Sources</h2>
+<ul class="muted">
+  <li>Exponent — Meta Data Engineer Interview Guide (sample questions, round structure)</li>
+  <li>Bobby Hsu — "Meta Data Engineer Interview Experience 2025" (Medium, first-hand: timings, round splits)</li>
+  <li>IGotAnOffer — Meta data engineer interview guide</li>
+  <li>DataInterview — "Meta Data Engineer Interview 2026"; DataVidhya guide; Glassdoor/Blind summaries (retention cohort + star-schema reports)</li>
+  <li><strong>Added 2026-07-27:</strong> Blind thread specifically on the Product Analytics team (confirms same loop); weekday.works listicle (SQL warm-ups, product-sense prompts — DSA-coding section excluded as unverified/contradictory)</li>
+</ul>
+
+</body>
+</html>

@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Meta — HR Prescreen Prep (Mon 2026-07-20)</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #ffffff; --fg: #1a1a1a; --muted: #666;
+    --card: #f6f8fa; --border: #e1e4e8; --accent: #0866ff;
+    --warn-bg: #fff4e6; --warn-border: #d35400;
+    --say-bg: #e8f4ea; --say-border: #2e7d32;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0d1117; --fg: #e6edf3; --muted: #9da7b1;
+      --card: #161b22; --border: #30363d; --accent: #58a6ff;
+      --warn-bg: #2a1f12; --warn-border: #f0883e;
+      --say-bg: #12261a; --say-border: #4caf50;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { background: var(--bg); color: var(--fg); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; line-height: 1.6; max-width: 860px; margin: 0 auto; padding: 24px; }
+  h1 { font-size: 1.5em; border-bottom: 2px solid var(--accent); padding-bottom: 8px; }
+  h2 { font-size: 1.2em; color: var(--accent); margin-top: 32px; }
+  .q { background: var(--card); border: 1px solid var(--border); border-left: 4px solid var(--accent); border-radius: 6px; padding: 12px 16px; margin: 20px 0 8px; font-weight: 600; }
+  .say { background: var(--say-bg); border-left: 4px solid var(--say-border); border-radius: 6px; padding: 12px 16px; margin: 8px 0; }
+  .say::before { content: "SAY IT LIKE THIS"; display: block; font-size: 0.7em; letter-spacing: 1px; color: var(--say-border); font-weight: 700; margin-bottom: 6px; }
+  .warn { background: var(--warn-bg); border-left: 4px solid var(--warn-border); border-radius: 6px; padding: 12px 16px; margin: 8px 0; }
+  .warn::before { content: "⚠ WATCH OUT"; display: block; font-size: 0.7em; letter-spacing: 1px; color: var(--warn-border); font-weight: 700; margin-bottom: 6px; }
+  .fill { background: var(--warn-bg); border: 1px dashed var(--warn-border); padding: 0 6px; border-radius: 4px; font-weight: 600; }
+  table { border-collapse: collapse; width: 100%; margin: 12px 0; }
+  th, td { border: 1px solid var(--border); padding: 8px 10px; text-align: left; }
+  th { background: var(--card); }
+  .muted { color: var(--muted); font-size: 0.9em; }
+</style>
+</head>
+<body>
+
+<h1>Meta — HR Prescreen Prep</h1>
+<p class="muted">Recruiter screen, Data Engineer Analytics (Technical Leadership), Instagram · Call: Monday 2026-07-20 · ~30 min, non-technical · The recruiter has your 6 prescreen answers — re-read <code>Curated_Resume_for_each_company/Meta_Prescreen_Answers.md</code> the morning of.</p>
+
+<h2>1. "Walk me through your background" — the 2-minute pitch</h2>
+<div class="say">
+I'm a data engineer and architect with 12+ years, currently AVP and Senior Data Architect at Citibank. I've worked across banking, healthcare, and manufacturing, and I've mostly lived on the architecture end — owning both the vision and the execution.
+<br><br>
+At Citi I own the data architecture for DCRM/CEAM metrics across four business domains. The piece I'm proudest of is a unified consumption layer across Oracle, Kafka, Redis, and GraphQL — the alternative was every domain building its own point-to-point integrations. It cut source-to-mart latency by 40%, improved Tableau query performance 45% for 200+ business users, and got adopted by 10+ engineering teams.
+<br><br>
+Before that at IQVIA–Bayer I designed the global healthcare analytics data model — Data Vault 2.0 with Kimball patterns, HIPAA- and GDPR-aware, standardized across 15+ programmes globally. And at Dow I built Kimball warehouses with conformed dimensions serving 200+ users at sub-5-second SLAs.
+<br><br>
+The through-line: SQL and Python for the correctness and performance contract, dimensional modeling for the structure, and a lot of partnering with PMs and data scientists to turn analytics needs into architecture and SLAs. Most recently I've been integrating AI tooling — Devin, Copilot, Claude Code — into the actual engineering workflow, which is part of why this role caught my attention.
+</div>
+<div class="warn">Practice OUT LOUD twice before Monday. The goal isn't memorization — it's finding the sentences that don't fit in your mouth and fixing them. Target: under 2 minutes.</div>
+
+<h2>2. "Why Meta? Why this role?"</h2>
+<p>Raw material that is genuinely true — assemble in your own words:</p>
+<ul>
+  <li><strong>Scale contrast:</strong> 12 years of enterprise data (hundreds of users, banking marts) → Instagram analytics is consumer scale, billions of users. If that jump excites you, say so specifically.</li>
+  <li><strong>The AI angle:</strong> Meta asked FOUR prescreen questions about AI tooling — this team cares. You use Claude Code/Devin/Copilot daily and built your own agent. That's an unusually direct match; almost no candidate has your Q3/Q4 stories.</li>
+  <li><strong>Technical Leadership flavor:</strong> the role wants architecture ownership + cross-functional influence — exactly your Citi shape (10+ teams adopted your design).</li>
+</ul>
+<div class="say">
+Two honest reasons. First, scale: I've spent twelve years making enterprise data platforms serve hundreds of users well — I want to work on data that serves billions, and Instagram analytics is that. Second, the way this role was posted told me something: four of the six screening questions were about AI-assisted engineering. That's the way I already work — I use Claude Code and Copilot daily and built my own AI application agent — and I'd rather be somewhere that treats that as core engineering practice, not a novelty.
+<span class="fill">[EDIT: make this yours — a recruiter can hear a manufactured answer]</span>
+</div>
+
+<h2>3. "What are you looking for in your next role?"</h2>
+<div class="say">
+Three things. Scope — I want to own data architecture for a product surface, not just a project; the Technical Leadership framing here is what drew me. Scale — consumer-scale data problems I can't get in enterprise banking. And a team where AI-assisted engineering is how work actually gets done. <span class="fill">[EDIT to taste]</span>
+</div>
+
+<h2>4. "Where are you based? Work authorization?" — THE BIG ONE</h2>
+<div class="warn">Your Meta resume header says "San Francisco Bay Area, CA, USA". You will say "currently in India" on this call. YOU raise it first, briefly, so it's context you gave — not a discrepancy they found. Per your own rule (2026-06): disclose upfront, not mid-call.</div>
+<div class="say">
+One thing I want to be upfront about: I'm currently in India, relocating to the San Francisco Bay Area — my spouse is already there. My target is <span class="fill">[CONFIRM YOUR CURRENT MOVE DATE before the call]</span>. On work authorization I'm fully covered: I have an L2 EAD, so I'm authorized to work in the US with no sponsorship needed — no H-1B, no lottery, no cap.
+</div>
+<p><strong>20-second version. Practice until it's boring.</strong> The EAD is good news — say it plainly, don't apologize for it.</p>
+<div class="warn">Decide BEFORE the call: if they say "we need someone in the Bay Area by September", what's your answer? Have a position, don't improvise. (Notice period 60 days + relocation logistics = your realistic earliest onsite date. Work it out and hold it.)</div>
+
+<h2>5. "Current comp / expectations?" — the anchor trap</h2>
+<div class="warn">Do NOT say $200,000 (the profile.yaml number). Meta senior DE total comp in the Bay Area runs far above that — check levels.fyi for Meta E5/E6 Data Engineer BEFORE the call so you recognize what you hear. An early low anchor is nearly impossible to walk back.</div>
+<div class="say">
+My current compensation is in India, so it honestly doesn't translate to a Bay Area role — I'd rather anchor on the market for this level than on a number that isn't comparable. Can you share what range is budgeted for this level?
+</div>
+<p>This is not a dodge — it's factually true, and it's a stronger position than most candidates have. If pressed twice: "I'm confident we won't have a comp problem if the fit is right — I'd just like to understand the level first."</p>
+
+<h2>6. "Timeline? Notice period? Interviewing elsewhere?"</h2>
+<div class="say">
+My notice period is 60 days. <span class="fill">[If there's buyout/negotiation flexibility, say so — the recruiter is doing start-date math while you talk.]</span> I'm in active preparation and have other applications in flight, but this role is a deliberate choice, not one of many.
+</div>
+<div class="warn"><strong>Exam collision:</strong> AWS CCP + Databricks DEA both booked Aug 10–16. When they ask when to schedule the technical screen, aim for the FIRST WEEK OF AUGUST (Aug 3–7) or AFTER Aug 17. Never inside exam week. Also ask them to send the prep material — Meta recruiters share official guides and a round-by-round overview.</div>
+
+<h2>7. Level-calibration questions ("Technical Leadership" screening)</h2>
+<p>Expect probes on scope. Answers you already own:</p>
+<table>
+  <tr><th>Probe</th><th>Your answer</th></tr>
+  <tr><td>How large was your influence?</td><td>Architecture adopted by 10+ engineering teams, 4 business domains (Citi)</td></tr>
+  <tr><td>Decision-maker or executor?</td><td>Conceptualized AND owned the consumption-layer decision; evaluated it against running streaming+cache+OLTP+API in prod (your Q2 answer)</td></tr>
+  <tr><td>Stakeholders?</td><td>PMs, data scientists, business analytics owners; defined ownership + SLAs; 200+ dashboard users</td></tr>
+  <tr><td>People leadership?</td><td>Mentored 3 junior engineers + vendor resources — reviews, architecture patterns, S2T mapping practices</td></tr>
+  <tr><td>Global/ambiguity?</td><td>IQVIA GDM standardized across 15+ programmes, worked autonomously across global teams</td></tr>
+</table>
+
+<h2>8. "Do you have questions for me?" — never say no</h2>
+<p>Pick 3–4:</p>
+<ul>
+  <li>What does this team actually own — which Instagram surfaces, which data domain?</li>
+  <li>What does "Technical Leadership" mean here in practice — am I the decision-maker on architecture, or executing a direction already set?</li>
+  <li>What's the biggest data problem the team wants solved in the next six months?</li>
+  <li>How does the role split between pipelines, modeling, and partnering with product?</li>
+  <li><strong>Always:</strong> What does the loop look like, what's the timeline, and is there prep material you can send?</li>
+</ul>
+
+<h2>9. If they probe your prescreen answers</h2>
+<p>The AI questions (Q3/Q4) are the unusual ones — most likely to be probed. Have the <strong>Playwright ElementHandle story</strong> ready as a 60-second spoken version: agent froze 30s on Greenhouse forms → traced with DevTools → stale file-input handle from SPA re-renders → switched Locator to ElementHandle, grab-and-attach synchronously → lesson: AI code reflects the documented happy path; production correctness requires verifying against runtime behavior.</p>
+
+<h2>Monday morning checklist</h2>
+<ul>
+  <li>☐ Re-read Meta_Prescreen_Answers.md once</li>
+  <li>☐ Say the 2-min pitch out loud twice</li>
+  <li>☐ Confirm your relocation date → fill the placeholder in §4</li>
+  <li>☐ levels.fyi: Meta E5/E6 Data Engineer, Bay Area</li>
+  <li>☐ Decide the "can you be here by X?" position</li>
+  <li>☐ Mock with Claude (play recruiter, push on location + comp)</li>
+  <li>☐ Quiet room, headphones, water — PT-morning call = your evening (IST)</li>
+</ul>
+
+</body>
+</html>

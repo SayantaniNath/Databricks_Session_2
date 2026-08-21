@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>P2 — Databricks Full Walkthrough (Status + Hands-On Record)</title>
+<style>
+  :root{
+    --bg:#0f1216; --panel:#161b22; --panel2:#1c2430; --ink:#e6edf3; --muted:#9aa7b4;
+    --line:#2a3441; --accent:#4da3ff; --green:#3fb950; --amber:#d29922; --red:#f85149;
+    --code:#0b0f14;
+  }
+  @media (prefers-color-scheme: light){
+    :root{ --bg:#fbfcfd; --panel:#fff; --panel2:#f3f6f9; --ink:#12181f; --muted:#5b6875;
+           --line:#dde3ea; --code:#f3f6f9; }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+       font:15px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;}
+  .wrap{max-width:1080px;margin:0 auto;padding:40px 22px 90px}
+  h1{font-size:30px;line-height:1.25;margin:0 0 6px}
+  h2{font-size:22px;margin:44px 0 14px;padding-bottom:8px;border-bottom:2px solid var(--line)}
+  h3{font-size:17px;margin:26px 0 8px;color:var(--accent)}
+  h4{font-size:15px;margin:18px 0 6px}
+  p,li{color:var(--ink)}
+  .sub{color:var(--muted);font-size:14px;margin:0 0 26px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px 18px;margin:14px 0}
+  .card.warn{border-left:4px solid var(--amber)}
+  .card.bad{border-left:4px solid var(--red)}
+  .card.good{border-left:4px solid var(--green)}
+  .card.info{border-left:4px solid var(--accent)}
+  table{width:100%;border-collapse:collapse;margin:14px 0;font-size:14px}
+  .scroll{overflow-x:auto}
+  th,td{border:1px solid var(--line);padding:9px 11px;text-align:left;vertical-align:top}
+  th{background:var(--panel2);font-weight:600}
+  code{background:var(--code);border:1px solid var(--line);border-radius:4px;
+       padding:1px 5px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px}
+  pre{background:var(--code);border:1px solid var(--line);border-radius:8px;
+      padding:14px;overflow-x:auto;font-size:13px;line-height:1.5}
+  pre code{background:none;border:none;padding:0}
+  .done{color:var(--green);font-weight:600}
+  .part{color:var(--amber);font-weight:600}
+  .todo{color:var(--muted);font-weight:600}
+  .tag{display:inline-block;background:var(--panel2);border:1px solid var(--line);
+       border-radius:999px;padding:2px 10px;font-size:12px;color:var(--muted);margin-right:6px}
+  ul{padding-left:22px}
+  li{margin:5px 0}
+  .toc a{color:var(--accent);text-decoration:none}
+  .toc a:hover{text-decoration:underline}
+  .kv{color:var(--muted);font-size:13px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>P2 — Databricks Full Walkthrough</h1>
+<p class="sub">Everything started and completed on the Databricks track, with the hands-on record.
+Built 2026-08-21 · Pillar 2 of the DE prep plan · Sayantani Nath</p>
+
+<div class="card info">
+<strong>What this doc is.</strong> A single consolidated status + revision record for Pillar 2 (Spark + Databricks).
+For each stage: what was taught, whether it was <em>verified</em> or only <em>covered</em>, what hands-on lab was actually run,
+what the lab actually printed, and the gotcha it exposed. It is deliberately honest about the items closed on
+"taught-not-verified" — those are listed together in §11 so you know exactly what to redo before a real Databricks round.
+<br><br>
+<strong>What it is not.</strong> It does not re-teach Spark internals — that content lives in
+<code>Spark_Architecture_Walkthrough.html</code> (§1–§27) and is cross-referenced by section number throughout.
+</div>
+
+<h2 id="toc">0. Contents</h2>
+<div class="card toc">
+<a href="#status">1. Status at a glance (2A → 2J)</a><br>
+<a href="#s2a">2. 2A — Spark Architecture</a> ·
+<a href="#s2b">3. 2B — Spark Internals</a> ·
+<a href="#s2c">4. 2C — Delta Lake</a><br>
+<a href="#s2d">5. 2D — Structured Streaming</a> ·
+<a href="#s2e">6. 2E — Lakeflow / DLT</a> ·
+<a href="#s2f">7. 2F — Unity Catalog</a><br>
+<a href="#s2g">8. 2G — Auto Loader</a> ·
+<a href="#s2h">9. 2H — MLflow</a> ·
+<a href="#s2i">10. 2I — Databricks Platform</a><br>
+<a href="#labs">11. Hands-on lab index — what was actually run</a><br>
+<a href="#gaps">12. Open gaps + redo-before-interview list</a><br>
+<a href="#files">13. Where everything lives</a> ·
+<a href="#quickfire">14. Interview quick-fire</a>
+</div>
+
+<h2 id="status">1. Status at a glance</h2>
+
+<div class="scroll">
+<table>
+<tr><th>Stage</th><th>Topic</th><th>Concepts</th><th>Hands-on lab</th><th>Closed</th></tr>
+<tr><td><strong>2A</strong></td><td>Spark Architecture</td><td class="done">✅ verified</td><td class="done">✅ Spark UI live session</td><td>2026-06-03</td></tr>
+<tr><td><strong>2B</strong></td><td>Spark Internals (Catalyst/Tungsten/AQE/skew)</td><td class="done">✅ verified</td><td class="done">✅ skew + salting lab</td><td>2026-06-09</td></tr>
+<tr><td><strong>2C</strong></td><td>Delta Lake Mechanics</td><td class="done">✅ verified (re-taught)</td><td class="done">✅ _delta_log inspection</td><td>2026-07-03</td></tr>
+<tr><td><strong>2D</strong></td><td>Structured Streaming</td><td class="done">✅ verified</td><td class="done">✅ checkpoint lab</td><td>2026-07-06</td></tr>
+<tr><td><strong>2E</strong></td><td>Lakeflow Declarative Pipelines (DLT)</td><td class="done">✅ verified</td><td class="done">✅ expectations lab</td><td>2026-07-16</td></tr>
+<tr><td><strong>2F</strong></td><td>Unity Catalog</td><td class="done">✅ verified</td><td class="done">✅ governance lab</td><td>2026-07-16</td></tr>
+<tr><td><strong>2G</strong></td><td>Auto Loader</td><td class="done">✅ verified</td><td class="done">✅ incremental ingest lab</td><td>2026-07-17</td></tr>
+<tr><td><strong>2H</strong></td><td>MLflow Basics</td><td class="part">🟡 taught, 0/3 checks passed</td><td class="todo">⏳ skipped</td><td>2026-07-23 (your call)</td></tr>
+<tr><td><strong>2I</strong></td><td>Databricks Platform</td><td class="part">🟡 5/8 verified</td><td class="done">✅ DABs lab (2026-07-21)</td><td>2026-07-30 (your call)</td></tr>
+<tr><td><strong>2J</strong></td><td>Data Modeling</td><td class="done">✅ 6 live mocks</td><td class="part">🟡 SCD2-MERGE lab never run</td><td>2026-07-23 (your call)</td></tr>
+</table>
+</div>
+
+<p><span class="tag">Bottom line</span> Pillar 2 is functionally complete. Seven of ten stages are verified end-to-end
+with a lab you ran yourself. Three (2H, 2I, 2J) were closed at your request on concepts-taught rather than
+retention-verified — the specific untested items are itemised in §12.</p>
+
+<!-- ============================================ -->
+<h2 id="s2a">2. Stage 2A — Spark Architecture</h2>
+<p class="kv">Started 2026-05-28 · Completed 2026-06-03 · Content: <code>Spark_Architecture_Walkthrough.html</code> §1–§13</p>
+
+<h3>Covered and verified</h3>
+<ul>
+<li><strong>Cluster anatomy</strong> — Driver / Executors / Cluster Manager / SparkSession, and who holds what.</li>
+<li><strong>Partitions as the unit of parallelism</strong> — one task per partition per stage.</li>
+<li><strong>Transformations vs actions</strong>, lazy evaluation — nothing runs until an action pulls.</li>
+<li><strong>Narrow vs wide dependencies</strong> — wide = shuffle = stage boundary.</li>
+<li><strong>Job → Stage → Task hierarchy</strong> and the DAG; the stage-counting recipe (§10).</li>
+<li><strong>Broadcast joins</strong> — automatic threshold, explicit hint, the 10 MB / 50 MB boundary.</li>
+<li><strong>DataFrame API</strong> — select/filter/join/withColumn/groupBy/agg/orderBy.</li>
+<li><strong>PySpark SQL</strong> — <code>createOrReplaceTempView</code>, <code>spark.sql</code>, reading Catalyst plans.</li>
+</ul>
+
+<h4>Hands-on</h4>
+<div class="card good">
+<strong>Databricks CE live session</strong> — serverless compute, <code>display()</code>, Unity Catalog volume,
+and a live Spark UI walkthrough where <code>BroadcastHashJoin</code> was confirmed in the physical plan.
+Plus from-blank job/stage/shuffle counting exercises — <code>databricks_exercises.py</code> §1.
+</div>
+
+<!-- ============================================ -->
+<h2 id="s2b">3. Stage 2B — Spark Internals (deep dive)</h2>
+<p class="kv">Started 2026-06-07 · Completed 2026-06-09 · Content: walkthrough §14–§22</p>
+
+<h3>Covered and verified</h3>
+<div class="scroll">
+<table>
+<tr><th>Topic</th><th>The thing to remember</th></tr>
+<tr><td>Catalyst optimizer</td><td>4 phases: Analysis → Logical Optimization → Physical Planning → Code Generation.</td></tr>
+<tr><td>Tungsten</td><td>Off-heap memory + whole-stage codegen. WSCG shows as <code>*(1)</code> in <code>explain()</code> output.</td></tr>
+<tr><td>AQE (Spark 3.0+)</td><td>Partition coalescing, dynamic join-strategy switching, skew join splitting — decided at runtime from real shuffle stats.</td></tr>
+<tr><td>Shuffles</td><td>Map-side write → network → reduce-side read. The stage barrier exists because reducers can't start until every mapper has written.</td></tr>
+<tr><td><code>spark.sql.shuffle.partitions</code></td><td>The 200 default is arbitrary and usually wrong. AQE handles it in Spark 3+.</td></tr>
+<tr><td>Join strategies</td><td>BHJ (no shuffle, small side broadcast) / SMJ (both sides shuffled + sorted) / SHJ (rare).</td></tr>
+<tr><td>Caching</td><td>Storage levels, the lazy gotcha (cache doesn't materialise until an action), when NOT to cache, <code>unpersist</code>.</td></tr>
+<tr><td>repartition vs coalesce</td><td>repartition = full shuffle, can increase or decrease. coalesce = no shuffle, decrease only.</td></tr>
+<tr><td>Photon</td><td>C++ vectorized columnar engine. Accelerates SQL/DataFrame ops — <em>bypassed almost entirely by Python UDFs</em>.</td></tr>
+</table>
+</div>
+
+<h4>Hands-on — skew detection + salting (2026-06-08)</h4>
+<div class="card good">
+<code>databricks_exercises.py</code> §2 · walkthrough §21. This was the strongest early lab — real numbers, real diagnosis:
+<ul>
+<li>BHJ + partial aggregation were <em>masking</em> the skew — had to disable
+<code>spark.sql.autoBroadcastJoinThreshold</code> before it became visible.</li>
+<li>Spark UI Shuffle Read Size: <strong>Min/Median 0 B, Max 355 KiB / 41,468 records</strong>.</li>
+<li>5 of 10 partitions were empty (median = 0 → at least half had no rows).</li>
+<li><strong>Skew ratio = Max ÷ non-zero median = 41,468 ÷ 2,596 ≈ 16×.</strong></li>
+<li><strong>Salt bucket formula = ceil(Max ÷ target size) = ceil(41,468 ÷ 5,000) = 9.</strong></li>
+</ul>
+Exercises: Ex1 (<code>spark_partition_id</code> detection) ✅ · Ex2 (join salting) ✅ ·
+Ex3 (groupBy two-pass) partially done · Ex4 (bucket sizing) ✅.
+</div>
+
+<!-- ============================================ -->
+<h2 id="s2c">4. Stage 2C — Delta Lake Mechanics ⭐</h2>
+<p class="kv">Taught 2026-06-12 · Re-taught + retention-verified 2026-07-03 · Content: walkthrough §23–§27</p>
+<p>The most-asked Databricks DE topic, and the one you re-took deliberately. On 2026-07-03 you said you couldn't
+recall §26/§27, we re-taught the same day, and all four retention checks passed.</p>
+
+<h3>Covered and verified</h3>
+<ul>
+<li><strong><code>_delta_log</code> structure</strong> — JSON commit file per transaction, Parquet checkpoint every 10th commit,
+plus the <code>_last_checkpoint</code> pointer so readers don't replay from zero.</li>
+<li><strong>ACID via optimistic concurrency control</strong> — writers assume no conflict, validate at commit,
+retry or throw depending on whether the conflict is logically resolvable.</li>
+<li><strong>Time travel</strong> — snapshot at version N reconstructed by replaying log up to N; <code>RESTORE</code> writes a new version.</li>
+<li><strong>Schema enforcement vs evolution</strong> — enforcement rejects by default, <code>mergeSchema</code> opts in.</li>
+<li><strong>OPTIMIZE + Z-ORDER</strong> and liquid clustering. <span class="tag">correction logged</span>
+OPTIMIZE does not make "bigger files" — it makes <em>right-sized</em> files.</li>
+<li><strong>VACUUM</strong> — 7-day default retention, and the consequence: it destroys time travel past the horizon.</li>
+<li><strong>MERGE INTO</strong> — isolation level, under-the-hood rewrite mechanics, write amplification math (you got this right).</li>
+<li><strong>Change Data Feed</strong> — pre-image/post-image rows for UPDATE, how to enable and consume.</li>
+<li><strong>Small files problem</strong> — the API-call math, how OPTIMIZE consolidates.</li>
+<li><strong>Data skipping</strong> — min/max column statistics, dynamic file pruning.</li>
+<li><strong>Delta Sharing</strong> — what problem it actually solves (share without copying, across platforms).</li>
+<li><strong>Delta vs Iceberg vs Hudi</strong> — you recalled all three log structures unprompted including the
+<code>_last_checkpoint</code> pointer; one small fix on Iceberg's hierarchy order.</li>
+</ul>
+
+<h4>Hands-on (2026-06-15)</h4>
+<div class="card good">
+Free Edition: inspected a real <code>_delta_log</code> directory, watched the checkpoint appear at v10,
+plus from-blank checks — <code>databricks_exercises.py</code> §3 and §4.
+</div>
+
+<!-- ============================================ -->
+<h2 id="s2d">5. Stage 2D — Structured Streaming ⭐</h2>
+<p class="kv">Taught 2026-07-03 (second attempt) · Lab run 2026-07-06</p>
+
+<div class="card warn">
+<strong>Teaching-format note worth keeping.</strong> The first attempt — a full lecture plus four exercises at once — overwhelmed you.
+Restarting in <em>small steps</em> (one concept → one tiny check → next) worked, and has been the default format since.
+That change is the reason 2E/2F/2G all landed cleanly.
+</div>
+
+<h3>Covered and verified</h3>
+<ul>
+<li><strong>Micro-batch mental model</strong> — a stream is an unbounded table; execution is a loop of small batch jobs.</li>
+<li><strong>Checkpoint</strong> — ✅ you recalled all three folders and the crash-recovery logic unprompted.
+<code>offsets/</code> = write-ahead log, written <em>before</em> processing. <code>commits/</code> = written <em>after</em> the sink succeeds.
+Plus <code>metadata/</code> holding the stream's <code>appId</code>.</li>
+<li><strong>Deletion-consequence ranking</strong> — delete <code>commits/</code> = mostly harmless; delete <code>offsets/</code> = gap;
+delete <code>metadata/</code> = new appId = <strong>duplicates</strong>, because Delta's <code>SetTransaction</code> dedup key is appId+version.</li>
+<li><strong>Output modes</strong> — append / update / complete, and when each is legal.</li>
+<li><strong>Watermarking</strong> — ✅ two checks passed. <span class="tag">correction logged</span> the watermark threshold is computed
+from the <em>max event time seen so far</em>, not from the event being tested. (The bouncer/cutoff analogy is what made it stick.)</li>
+<li><strong>Exactly-once with Kafka</strong> — source side yes; Kafka <em>sink</em> is at-least-once.</li>
+<li><strong>Atomic micro-batch commits to Delta</strong> — txn metadata enables batch-skip on replay.</li>
+<li><strong>Trigger modes</strong> — default / <code>processingTime</code> / <code>once</code> vs <code>availableNow</code>.</li>
+</ul>
+
+<h4>Hands-on — Ex-5 checkpoint lab (2026-07-06, Free Edition)</h4>
+<div class="card good">
+<code>databricks_exercises.py</code> §5. Full run, and it proved the mechanism rather than just describing it:
+<ul>
+<li>Ran with <code>availableNow</code> (serverless-only trigger), inspected <code>offsets/</code> and <code>commits/</code> between batches.</li>
+<li><strong>Continuation verified: values 0..1876 appeared exactly once</strong> across a stop/restart.</li>
+<li>Then <strong>deleted the checkpoint</strong> → the rate source re-anchored from zero → <strong>duplicates observed</strong>. Exactly the predicted failure.</li>
+</ul>
+<strong>Gotchas hit:</strong> a session restart wipes Python variables but the checkpoint survives on the volume;
+the <code>rate</code> source has no real backlog, so it can't demonstrate genuine catch-up behaviour.
+</div>
+
+<!-- ============================================ -->
+<h2 id="s2e">6. Stage 2E — Lakeflow Declarative Pipelines (formerly DLT) ⭐</h2>
+<p class="kv">Concepts taught + all checks passed 2026-07-06/07 · Lab run 2026-07-16 · Content: walkthrough §34–§38</p>
+
+<h3>Covered and verified</h3>
+<ul>
+<li><strong>Declarative vs imperative</strong> — you declare the target state and the dependency graph; Lakeflow works out
+execution order, retries, and incrementality. ✅ check passed.</li>
+<li><strong>Expectations: warn / drop / fail</strong> — ✅ both checks passed. Your own heuristic, which is a good interview line:
+<em>"drop = the row is the problem, fail = the system is the problem, warn = I'm still learning what normal looks like."</em></li>
+<li><strong>Streaming live table vs materialized view</strong> — ✅ both checks passed. The ledger-vs-whiteboard hook landed:
+streaming table appends incrementally and remembers; MV is recomputed to match the source.</li>
+<li><strong>Schema drift prevention</strong> — StructType + Expectations. Schema = <em>shape</em> guard, Expectations = <em>content</em> guard.
+You got the rename → missing-column mechanism after one nudge.</li>
+<li><strong>Pipeline update modes</strong> — complete vs append. ✅ you nailed the Kafka-retention full-refresh gotcha:
+a full refresh re-reads the source, and if Kafka has aged records out, you silently lose them.</li>
+</ul>
+
+<h4>Hands-on — expectations lab (2026-07-16)</h4>
+<div class="card good">
+<code>databricks_exercises.py</code> §6 + §6b. Built orders bronze→silver in the new Lakeflow Pipelines editor
+(note: it scaffolds a <code>transformations/*.py</code> file, <em>not</em> a notebook). Observed results:
+<ul>
+<li><strong>DROP</strong> → 6 rows in, 4 out (ids 1, 2, 4, 5 — the null-customer rows removed).</li>
+<li><strong>WARN</strong> → the −20 amount row was <em>kept</em> and flagged in the metrics.</li>
+<li><strong>FAIL</strong> → <code>expect_or_fail</code> produced a red update with <code>EXPECTATION_VIOLATION</code> on order 3.</li>
+<li>§6b follow-on: streaming table vs materialized view <strong>idempotency</strong> compared directly.</li>
+</ul>
+</div>
+
+<!-- ============================================ -->
+<h2 id="s2f">7. Stage 2F — Unity Catalog ⭐</h2>
+<p class="kv">Concepts + all 5 checks passed 2026-07-16 · Lab same day · Doubles as the DEA weak-area #2 patch</p>
+
+<h3>Covered and verified</h3>
+<ul>
+<li><strong>Three-level namespace</strong> — <code>catalog.schema.table</code>; catalog-level dev/prod isolation.</li>
+<li><strong>RBAC</strong> — ✅ passed after a key correction, worth re-reading before any Databricks round:
+<div class="card bad" style="margin:10px 0">
+<strong>Your original answer was SELECT on the catalog/schema. That's wrong.</strong>
+Traversal and reading are different privileges:
+<code>USE CATALOG</code> + <code>USE SCHEMA</code> are the <em>key to the door</em>;
+<code>SELECT</code> is permission to read the <em>contents</em>. You need both.
+Also: there is no <code>DENY</code> — the model is deny-by-default with GRANT/REVOKE.
+Inheritance flows downward. Grant to <em>groups</em>, not users.
+<br><br>This was your flagged DEA miss. Watch for regression.
+</div></li>
+<li><strong>Row-level security + column masking</strong> — row filter = a boolean UDF deciding <em>which rows</em>;
+column mask = a UDF that <em>transforms the value</em>. Both attach via <code>ALTER TABLE</code> and typically key off
+<code>is_account_group_member()</code> / <code>current_user()</code>.</li>
+<li><strong>Lineage</strong> — automatic, no annotation needed; table-level <em>and</em> column-level.
+Connected directly to the ClinicalFlow PII/HIPAA tracing story.</li>
+<li><strong>UC metastore vs legacy Hive metastore</strong> — HMS: one per workspace, 2-level, siloed.
+UC metastore: account/region-level, 3-level, central grants + lineage + audit, attached to many workspaces.</li>
+</ul>
+
+<h4>Hands-on — governance lab (2026-07-16)</h4>
+<div class="card good">
+<code>databricks_exercises.py</code> §7 (SQL). Built <code>workspace.uc_lab.patients</code> and proved each control:
+<ul>
+<li><code>SET MASK mask_ssn</code> → SSN rendered as <code>XXX-XX-####</code> confirmed when not in group <code>hr</code>.</li>
+<li><code>SET ROW FILTER filter_ca</code> → result set dropped to 2 CA rows when not in group <code>auditors</code>.</li>
+<li>A real <code>GRANT</code> issued to <code>account users</code>.</li>
+<li>Lineage graph opened and viewed.</li>
+</ul>
+</div>
+
+<!-- ============================================ -->
+<h2 id="s2g">8. Stage 2G — Auto Loader</h2>
+<p class="kv">Concepts + all 5 checks passed 2026-07-16 · Lab run 2026-07-17 · Added to the plan mid-flight, not in the original</p>
+
+<h3>Covered and verified</h3>
+<ul>
+<li><strong>The <code>cloudFiles</code> model</strong> — a streaming source whose checkpoint (RocksDB) tracks which files
+have been processed → incremental, exactly-once. Contrast: a plain read reprocesses everything.</li>
+<li><strong>Auto Loader vs COPY INTO</strong> — COPY INTO: SQL, thousands of files, scheduled and idempotent.
+Auto Loader: streaming, millions of files, continuous, with schema evolution.</li>
+<li><strong>Two discovery modes</strong> — directory listing (default, zero setup, expensive at scale) vs
+file notification (SNS+SQS / EventGrid / PubSub, scales, needs cloud permissions).</li>
+<li><strong>Schema inference + evolution</strong> — <code>inferColumnTypes</code>;
+<code>schemaEvolutionMode=addNewColumns</code> (default) means <em>fail → update → restart</em> captures the column;
+<code>_rescued_data</code> catches the unmatched; <code>schemaHints</code> fixes wrong guesses (e.g. zip inferred as int).</li>
+<li><strong>Two "format" options, which trips people up</strong> —
+<code>.format("cloudFiles")</code> <em>and</em> <code>cloudFiles.format = "json"</code>.
+Plus <code>schemaLocation</code>, <code>checkpointLocation</code>, and the <code>availableNow</code> trigger.
+Also covered <code>.start()</code> vs <code>.toTable()</code>.</li>
+</ul>
+
+<h4>Hands-on — incremental ingest lab (2026-07-17)</h4>
+<div class="card good">
+<code>databricks_exercises.py</code> §8. Dropped <code>orders_1/2/3.json</code> into
+<code>/Volumes/workspace/autoloader_lab/landing</code>.
+<ul>
+<li><strong>Incremental pickup proven via <code>DESCRIBE HISTORY</code>:</strong>
+v1 <code>numOutputRows=2</code>, v2 <code>numOutputRows=1</code>.
+<em>One, not three</em> — both files were still sitting in the directory, so writing 1 row proves file 1 was skipped
+because the checkpoint remembered it. That's the whole point of the lab.</li>
+<li>Schema evolution: got <code>DELTA_METADATA_MISMATCH</code> (write side), <strong>not</strong>
+<code>UnknownFieldException</code> (read side) → <code>ALTER TABLE ADD COLUMN region</code> → rerun →
+4 rows, <code>region='us-west'</code> on order 4, NULL on 1–3.</li>
+</ul>
+</div>
+
+<div class="card info">
+<strong>★ Your best catch of the whole track — worth being able to say out loud in an interview.</strong><br><br>
+A <code>cloudFiles → Delta</code> pipeline has <strong>two independent schema guards</strong>, and evolving one does nothing for the other:
+<ul>
+<li><strong>Read side</strong> → <code>cloudFiles.schemaEvolutionMode</code>, state stored in <code>schemaLocation</code>.</li>
+<li><strong>Write side</strong> → <code>mergeSchema</code>, state stored in the table's <code>_delta_log</code>.</li>
+</ul>
+Auto Loader evolved its read schema fine; the <strong>Delta sink rejected the wider DataFrame</strong> via schema
+enforcement (2C). <code>DeltaSink.updateMetadata</code> in the stack trace is the tell that the failure is on the write.
+<br><br>
+The normal fix is <code>.option("mergeSchema","true")</code> — <strong>but on UC standard access mode, Table ACLs block
+automatic schema migration</strong>, so you must <code>ALTER TABLE … ADD COLUMN</code> explicitly. That governance-vs-convenience
+trade-off is a genuinely Staff-level observation.
+</div>
+
+<div class="card warn">
+<strong>Two of my errors you caught by actually running it</strong> (recorded because it's a good habit to keep):
+<code>numFilesInputted</code> is not a real progress key — it's <code>numInputRows</code>, and Auto Loader adds
+<code>numFilesOutstanding</code>/<code>numBytesOutstanding</code> under <code>sources[0].metrics</code>.
+And chaining <code>.awaitTermination()</code> onto <code>.toTable()</code> throws away the query handle.
+Also clarified: <code>display()</code> and <code>dbutils.fs.put</code> do not insert into tables — only the stream cell does.
+</div>
+
+<!-- ============================================ -->
+<h2 id="s2h">9. Stage 2H — MLflow Basics</h2>
+<p class="kv">Quick pass 2026-07-23 · Closed at your request · <strong>Weakest stage on the track</strong></p>
+
+<div class="card bad">
+<strong>Honest status: none of the three retention checks were passed cleanly.</strong> This stage is closed because you
+asked for it to be (same precedent as 2D/2I/2J), and the reasoning was sound — MLflow is not one of the five official
+DEA exam domains, so its weight is minimal. But if MLflow surfaces in a real Databricks round, this needs a from-blank redo first.
+</div>
+
+<div class="scroll">
+<table>
+<tr><th>Topic</th><th>What you said</th><th>The correction</th></tr>
+<tr><td>Experiment tracking (runs, params, metrics, artifacts)</td>
+    <td>MLflow "automatically handles execution dynamically"</td>
+    <td>It doesn't manage execution at all — it provides <em>persistent, structured run comparison</em>.</td></tr>
+<tr><td>Model registry stages (Staging / Production / Archived)</td>
+    <td>A new version auto-replaces Production</td>
+    <td>Registration doesn't touch existing versions. Promotion is a <em>deliberate, explicit, reversible</em> action.</td></tr>
+<tr><td>Log / load / serve a registered model</td>
+    <td>"not sure"</td>
+    <td>The <code>MLmodel</code> file packages conda/requirements + flavors + signature; you load any of them generically through <code>mlflow.pyfunc.load_model</code>.</td></tr>
+<tr><td>MLflow UI navigation</td><td colspan="2" class="todo">⏳ not covered in the quick pass</td></tr>
+<tr><td>Hands-on lab (train → log → register → load → score)</td><td colspan="2" class="todo">⏳ never run</td></tr>
+</table>
+</div>
+
+<!-- ============================================ -->
+<h2 id="s2i">10. Stage 2I — Databricks Platform</h2>
+<p class="kv">Taught 2026-07-20 · DABs lab 2026-07-21 · Closed 2026-07-30 at your request · 5 of 8 items landed cleanly</p>
+
+<div class="scroll">
+<table>
+<tr><th>Topic</th><th>Status</th><th>Detail</th></tr>
+<tr><td>All-Purpose vs Job Cluster</td><td class="done">✅ passed</td><td>Cost, startup time, use case per type.</td></tr>
+<tr><td><strong>DBUs + cluster sizing for cost</strong></td><td class="part">🟡 2 corrections</td>
+    <td>You guessed DBU = data volume (it's a <em>compute-time</em> unit). Then guessed 4→8 nodes at half the runtime = lower cost — it's actually <strong>cost-neutral</strong>. <strong>Redo from blank.</strong></td></tr>
+<tr><td>Databricks Workflows vs Airflow</td><td class="done">✅ passed</td><td>When each is the right call.</td></tr>
+<tr><td>Secret scopes</td><td class="done">✅ passed</td><td>Databricks-backed vs Key-Vault-backed; you correctly named AWS Secrets Manager as the cross-cloud analog.</td></tr>
+<tr><td>CI/CD — Repos + Git + databricks-cli</td><td class="done">✅ passed</td><td>—</td></tr>
+<tr><td><strong>Databricks Asset Bundles (DABs)</strong></td><td class="done">✅ passed + lab done</td>
+    <td>Your #1 DEA miss, passed cleanly on retest. <code>databricks.yml</code> structure (bundle/targets/resources/include); <code>targets:</code> env config; deploy-time vs runtime vars (<code>--var</code> is baked at deploy — <code>bundle run --var</code> can't override it); <code>--auto-approve</code> for non-interactive CI/CD (<code>--force</code> is Git-branch override only).</td></tr>
+<tr><td><code>ai_query()</code> / Mosaic AI functions</td><td class="done">✅ passed</td><td>Inline LLM calls from SQL/PySpark.</td></tr>
+<tr><td><strong>Photon-enabled vs standard DBR</strong></td><td class="part">🟡 correction</td>
+    <td>Recap landed, but on Photon + Python UDF you guessed "accelerates a lot" — it actually <strong>bypasses Photon almost entirely</strong>, because the UDF forces a serialize→Python→deserialize round-trip outside the vectorized engine. <strong>Redo from blank.</strong></td></tr>
+</table>
+</div>
+
+<h4>Hands-on — DABs lab (2026-07-21, Free Edition)</h4>
+<div class="card good">
+<code>bundle init</code> (default Python template: notebook job + Lakeflow ETL pipeline + wheel package) →
+defined <strong>dev and prod targets</strong> → <code>bundle validate</code> → <code>bundle deploy</code> to <em>both</em> targets.
+Note this contradicts the older "DABs lab never run" line in the plan file — the lab <em>was</em> run on 7/21.
+</div>
+
+<!-- ============================================ -->
+<h2 id="labs">11. Hands-on lab index — what was actually run</h2>
+<p>Every runnable artifact lives in one file: <code>P2_Spark_Databricks/databricks_exercises.py</code>.
+It is an as-run record, not a tutorial — the code in it is what executed, with observed output in comments.</p>
+
+<div class="scroll">
+<table>
+<tr><th>§</th><th>Lab</th><th>Date</th><th>Environment</th><th>What it proved</th></tr>
+<tr><td>1</td><td>From-blank job/stage/shuffle counting</td><td>2026-06</td><td>paper + CE</td><td>DAG decomposition without running the code.</td></tr>
+<tr><td>2</td><td><strong>Salting / skew fix</strong></td><td>2026-06-08</td><td>Databricks CE</td><td>16× skew ratio measured from Spark UI; 9 salt buckets derived; join salting fixed it.</td></tr>
+<tr><td>3</td><td>Delta from-blank checks, session 1</td><td>2026-06-12</td><td>CE</td><td><code>_delta_log</code> replay + checkpoint arithmetic.</td></tr>
+<tr><td>4</td><td>Delta from-blank checks, sessions 2+</td><td>2026-06-15</td><td>CE</td><td>Time travel, OPTIMIZE/Z-ORDER, VACUUM horizon, MERGE, CDF.</td></tr>
+<tr><td>5</td><td><strong>Streaming checkpoint lab</strong></td><td>2026-07-06</td><td>Free Edition (serverless)</td><td>0..1876 exactly once across restart; checkpoint deleted → duplicates.</td></tr>
+<tr><td>6</td><td><strong>Lakeflow expectations lab</strong></td><td>2026-07-16</td><td>Free Edition</td><td>DROP 6→4 rows; WARN kept + flagged; FAIL → <code>EXPECTATION_VIOLATION</code>.</td></tr>
+<tr><td>6b</td><td>Streaming table vs MV idempotency</td><td>2026-07-16</td><td>Free Edition</td><td>Recompute vs append semantics, side by side.</td></tr>
+<tr><td>7</td><td><strong>Unity Catalog governance lab</strong></td><td>2026-07-16</td><td>Free Edition (SQL)</td><td>Column mask + row filter + real GRANT + lineage graph.</td></tr>
+<tr><td>8</td><td><strong>Auto Loader incremental ingest</strong></td><td>2026-07-17</td><td>Free Edition</td><td>"1, not 3" — checkpoint skip proven; two-schema-guard discovery.</td></tr>
+<tr><td>—</td><td><strong>DABs bundle deploy</strong></td><td>2026-07-21</td><td>Free Edition + CLI</td><td>dev + prod targets validated and deployed.</td></tr>
+<tr><td>—</td><td>Spark UI live session</td><td>2026-06-03/08</td><td>Databricks CE</td><td>BroadcastHashJoin confirmed; shuffle read sizes read directly.</td></tr>
+</table>
+</div>
+
+<!-- ============================================ -->
+<h2 id="gaps">12. Open gaps + redo-before-interview list</h2>
+
+<div class="card bad">
+<h4 style="margin-top:0">Tier 1 — redo from blank before any Databricks-flavoured round</h4>
+<ol>
+<li><strong>DBU cost math + cluster sizing</strong> (2I) — needed two corrections; the node-doubling cost-neutrality
+result is counter-intuitive and you got it wrong.</li>
+<li><strong>Photon + Python UDF interaction</strong> (2I) — answered wrong. The correct answer is that a Python UDF
+bypasses Photon almost entirely.</li>
+<li><strong>Unity Catalog grant hierarchy</strong> (2F) — passed on retest, but it was your original DEA miss.
+<code>USE CATALOG</code> + <code>USE SCHEMA</code> + <code>SELECT</code>, and no <code>DENY</code>.</li>
+</ol>
+</div>
+
+<div class="card warn">
+<h4 style="margin-top:0">Tier 2 — never run / never verified</h4>
+<ol>
+<li><strong>SCD Type 2 with Delta <code>MERGE INTO</code> — the hands-on lab was never run.</strong> Concept and the
+merge_key trick were taught 2026-07-23; the lab against a real Delta table is still owed. This matters more than
+the others because <strong>SCD2 cold recall has regressed twice</strong> (2026-07-28 and 2026-07-31) —
+both times you correctly placed the change on the <em>dimension</em> (the harder half) but couldn't name Type 2
+or the <code>effective_from</code>/<code>effective_to</code>/<code>is_current</code> mechanism.
+Open-book walkthrough exists at <code>P2J_Data_Modeling/P2J_SCD_Types_and_Fact_Types.html</code>.</li>
+<li><strong>Data Vault 2.0</strong> — the only fully untouched 2J topic. Teaching script is written and parked at
+<code>interview_prep/data_vault_2_session.md</code> (hubs/links/satellites, hash keys, load_date/record_source, Synthea hands-on,
+4 interview questions). Run the Part 4.0 SCD2 cold drill <em>before</em> teaching satellites.</li>
+<li><strong>MLflow</strong> — all three checks missed, lab skipped (see §9).</li>
+<li><strong>MLflow UI navigation</strong> — not covered at all.</li>
+<li><strong>Fact-table naming</strong> — improving (you produced <code>factOrders</code> unprompted on 2026-07-28,
+after missing it 3× on 7/23). One more cold check before calling it closed. The rule to carry:
+<em>name a fact table after the business event/verb, never after a measure or a dimension-shaped noun</em>.</li>
+</ol>
+</div>
+
+<div class="card info">
+<h4 style="margin-top:0">Blocker for any future hands-on</h4>
+<strong>The Synthea CSVs are gone from disk.</strong> Only <code>~/Downloads/clinicalflow/synthea.jar</code> survives;
+<code>~/output/csv/</code> is missing. Regenerate before any ClinicalFlow or Data Vault hands-on work.
+</div>
+
+<!-- ============================================ -->
+<h2 id="files">13. Where everything lives</h2>
+<p class="kv">Repo: <code>github.com/SayantaniNath/de-interview-prep-spark-delta-kafka</code> ·
+local root: <code>~/Downloads/My Learning Journey on DE/</code></p>
+
+<div class="scroll">
+<table>
+<tr><th>File</th><th>Contains</th></tr>
+<tr><td><code>P2_Spark_Databricks/P2A_2B_Spark_Internals/Spark_Architecture_Walkthrough.html</code></td>
+    <td><strong>The main teaching doc.</strong> §1–§27 Spark + Delta, plus 2D Structured Streaming and 2E Lakeflow sections. All Spark learning appends here — never a new Spark file.</td></tr>
+<tr><td><code>P2_Spark_Databricks/databricks_exercises.py</code></td>
+    <td><strong>Every hands-on lab, as-run</strong>, §1–§8 with observed output in comments.</td></tr>
+<tr><td><code>P2_Spark_Databricks/Databricks_QA_Log.html</code></td>
+    <td>Platform Q&amp;A: UC catalogs, Photon/Catalyst/Tungsten layer map, 2E schema drift, the DEA practice-test misses, and the 2I session.</td></tr>
+<tr><td><code>P2_Spark_Databricks/PySpark_QA_Log.html</code></td><td>PySpark coding Q&amp;A.</td></tr>
+<tr><td><code>P2_Spark_Databricks/P2A_2B_Spark_Internals/Spark_UI_Walkthrough.html</code></td><td>Reading the Spark UI — stages, shuffle read/write, skew detection.</td></tr>
+<tr><td><code>P2_Spark_Databricks/Spark_Master_Checklist.html</code></td><td>Topic checklist for Pillar 2.</td></tr>
+<tr><td><code>P2J_Data_Modeling/P2J_SCD_Types_and_Fact_Types.html</code></td><td>SCD types + the three fact-table types, written after the 7/31 regression.</td></tr>
+<tr><td><code>interview_prep/data_vault_2_session.md</code></td><td>Data Vault 2.0 teaching script — <strong>built but never delivered</strong>.</td></tr>
+<tr><td><code>interview_prep/kimball_cold_drills.md</code></td><td>SCD2 + fact-naming cold-retrieval battery — <strong>built, hard-stopped at Checkpoint 2 on 7/31</strong>.</td></tr>
+<tr><td><code>P6_Certifications/…</code></td><td>DEA prep + the six weak areas from the 2026-07-07 practice test.</td></tr>
+</table>
+</div>
+
+<!-- ============================================ -->
+<h2 id="quickfire">14. Interview quick-fire</h2>
+<p>Ten answers you should be able to give in under 30 seconds each. All of these are things you have
+<em>already demonstrated</em> — this is retrieval practice, not new material.</p>
+
+<div class="scroll">
+<table>
+<tr><th>Question</th><th>The 30-second answer</th></tr>
+<tr><td>How do you detect skew?</td><td>Spark UI shuffle read: compare Max against the non-zero Median. Mine was 41,468 vs 2,596 = 16×. Watch out — a broadcast join or partial aggregation will mask it.</td></tr>
+<tr><td>How many salt buckets?</td><td><code>ceil(max_partition_size ÷ target_size)</code>. Mine: ceil(41,468 ÷ 5,000) = 9.</td></tr>
+<tr><td>What's in a Delta checkpoint?</td><td>Parquet snapshot of the log state every 10 commits, plus a <code>_last_checkpoint</code> pointer so a reader starts there instead of replaying every JSON commit.</td></tr>
+<tr><td>Why does VACUUM matter?</td><td>It deletes files no longer referenced past the retention horizon (7 days default) — which permanently destroys time travel before that point.</td></tr>
+<tr><td>Streaming checkpoint folders?</td><td><code>offsets/</code> = WAL written before processing. <code>commits/</code> = written after the sink succeeds. <code>metadata/</code> = the appId. Delete metadata and you get duplicates, because Delta's dedup key is appId+version.</td></tr>
+<tr><td>Watermark semantics?</td><td>The cutoff is computed from the max event time seen so far, minus the threshold — not from the event under test.</td></tr>
+<tr><td>Expectations: warn/drop/fail?</td><td>Drop = the row is the problem. Fail = the system is the problem. Warn = you're still learning what normal looks like.</td></tr>
+<tr><td>UC grant hierarchy?</td><td><code>USE CATALOG</code> + <code>USE SCHEMA</code> to traverse, <code>SELECT</code> to read. Both required. No DENY — deny-by-default with GRANT/REVOKE, granted to groups.</td></tr>
+<tr><td>Auto Loader schema evolution failed — where?</td><td>Two independent guards. Read side = <code>schemaEvolutionMode</code> in <code>schemaLocation</code>; write side = <code>mergeSchema</code> in <code>_delta_log</code>. <code>DeltaSink.updateMetadata</code> in the trace means it's the write. And on UC standard access mode, Table ACLs block auto-migration, so you ALTER TABLE explicitly.</td></tr>
+<tr><td>Does Photon speed up my Python UDF?</td><td>No — it bypasses Photon almost entirely. The UDF forces a serialize → Python → deserialize round-trip outside the vectorized engine.</td></tr>
+</table>
+</div>
+
+<div class="card" style="margin-top:34px">
+<span class="tag">Next</span> The highest-value single item on this page is the
+<strong>SCD2 + Delta MERGE INTO hands-on lab</strong> — it closes a stage that's marked complete, patches a
+concept that has regressed twice, and unblocks the Data Vault script that's been sitting written-but-undelivered since 2026-07-29.
+</div>
+
+</div>
+</body>
+</html>

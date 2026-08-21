@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>P2J — SCD Types &amp; Fact Table Types</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+         max-width: 900px; margin: 2rem auto; padding: 0 1.25rem; line-height: 1.6; color: #1c1e21; }
+  h1 { border-bottom: 3px solid #0b5fff; padding-bottom: .4rem; }
+  h2 { margin-top: 2.2rem; border-bottom: 1px solid #d8dbdf; padding-bottom: .3rem; }
+  h3 { margin-top: 1.6rem; color: #0b3d91; }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: .95rem; }
+  th, td { border: 1px solid #d8dbdf; padding: .5rem .65rem; text-align: left; vertical-align: top; }
+  th { background: #f1f4f9; }
+  code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  code { background: #f1f4f9; padding: .1rem .3rem; border-radius: 3px; font-size: .9em; }
+  pre { background: #f6f8fa; border: 1px solid #d8dbdf; border-radius: 6px; padding: .8rem; overflow-x: auto; font-size: .88rem; }
+  .rule { background: #fff8e1; border-left: 4px solid #f0a500; padding: .8rem 1rem; margin: 1.2rem 0; }
+  .gap { background: #ffeceb; border-left: 4px solid #d93025; padding: .8rem 1rem; margin: 1.2rem 0; }
+  .win { background: #e9f7ef; border-left: 4px solid #1e8e3e; padding: .8rem 1rem; margin: 1.2rem 0; }
+  .meta { color: #5f6368; font-size: .9rem; }
+</style>
+</head>
+<body>
+
+<h1>P2J — SCD Types &amp; Fact Table Types</h1>
+<p class="meta">Session: Friday 2026-07-31 · Salesforce Data Modeler prep (interview Tue 2026-08-04) · Kimball cold drill, Block 0 + SCD-1</p>
+
+<div class="gap">
+<strong>Why this doc exists:</strong> SCD Type 2 failed cold retrieval for the <em>second</em> time (7/28 and 7/31). One re-teach has not held. Approach changed to spaced re-testing (Sat 8/1 + Mon 8/3), not another lecture. This is the open-book reference for those re-tests.
+</div>
+
+<h2>1. Is it a business process?</h2>
+
+<p>A business process is something the business <strong>does</strong> — a verb, captured by an operational system, happening at a point in time and producing numbers. Three tests:</p>
+
+<table>
+<tr><th>Test</th><th>Question</th><th>Verdict</th></tr>
+<tr><td>Timestamp</td><td>Does it <em>happen</em> at a moment, or does it just <em>exist</em>?</td><td>Happens → process. Just is → dimension.</td></tr>
+<tr><td>Measures</td><td>Does the event produce numbers worth summing or counting?</td><td>Yes → fact table.</td></tr>
+<tr><td>Grain</td><td>Is this a <em>new</em> grain, or the same row at a later time?</td><td>Same grain later → milestone (a column), not a new table.</td></tr>
+</table>
+
+<p>From a confirmed process you derive four things: the <strong>fact table</strong> (named after the event), the <strong>grain</strong> (one row per <em>what</em>), the <strong>measures</strong> (numbers the event produced), and the <strong>dimensions</strong> (the who/what/where/when hanging off it).</p>
+
+<div class="rule">
+<strong>Carry rule:</strong> A new fact table needs a <em>different grain</em>, not a <em>later timestamp</em>.
+</div>
+
+<h2>2. The three fact table types</h2>
+
+<p>The discriminator is <strong>what causes a row to exist</strong> — not how often it happens.</p>
+
+<table>
+<tr><th>Type</th><th>Rows are born from</th><th>One-question test</th><th>Additivity</th></tr>
+<tr><td><strong>Transaction</strong></td><td>An event</td><td>Nothing happened yesterday → <strong>no row</strong> for yesterday</td><td>Fully additive</td></tr>
+<tr><td><strong>Periodic snapshot</strong></td><td>The clock/calendar</td><td>Nothing happened yesterday → <strong>row anyway</strong></td><td>Semi-additive (sum across products ✅, across days ❌)</td></tr>
+<tr><td><strong>Accumulating snapshot</strong></td><td>A lifecycle</td><td>One row per thing, <strong>updated in place</strong> as milestones complete</td><td>Milestone timestamps + lag measures</td></tr>
+</table>
+
+<div class="gap">
+<strong>Misconception corrected 7/31:</strong> "anything that happens frequently is a transaction fact." Frequency is irrelevant. A stock-price snapshot taken every second is <em>periodic</em>; a contract renewal once a year is a <em>transaction</em>.
+</div>
+
+<h3>Worked example — inventory (the two-sibling case)</h3>
+
+<p>SKU-A has 500 on hand. Mar 1 a truck brings 200. Nothing Mar 2–5. Mar 6 a truck brings 50.</p>
+
+<p><code>FactInventoryReceipt</code> — transaction, <strong>2 rows</strong>. Mar 2–5 do not exist in this table:</p>
+<pre>Mar 1 | SKU-A | WH-1 | 200
+Mar 6 | SKU-A | WH-1 |  50</pre>
+
+<p><code>FactInventorySnapshot</code> — periodic, <strong>6 rows</strong>, one per day regardless:</p>
+<pre>Mar 1 | 700    Mar 4 | 700
+Mar 2 | 700    Mar 5 | 700
+Mar 3 | 700    Mar 6 | 750</pre>
+
+<p>Sum the receipt column across days = 250 received, meaningful. Sum the snapshot column across days = 4,250, meaningless. Only the calendar-driven table has the semi-additive problem.</p>
+
+<p class="meta">The stock <em>having a value</em> is not the same as an <em>event occurring</em>. Apply the test to the table you are designing, not to the warehouse.</p>
+
+<h2>3. SCD Type 2 — the mechanism</h2>
+
+<p><strong>Scenario.</strong> Priya covers Northeast. In March she transfers to West. Comp analytics needs every deal closed before March to still roll up under Northeast, and every deal after under West. Same employee ID.</p>
+
+<p>You do <strong>not</strong> update her row. You close it and open a new one.</p>
+
+<p><code>DimSalesRep</code> — before:</p>
+<pre>rep_key | employee_id | region    | effective_from | effective_to | is_current
+501     | E-8842      | Northeast | 2023-01-01     | 9999-12-31   | TRUE</pre>
+
+<p>After the 15 March transfer — <strong>two rows</strong>:</p>
+<pre>rep_key | employee_id | region    | effective_from | effective_to | is_current
+501     | E-8842      | Northeast | 2023-01-01     | 2026-03-14   | FALSE
+502     | E-8842      | West      | 2026-03-15     | 9999-12-31   | TRUE</pre>
+
+<table>
+<tr><th>Column</th><th>Job it does</th></tr>
+<tr><td><code>rep_key</code></td><td>Surrogate key — a <strong>new one per version</strong>. This is what makes the design work.</td></tr>
+<tr><td><code>employee_id</code></td><td>Natural/business key — <strong>identical</strong> on both rows. It's what says "these two rows are one person."</td></tr>
+<tr><td><code>effective_from</code> / <code>effective_to</code></td><td>The window in which this version was true. Open-ended row carries <code>9999-12-31</code>.</td></tr>
+<tr><td><code>is_current</code></td><td>Flag ETL uses to find the live row quickly.</td></tr>
+</table>
+
+<p>Optional additions: <code>version_number</code>, <code>row_hash</code> (for change detection), audit timestamps.</p>
+
+<h3>What the ETL does on the change date</h3>
+<ol>
+<li>Detect the change (row hash or column compare against the current row).</li>
+<li><code>UPDATE</code> the old row: set <code>effective_to</code> = change date, <code>is_current = FALSE</code>.</li>
+<li><code>INSERT</code> a new row with a <strong>new surrogate key</strong>, <code>effective_from</code> = change date, <code>effective_to</code> = 9999-12-31, <code>is_current = TRUE</code>.</li>
+</ol>
+<p><strong>Update-then-insert. Never overwrite the attribute in place.</strong></p>
+
+<h3>The payoff — why it's automatic</h3>
+<p>A January deal stored <code>rep_key = 501</code> on the fact; an April deal stores <code>502</code>. Comp analytics simply joins fact → dim on the surrogate key and history comes out correct — <strong>no date logic, and no filtering on <code>is_current</code></strong>. The fact froze the correct version at load time.</p>
+
+<div class="rule">
+<strong>Diagnostic to remember:</strong> if a historical report <em>has</em> to filter <code>is_current</code> to produce the right number, something upstream is already broken — most likely the fact stored the natural key instead of the surrogate key.
+</div>
+
+<h3>Fact-side lookup rules</h3>
+<ul>
+<li><strong>Normal load:</strong> look up the dimension on the natural key where <code>is_current = TRUE</code>, store that surrogate key on the fact.</li>
+<li><strong>Late-arriving fact:</strong> look up instead with <code>event_date BETWEEN effective_from AND effective_to</code>. Range joins belong in ETL backfill/repair — not in consumer queries.</li>
+</ul>
+
+<h2>4. Type 1 vs Type 2 vs Type 3</h2>
+
+<table>
+<tr><th>Type</th><th>What it does</th><th>Use when</th></tr>
+<tr><td><strong>Type 1</strong></td><td>Overwrite in place; history lost</td><td>The old value was simply <strong>wrong</strong> (a correction), or nobody analyzes by the attribute</td></tr>
+<tr><td><strong>Type 2</strong></td><td>New row per version; full history kept</td><td>The old value was <strong>right at the time</strong> and past facts must still roll up to it</td></tr>
+<tr><td><strong>Type 3</strong></td><td><code>prior_value</code> column on the same row; one step of history</td><td>Only the immediately previous value is needed, side by side with current</td></tr>
+</table>
+
+<p class="meta">Discriminator to say out loud in an interview: <em>"Is the old value wrong, or was it right at the time?"</em> Wrong → Type 1. Right at the time → Type 2.</p>
+
+<h2>2b. Structural difference — what the three fact tables actually look like</h2>
+
+<p>The tell: <strong>how many date keys the table has, and whether rows get updated.</strong></p>
+
+<p><strong>Transaction</strong> — one date key, insert-only:</p>
+<pre>FactOrderLine
+order_date_key | product_key | store_key | customer_key
+order_id (degenerate) | line_number
+quantity | sales_amount | discount_amount        &lt;- fully additive</pre>
+<p>Rows born from events, never updated, grows with business volume.</p>
+
+<p><strong>Periodic snapshot</strong> — one date key, insert-only, rows born from the <em>calendar</em>:</p>
+<pre>FactInventorySnapshot
+snapshot_date_key | product_key | warehouse_key
+on_hand_qty | on_hand_value | units_received_today   &lt;- semi-additive</pre>
+<p>Every SKU × warehouse × day gets a row whether or not anything moved. Predictable size = dimensions × periods.</p>
+
+<p><strong>Accumulating snapshot</strong> — <strong>many</strong> date keys, rows get <code>UPDATE</code>d:</p>
+<pre>FactOrderFulfillment
+order_key (one row per order)
+order_date_key | packed_date_key | shipped_date_key | delivered_date_key
+customer_key | warehouse_key | current_status_key
+order_amount
+days_order_to_ship | days_ship_to_deliver | days_total   &lt;- lag measures</pre>
+<p>Inserted when the order is placed, later date keys pointing at a "not yet happened" row in the date dimension; each milestone rewrites the row.</p>
+
+<table>
+<tr><th></th><th>Transaction</th><th>Periodic</th><th>Accumulating</th></tr>
+<tr><td>Rows born from</td><td>an event</td><td>the clock</td><td>a lifecycle starting</td></tr>
+<tr><td>Date keys</td><td>1</td><td>1</td><td>many (one per milestone)</td></tr>
+<tr><td>Write pattern</td><td>INSERT only</td><td>INSERT only</td><td>INSERT then <strong>UPDATE</strong></td></tr>
+<tr><td>Grows with</td><td>volume</td><td>dimensions × periods</td><td>lifecycle instances</td></tr>
+<tr><td>Measures</td><td>additive</td><td>semi-additive</td><td>durations, lags, status</td></tr>
+<tr><td>Typical question</td><td>"how much did we sell Tuesday?"</td><td>"what was on hand Tuesday?"</td><td>"how long from order to delivery?"</td></tr>
+</table>
+
+<div class="rule">
+Two lines worth saying in an interview: accumulating snapshots are the <strong>only</strong> fact type you routinely update — which is why Delta <code>MERGE INTO</code> shows up in these pipelines and why they are awkward on append-only storage. And if you are adding a <em>fourth</em> date key to a transaction fact, you actually have an accumulating snapshot.
+</div>
+
+<h2>2c. Column vs table — the cardinality test</h2>
+
+<div class="rule">
+<strong>1:1 with the row → column. 0-to-many with its own measures → its own table.</strong><br>
+"It happens later" never decides it. Settlement happens later and is a <em>column</em>; a chargeback happens later and is a <em>table</em>. The difference is cardinality, not the clock.
+</div>
+
+<p><strong>Card payments worked example.</strong> <code>FactPayment</code> = accumulating snapshot, one row per payment attempt, <code>auth_ts</code> / <code>capture_ts</code> / <code>settle_ts</code> as columns, updated in place — auth and settle are the same money, exactly 1:1. <code>FactChargeback</code> = separate transaction fact: most payments have <strong>zero</strong>, some have one, some are disputed twice or charged back for a <em>partial</em> amount with its own reason code and outcome. A column cannot hold "two chargebacks," and you would carry millions of NULLs.</p>
+
+<h2>4b. Additivity — additive / semi-additive / non-additive</h2>
+
+<table>
+<tr><th>Type</th><th>Sums across…</th><th>Examples</th><th>How to handle</th></tr>
+<tr><td><strong>Additive</strong></td><td>every dimension, time included</td><td><code>sales_amount</code>, quantity sold, receipts</td><td><code>SUM</code> anywhere</td></tr>
+<tr><td><strong>Semi-additive</strong></td><td>every dimension <em>except</em> time</td><td>on-hand inventory, account balance, headcount, subscribers</td><td>Across time use <code>AVG</code> / <code>LAST</code> / point-in-time, not <code>SUM</code></td></tr>
+<tr><td><strong>Non-additive</strong></td><td>nothing</td><td>occupancy rate, margin %, conversion rate, unit price</td><td><strong>Store numerator and denominator as additive facts; compute the ratio at query time</strong></td></tr>
+</table>
+
+<p>700 units Mon + 700 Tue ≠ 1,400 — same stock counted twice (semi-additive). 40% + 60% ≠ 100% (non-additive). Periodic snapshots are the classic semi-additive table.</p>
+
+<div class="rule">
+<strong>Why this kills bad table names:</strong> you cannot store a ratio at a grain. <code>FactOccupancyRate</code> / <code>FactRevPAR</code> are impossible tables — you store the <em>countable thing</em> that produces both halves (<code>FactRoomNight</code>) and divide at query time.
+</div>
+
+<h2>4c. Deriving the grain — reusable formula</h2>
+
+<p><strong>Grain = the composite unique key of the fact table, stated in business language.</strong></p>
+<ol>
+<li><strong>Name the event</strong> (verb, not measure) → that's the table name.</li>
+<li>Ask: <em>what is the smallest thing that produced one row?</em> → the atomic entity.</li>
+<li>List the dimensions you must fix to land on <strong>exactly one</strong> row — dimensions only, never measures.</li>
+<li>Say: <strong>"one row per ⟨A⟩ per ⟨B⟩ per ⟨C⟩."</strong></li>
+</ol>
+<p>Two checks: <strong>Countable?</strong> — the sentence should let someone compute the row count (3M meters × 96 fifteen-minute intervals = 288M rows/day). <strong>Low enough?</strong> — if they asked "which procedures," claim-header grain fails.</p>
+<p>Rule of thumb: <strong>go to the most atomic level the source gives you. You can always roll up; you can never roll down.</strong></p>
+
+<h2>4d. Fact-table naming — the trap and the fix</h2>
+
+<div class="gap">
+<strong>The failure shape (7/23 and again 7/31):</strong> naming the table after <em>the number the executive asked for</em> instead of <em>the thing that happened</em>.
+</div>
+
+<table>
+<tr><th>Scenario</th><th>Wrong (derived measure)</th><th>Right (the event)</th><th>Grain</th></tr>
+<tr><td>Smart meters</td><td><code>FactMeterConsumption</code>, <code>FactUsage</code></td><td><code>FactMeterReading</code></td><td>one row per meter per 15-minute interval</td></tr>
+<tr><td>Hotel occupancy</td><td><code>FactRevenue</code>, <code>FactOccupancyRate</code>, <code>FactRevPAR</code></td><td><code>FactRoomNight</code></td><td>one row per room per property per night, occupied <em>or vacant</em></td></tr>
+<tr><td>Airline OTP</td><td><code>FactAirlinePerformance</code>, <code>FactDelay</code>, <code>FactFlightSchedule</code></td><td><code>FactFlightLeg</code></td><td>one row per leg per scheduled departure date</td></tr>
+</table>
+
+<div class="rule">
+<strong>Naming rule to carry:</strong> the fact table is named after <em>the verb in the sentence</em>, never <em>the noun in the metric</em>. Finish "one row per ___" first — then name the table after that thing.
+</div>
+
+<h3>The mechanical motion (taught 7/31 after the 4th repeat slip)</h3>
+
+<p><strong>The table name is the noun phrase at the end of your own grain sentence.</strong> Do not invent a name — read it off the grain you just said.</p>
+
+<table>
+<tr><th>Grain sentence</th><th>Name</th></tr>
+<tr><td>one row per meter per <strong>15-min reading</strong></td><td><code>FactMeterReading</code></td></tr>
+<tr><td>one row per room per <strong>night</strong></td><td><code>FactRoomNight</code></td></tr>
+<tr><td>one row per <strong>flight leg</strong> per date</td><td><code>FactFlightLeg</code></td></tr>
+<tr><td>one row per member per <strong>class booking</strong></td><td><code>FactClassBooking</code></td></tr>
+<tr><td>one row per <strong>claim line</strong></td><td><code>FactClaimLine</code></td></tr>
+</table>
+
+<h3>Deriving the name in three questions (worked on the airline case)</h3>
+<ol>
+<li><strong>Cross out every metric word in the question.</strong> "on-time performance", "delay causes" — both are analysis, neither ever <em>happens</em>, so neither can name a table. If little is left, the question handed you metrics only and you must supply the event yourself.</li>
+<li><strong>What physically happened?</strong> A plane pushed back at SFO, flew, landed at ORD. Past tense, real-world verb: <em>a flight operated.</em></li>
+<li><strong>"One row per ___?"</strong> Per flight number? No — one row for all history. Per flight number per date? Closer. But UA328 may fly SFO→ORD→JFK — one number, two hops, each with its own delay. Atomic unit = the <strong>leg</strong>. → one row per flight leg per scheduled departure date → <code>FactFlightLeg</code>.</li>
+</ol>
+
+<p><strong>Keep the denominator.</strong> Vacant hotel rooms get rows; on-time flights get rows. <code>FactAirlineDelay</code> would contain only late flights, so on-time <em>rate</em> becomes uncomputable. Filtering the denominator out of existence is the same non-additive mistake one layer down.</p>
+
+<p><strong>Legitimate second facts</strong> (different grain, therefore different table): <code>FactCustomerBill</code> alongside meter readings; <code>FactReservation</code> alongside room-nights — one booking of 3 nights = 1 reservation row but 3 room-night rows, and only reservations know booking lead time.</p>
+
+<h2>5. Drill results — 2026-07-31</h2>
+
+<table>
+<tr><th>Item</th><th>Asked</th><th>Result</th></tr>
+<tr><td>D-1</td><td>Customer writes a product review — process?</td><td>❌ Said "not a business process"; nudge didn't land. It is one → <code>FactProductReview</code>.</td></tr>
+<tr><td>D-2</td><td>An order is delivered</td><td>🟡 <strong>Avoided the trap</strong> — no <code>FactDelivery</code>, kept it on the order row (this was the 7/28 failure, so real progress). Could not name "accumulating snapshot"; answered <code>FactOrderDelivered</code>.</td></tr>
+<tr><td>D-3</td><td>A supplier restocks inventory</td><td>🟡 Process ✅ and named the <em>event</em> (<code>factRestock</code>) not a derived measure ✅ — fact-naming gap holding. Fact <em>type</em> wrong: said periodic, it's transaction.</td></tr>
+<tr><td>SCD-1</td><td>Priya's region transfer</td><td>❌ <strong>"Not sure"</strong> — Checkpoint 2 failed. Second cold miss on Type 2. Battery stopped per the hard-stop rule; Block 2 (fact naming) not run.</td></tr>
+</table>
+
+<p><strong>Block 2 (fact naming) — run afterwards at her request, overriding the hard-stop:</strong></p>
+
+<table>
+<tr><th>Item</th><th>Asked</th><th>Result</th></tr>
+<tr><td>FN-1</td><td>Utility smart meters</td><td>🟡 <code>factMeterConsumption</code> — named the measure, not the event. Fact <em>types</em> both correct ✅ (periodic readings + transaction billing), raised the billing fact unprompted ✅. Grain sentence included a measure → corrected.</td></tr>
+<tr><td>FN-2</td><td>Hotel occupancy / RevPAR</td><td>❌ <code>FactRevenue</code> + <code>FactOccupancyRate</code> — the 7/23 trap verbatim. <strong>But the grain was right</strong> ("per property per room per day"), and after one nudge she recovered cleanly via non-additivity: "store num/den separately." → <code>FactRoomNight</code>.</td></tr>
+<tr><td>FN-3</td><td>Airline on-time performance</td><td>❌ <code>FactAirlinePerformance</code>, then <code>FactAirlineDelay</code> after the nudge. Derived-measure trap twice. → <code>FactFlightLeg</code>.</td></tr>
+</table>
+
+<p><strong>Block 2 continued — 3 more reps after the naming motion was taught:</strong></p>
+
+<table>
+<tr><th>Item</th><th>Result</th></tr>
+<tr><td>FN-4 fitness classes</td><td>🟡 gave three tables (<code>FactFitnessClassDetails</code>, <code>FactBooking</code>, <code>FactMembersAvailability</code>) — but <strong><code>FactBooking</code> is right</strong> and she produced it herself. Grain "per class per member per day" → refined to <strong>per class session</strong> (a class can run 6am and 6pm). ✅ Nailed the follow-up cold: no-show is a <em>column</em> on the booking row, same grain.</td></tr>
+<tr><td>FN-5 health insurance claims</td><td>🟡 <strong>grain correct and below header level</strong> ("per member per procedure per hospital per session") — she avoided the claim-header trap unprompted, the interesting wrong answer. Then named it <code>FactCostIncurred</code> ❌ — derived measure, 4th repeat. → <code>FactClaimLine</code>. This is where the "read the name off the grain" motion was given.</td></tr>
+<tr><td>FN-6 card payments (hardest)</td><td>🟡 said "transaction fact" first, then after one nudge produced <strong>accumulating snapshot</strong> ✅ for auth→settle. Chargeback: answered "another column on the same row" ❌ — <strong>over-applied</strong> the carry rule rather than ignoring it. → taught the missing half.</td></tr>
+</table>
+
+<div class="win">
+<strong>Diagnosis:</strong> this is a naming <em>habit</em>, not a concept gap — her grain reasoning was correct even when the name was wrong, and she applied non-additivity correctly under pressure to kill her own bad table name. Faster to fix than a concept miss.
+</div>
+
+<div class="win">
+<strong>Genuine wins to keep:</strong> fact-table <em>naming</em> is holding (named the event, not the KPI, on D-3 — the 7/23 gap). And the "later timestamp ≠ new fact table" instinct fired correctly on D-2 without prompting, which is exactly what failed on 7/28.
+</div>
+
+<div class="gap">
+<strong>Open, highest priority before Tue 8/4:</strong> naming SCD Type 2 cold, and connecting "milestone in a lifecycle" to the words <em>accumulating snapshot</em>. Plan: 5-minute cold re-tests Sat 8/1 and Mon 8/3 — spacing, not another lecture.
+</div>
+
+<h2>5b. Process vs dimension vs milestone — the three tests, and the rapid-fire results</h2>
+
+<table>
+<tr><th>Test</th><th>Question</th><th>Verdict</th></tr>
+<tr><td>Noun vs verb</td><td>Say it as a sentence — what's the verb?</td><td>No verb → dimension. An insurance <em>policy</em> exists; a policy being <em>issued</em> happens.</td></tr>
+<tr><td>Parent test</td><td>A milestone is always a stage of something <strong>already in flight</strong>. What row would it be a stage <em>of</em>?</td><td>No parent at the same grain → it's a process.</td></tr>
+<tr><td>Cardinality</td><td>How many per parent?</td><td>1:1 → column (milestone). 0-to-many with own measures → own table (process).</td></tr>
+</table>
+
+<p><strong>Careful with the parent test:</strong> a plausible parent still has to survive the grain check. Enrollment <em>feels</em> like a stage of admission — but admission is one row per student per program per term, while enrollment is one row per student per <em>course section</em> per term. One admission, five enrollments → different grain → own table.</p>
+
+<table>
+<tr><th>Item</th><th>Answer</th><th>Result 7/31</th></tr>
+<tr><td>Sales territory</td><td>Dimension (Type 2 candidate)</td><td>✅ clean</td></tr>
+<tr><td>A shipment clears customs</td><td><strong>Milestone</strong> — <code>customs_cleared_ts</code> column on the fulfillment accumulating snapshot</td><td>❌ said process. Same shape as the 7/28 "order packed at warehouse" miss — a verb + timestamp reading as a process. She did interrogate cardinality ("many times?"), which is the right move; the default is once per border crossing.</td></tr>
+<tr><td>A refund is issued</td><td><strong>Process</strong> — own transaction fact, 0-to-many per order, own amount + reason code</td><td>❌→✅ after nudge</td></tr>
+<tr><td>An insurance policy</td><td><strong>Dimension</strong> — has dates, but the timestamp test asks whether it <em>happens</em>, not whether it <em>has</em> a date</td><td>❌→✅ after nudge</td></tr>
+<tr><td>A student enrolls in a course</td><td><strong>Process</strong> — <code>FactEnrollment</code>, one row per student per course section per term, near-factless</td><td>❌ tried "milestone of admission"; killed by the grain check</td></tr>
+</table>
+
+<div class="win">
+<strong>The real finding: 1/5 clean, but every single nudge landed immediately.</strong> The tests work when she runs them; she answers on instinct first and reasons second. Not a knowledge gap — a sequencing habit.
+</div>
+
+<div class="rule">
+<strong>The one behavior change for interview day:</strong> before naming anything, say two sentences out loud —<br>
+<em>"What happened here is ___."</em> and <em>"One row per ___."</em><br>
+Slowly. Interviewers read it as method, not hesitation. Every miss on 7/31 came from skipping straight to the answer; the reasoning was never wrong when it was actually run.
+</div>
+
+<h2>6. Interview quick-fire</h2>
+
+<table>
+<tr><th>Question</th><th>Answer in one breath</th></tr>
+<tr><td>How do you preserve history on a changing dimension attribute?</td><td>SCD Type 2 — close the old row (<code>effective_to</code>, <code>is_current=FALSE</code>), insert a new row with a new surrogate key; natural key unchanged.</td></tr>
+<tr><td>What ties the two rows together?</td><td>The natural/business key. The surrogate key is what makes them <em>different</em>.</td></tr>
+<tr><td>How does a report get historically correct numbers?</td><td>The fact stored the surrogate key current at event time — plain join, no date logic, no <code>is_current</code> filter.</td></tr>
+<tr><td>Transaction vs periodic snapshot?</td><td>If nothing happened yesterday: no row → transaction; row anyway → periodic.</td></tr>
+<tr><td>When is Type 2 the wrong answer?</td><td>Attribute nobody groups by (Type 1); attribute churning faster than facts arrive (mini-dimension / Type 4); only one prior value needed (Type 3); source has no reliable change detection.</td></tr>
+<tr><td>Four delivery-stage timestamps — one table or four?</td><td>One. Accumulating snapshot, same grain, updated in place. A new fact table needs a different grain, not a later timestamp.</td></tr>
+</table>
+
+</body>
+</html>
